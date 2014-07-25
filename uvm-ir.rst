@@ -12,12 +12,12 @@ form for clients to generate µVM IR programs in a compact way and µVM's intern
 form of inter-referenced objects.
 
 This document describes the text form. For the binary form, see
-:doc:`uvm-ir-binary`.
+`<uvm-ir-binary>`__.
 
 For the documents of the type system and the instruction set, see:
 
-- :doc:`type-system`
-- :doc:`instruction-set`
+- `<type-system>`__
+- `<instruction-set>`__
 
 Example
 =======
@@ -98,11 +98,11 @@ Type Definition
 µVM provides a simple but expressive type system.
 
 A type is constructed by a finite but potentially recursive combination of type
-constructors, including :uvm:type:`int`, :uvm:type:`float`, :uvm:type:`double`,
-:uvm:type:`ref`, :uvm:type:`iref`, :uvm:type:`weakref`, :uvm:type:`struct`,
-:uvm:type:`array`, :uvm:type:`hybrid`, :uvm:type:`void`, :uvm:type:`func`,
-:uvm:type:`thread`, :uvm:type:`stack` and :uvm:type:`tagref64`. They are
-documented in :doc:`type-system`.
+constructors, including ``int``, ``float``, ``double``,
+``ref``, ``iref``, ``weakref``, ``struct``,
+``array``, ``hybrid``, ``void``, ``func``,
+``thread``, ``stack`` and ``tagref64``. They are
+documented in `<type-system>`__.
 
 In the text form, wherever a type is expected, it can be written inline using
 the above constructors or give a name to a type and reference that type by name.
@@ -161,8 +161,8 @@ floating-point numbers, structs and null values.
   constants must have type ``struct<...>``.
 - Null constants are constructed by the null literal, which is ``NULL``. Null
   constants must have reference types or opaque types referring to µVM objects
-  (these include :uvm:type:`ref`, :uvm:type:`iref`, :uvm:type:`weakref`,
-  :uvm:type:`func`, :uvm:type:`thread` and :uvm:type:`stack`). The ``NULL``
+  (these include ``ref``, ``iref``, ``weakref``,
+  ``func``, ``thread`` and ``stack``). The ``NULL``
   value is the value that does not refer to anything. Other values of these
   types cannot be defined as constants, i.e. it is impossible to make a const
   reference to a heap object. If such references are needed, ``.global`` is a
@@ -215,9 +215,9 @@ A global data definition has the form::
 where ``NAME`` is a global identifier and ``TYPE`` is the *referent* type.
 
 The identifier of global data defined by ``.global`` represents a constant SSA
-Value of type ``iref<T>``, an :uvm:type:`iref` (internal reference) to the
-global data whose type is ``T``. They can be used by :uvm:inst:`LOAD`,
-:uvm:inst:`STORE` and other memory operating instructions.
+Value of type ``iref<T>``, an ``iref`` (internal reference) to the
+global data whose type is ``T``. They can be used by ``LOAD``,
+``STORE`` and other memory operating instructions.
 
 For example::
 
@@ -285,9 +285,9 @@ function will replace the old one and all existing call sites to the old
 function will automatically call the new version.
 
 The identifier of a function defined by ``.funcdef`` or ``.funcdecl`` represents
-a constant SSA Value of type :uvm:type:`func`. It can be used by the
-:uvm:inst:`CALL`, :uvm:inst:`INVOKE`, :uvm:inst:`TAILCALL` and
-:uvm:inst:`NEWSTACK` instructions.
+a constant SSA Value of type ``func``. It can be used by the
+``CALL``, ``INVOKE``, ``TAILCALL`` and
+``NEWSTACK`` instructions.
 
 
 Function Identifier
@@ -295,7 +295,7 @@ Function Identifier
 
 Each function, declared or defined, has a unique function identifier, which is
 **not** the identifier in the text form or the binary form of the µVM IR. It is
-the value of the :uvm:type:`func` type, which is opaque in the sense that the
+the value of the ``func`` type, which is opaque in the sense that the
 underlying binary runtime representation is an implementation detail of the µVM.
 It may be implemented as the address of the compiled code, but does not have to
 be.
@@ -304,7 +304,7 @@ When a function is declared, such a unique ID is reserved for the function. When
 defining a function, the function ID is bound to the definition. When
 re-defining a function, the newly defined function body replaces the older
 version, but the function ID does not change. All existing values of the
-:uvm:type:`func` type remain valid, but refers to the newer version of the
+``func`` type remain valid, but refers to the newer version of the
 function, instead. All existing activation of the older version of the function
 remain to be valid. Decided by the implementation, the garbage collector may
 reclaim the space of compiled function code once there is no active frames of
@@ -325,7 +325,7 @@ The first basic block, called the entry block and conventionally named
 ``%entry``, is the unique entry point of a function.
 
 Each basic block contains a sequence of instructions. The grammar for each
-instruction is defined separately in :doc:`instruction-set`. In the text form,
+instruction is defined separately in `<instruction-set>`__. In the text form,
 each instruction may optionally have an identifier::
 
     %rv = OPCODE <type_param> arg1 arg2 ...
@@ -374,28 +374,28 @@ because the type of ``0`` can be inferred from the type parameter ``int<64>``.
 The last instruction of any basic block must be a terminating instruction, which
 is one of
 
-- :uvm:inst:`BRANCH`: Unconditional branching.
-- :uvm:inst:`BRANCH2`: Binary conditional branching.
-- :uvm:inst:`SWITCH`: Multi-way branching.
-- :uvm:inst:`INVOKE`: Call a function, anticipating an exception to be thrown.
-- :uvm:inst:`TAILCALL`: Call a function and return its return value.
-- :uvm:inst:`RET`: Return from a function.
-- :uvm:inst:`RETVOID`: Return from a function of :uvm:type:`void` return type.
-- :uvm:inst:`THROW`: Throw an exception to the caller.
-- :uvm:inst:`TRAP`: Transfer the control to the client for further processing.
+- ``BRANCH``: Unconditional branching.
+- ``BRANCH2``: Binary conditional branching.
+- ``SWITCH``: Multi-way branching.
+- ``INVOKE``: Call a function, anticipating an exception to be thrown.
+- ``TAILCALL``: Call a function and return its return value.
+- ``RET``: Return from a function.
+- ``RETVOID``: Return from a function of ``void`` return type.
+- ``THROW``: Throw an exception to the caller.
+- ``TRAP``: Transfer the control to the client for further processing.
   Exception may be thrown from the client.
-- :uvm:inst:`WATCHPOINT`: A trap that is disabled in the beginning and can be
+- ``WATCHPOINT``: A trap that is disabled in the beginning and can be
   enabled asynchronously by the client later during execution.
-- :uvm:inst:`IINVOKE`: Call an intrinsic function, anticipating an exception.
+- ``IINVOKE``: Call an intrinsic function, anticipating an exception.
 
 Two kinds of instructions must appear (in any order) in the beginning of any
 basic blocks except the entry block. They are
 
-- :uvm:inst:`PHI`: The phi-node of the SSA form. Its value depends on the
+- ``PHI``: The phi-node of the SSA form. Its value depends on the
   incoming control flow.
-- :uvm:inst:`LANDINGPAD`: Only used as the exceptional destination of
-  :uvm:inst:`INVOKE`, :uvm:inst:`TRAP`, :uvm:inst:`WATCHPOINT` and
-  :uvm:inst:`IINVOKE`, which anticipate an exception. Its value is an object
+- ``LANDINGPAD``: Only used as the exceptional destination of
+  ``INVOKE``, ``TRAP``, ``WATCHPOINT`` and
+  ``IINVOKE``, which anticipate an exception. Its value is an object
   reference to the exception object (which may be anything since µVM only
   require that exceptions are object references, but does not define the content
   of such objects).
@@ -420,11 +420,11 @@ An SSA Value is one of
     the type expected by the respective instructions they are used in.
 
   - The identifier of Global data defined by ``.global`` represents a constant
-    SSA Value of type ``iref<T>``, an :uvm:type:`iref` (internal reference) to
+    SSA Value of type ``iref<T>``, an ``iref`` (internal reference) to
     the global data whose type is ``T``.
 
   - The identifier of a function defined by ``.funcdef`` or ``.funcdecl``
-    represents a constant SSA Value of type :uvm:type:`func`.
+    represents a constant SSA Value of type ``func``.
 
 - instruction: The Value which is computed. Specifically,
 
@@ -438,6 +438,6 @@ the beginning of the entry block.
 The Instruction Set
 -------------------
 
-The full instruction set can be found in :doc:`instruction-set`.
+The full instruction set can be found in `<instruction-set>`__.
 
 .. vim: textwidth=80
