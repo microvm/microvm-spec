@@ -1,0 +1,91 @@
+================
+MicroVM Overview
+================
+
+µVM is a low-level virtual machine (not to be confused with the existing LLVM
+project). It is a thin layer over the OS level. It has a low-level type system
+and instruction set, but has native support for three major functions:
+
+- garbage collection
+- concurrency
+- just-in-time compiling
+
+Traditional virtual machines must implement them as well as implementing the
+high-level programming language. When a programming language is implemented on
+top of the µVM, it can depend on the µVM for proper GC, JIT and concurrency
+support.
+
+Take Java as an example. If Java were implemented on top of µVM, it only needs
+to handle JVM-specific features, including the byte-code format, class loading
+and aspects of object-oriented programming.
+
+::
+
+    Traditional JVM
+    +-------------------+           +-----------------------+
+    |                   |           |                       |
+    |  *JVM*            |           |  *Java Client*        |
+    | byte code format  |           | byte-code format      |
+    | class loading     |           | class loading         |
+    | OOP               |           | OOP                   |
+    | GC                |           |                       |
+    | concurrenty       |           +-----------------------+
+    | JIT compiling     |           |  *µVM*                |
+    |                   |           | GC,concurrency,JIT    |
+    +-------------------+           +-----------------------+
+    |  *OS*             |           |  *OS*                 |
+    +-------------------+           +-----------------------+
+
+How It Works
+============
+
+The whole system is divided into a language-specific **client** and a
+language-neutral **Micro Virtual Machine**, a.k.a. **µVM**.
+
+::
+
+         | source code or byte code
+         v
+    +-----------------+
+    | client          |
+    +-----------------+
+              |   ^
+    µVM IR /  |   | trap/watchpoints
+    API call  |   | other events
+              v   |
+    +-----------------+  manages   +----------+
+    | µVM             |----------->| µVM heap |
+    +-----------------+            +----------+
+
+A typical client implements a high-level language (*e.g.,* Python or
+Lua). Such a client would be responsible for loading, parsing and
+executing the source code.  The client may implement execution by
+interpreting and using µVM only when JIT-compiling is needed for hot
+code. It may also totally depend on the µVM as the execution engine.
+
+The client presents programs to the µVM in a language called **µVM Intermediate
+Representation**, a.k.a. **µVM IR**. µVM IR can define the following things
+
+- types
+- function signatures
+- constants
+- global data
+- functions (declare or define)
+
+But µVM IR alone is not sufficient for implementing a language. A specific µVM
+implementation provides APIs for the clients to do more things, including:
+
+- load µVM IR code
+- start executing a function
+- allocate objects and perform load/store on the heap. This allows
+  pre-allocating objects before the main function runs.
+- handle traps and do on-stack replacement (OSR)
+- handle the calls to functions which are declared but not defined
+- handle the event when an object referred by a weak reference is about to be
+  garbage-collected.
+
+See `µVM IR <uvm-ir>`__ for an overview of the µVM IR.
+
+The documentation of the implementation will be provided soon.
+
+.. vim: tw=80
