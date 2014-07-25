@@ -285,7 +285,7 @@ Example::
 Selection (a.k.a. Conditional Move)
 -----------------------------------
 
-``SELECT < T > cond iftrue iffalse``
+- ``SELECT < T > cond iftrue iffalse``
 
     ``T``
         *type*: The type of ``iftrue``, ``iffalse`` and the result.
@@ -326,7 +326,7 @@ The following instructions are for jumping within a function.
 One-way (unconditional) Branch
 ------------------------------
 
-``BRANCH dest``
+- ``BRANCH dest``
 
     ``dest``
         *label*: The destination of jumping.
@@ -353,7 +353,7 @@ Example::
 Two-way Branch
 --------------
 
-``BRANCH2 cond iftrue iffalse``
+- ``BRANCH2 cond iftrue iffalse``
 
     ``cond``
         *value* of ``int<1>``: The condition
@@ -390,7 +390,7 @@ Example::
 Multi-way Branch (Switching)
 ----------------------------
 
-``SWITCH < T > opnd default { case1 : dest1 ; case2 : dest2 ; ...  }``
+- ``SWITCH < T > opnd default { case1 : dest1 ; case2 : dest2 ; ...  }``
 
     ``T``
         *type*: The type of ``opnd`` and ``casex``
@@ -445,7 +445,7 @@ Example::
 Phi-node
 --------
 
-``PHI < T > { bb1 : val1 ; bb2 : val2 ; ...  }``
+- ``PHI < T > { bb1 : val1 ; bb2 : val2 ; ...  }``
 
     ``T``
         *type*: The type of this instruction and ``valx``.
@@ -626,14 +626,14 @@ Example::
 Normal Returning from Functions
 -------------------------------
 
-``RET < T > rv``
+- ``RET < T > rv``
 
     ``T``
         *type*: The return type.
     ``rv``
         *value* of ``T``: The return value.
 
-``RETVOID``
+- ``RETVOID``
 
 RET:
 
@@ -671,7 +671,7 @@ Example::
 Abrupt Returning
 ----------------
 
-``THROW exc``
+- ``THROW exc``
 
     ``exc``
         *value* of ``ref`` to any object: The exception object.
@@ -712,7 +712,7 @@ Example::
 Receiving the Exception
 -----------------------
 
-``LANDINGPAD``
+- ``LANDINGPAD``
 
     return value
         Type ``ref<void>``: The exception.
@@ -744,7 +744,7 @@ These instructions operate on the ``struct`` type as SSA Values.
 Extract Value
 -------------
 
-``EXTRACTVALUE < T index > opnd``
+- ``EXTRACTVALUE < T index > opnd``
 
     ``T``
         *type*, subtype of struct: The type of the operand.
@@ -789,7 +789,7 @@ Example::
 Insert Value
 ------------
 
-``INSERTVALUE < T index > opnd newval``
+- ``INSERTVALUE < T index > opnd newval``
 
     ``T``
         *type*, subtype of struct: The type of the operand.
@@ -844,7 +844,7 @@ Memory allocation
 
 This family of instructions allocate memory on the heap or the stack.
 
-``NEW < T >``
+- ``NEW < T >``
 
     ``T``
         *type*, not ``hybrid``: the type to allocate
@@ -869,7 +869,7 @@ Example::
     .typedef @Foo = struct <int<64> double double>
     %s = NEW <@Foo>              // ref<Foo>
 
-``NEWHYBRID < T > length``
+- ``NEWHYBRID < T > length``
 
     ``T``
         *type*, must be ``hybrid``: the type to allocate
@@ -897,7 +897,7 @@ Example::
     // %r refers to a heap object which has a struct header followed by 16
     // int<8>
 
-``ALLOCA < T >``
+- ``ALLOCA < T >``
 
     ``T``
         *type*, not ``hybrid``: the type to allocate
@@ -925,7 +925,7 @@ Example::
     .typedef @Foo = struct <int<64> double double>
     %s = ALLOCA <@Foo>               // iref<@Foo>
 
-``ALLOCAHYBRID < T > length``
+- ``ALLOCAHYBRID < T > length``
 
     ``T``
         *type*, must be ``hybrid``: the type to allocate
@@ -959,7 +959,7 @@ Memory Addressing
 This family of instructions manipulates references, but does not actually read
 or write memory.
 
-``GETIREF < T > opnd``
+- ``GETIREF < T > opnd``
 
     ``T``
         *type*: The type the operand refers to.
@@ -984,7 +984,7 @@ Example::
     %a = NEW <double>                           // ref<double>
     %b = GETIREF <double> %a                    // iref<double>
 
-``GETFIELDIREF < T index > opnd``
+- ``GETFIELDIREF < T index > opnd``
 
     ``T``
         *type*, must be ``struct``: The type the operand refers to.
@@ -1014,7 +1014,7 @@ Example::
     %a = ALLOCA <@Foo>
     %b = GETFIELDIREF <@Foo 1> %a               // iref<float>
 
-``GETELEMIREF < T > opnd index``
+- ``GETELEMIREF < T > opnd index``
 
     ``T``
         *type*, must be ``array``: The type the operand refers to.
@@ -1048,7 +1048,7 @@ Example::
     %a = ALLOCA <@Foo>
     %b = GETELEMIREF <@Foo> %a @ind             // iref<float>
 
-``SHIFTIREF < T > opnd offset``
+- ``SHIFTIREF < T > opnd offset``
 
     ``T``
         *type*, must be ``array``: The type the operand refers to.
@@ -1085,8 +1085,8 @@ Example::
     %b = GETELEMIREF <@Foo> %a 0                // iref<float>
     %c = SHIFTIREF <float> %b @ind              // iref<float>
 
-``GETFIXEDPARTIREF < T > opnd``
-``GETVARPARTIREF < T > opnd``
+- ``GETFIXEDPARTIREF < T > opnd``
+- ``GETVARPARTIREF < T > opnd``
 
     ``T``
         *type*, must be ``hybrid``: The type the operand refers to.
@@ -1161,8 +1161,8 @@ SEQ_CST     0x06    sequentially consistent
 
 See `<memory-model>`__ for more details.
 
-``LOAD < T > loc``
-``LOAD atomicOrd < T > loc``
+- ``LOAD < T > loc``
+- ``LOAD atomicOrd < T > loc``
 
     ``atomicOrd``
         *atomic ordering*: requirement for atomicity and memory ordering.
@@ -1197,8 +1197,8 @@ Example::
 
     // Note: all allocations initialise the memory to zero.
 
-``STORE < T > loc newval``
-``STORE atomicOrd < T > loc newval``
+- ``STORE < T > loc newval``
+- ``STORE atomicOrd < T > loc newval``
 
     ``atomicOrd``
         *atomic ordering*: requirement for atomicity and memory ordering.
@@ -1231,7 +1231,7 @@ Example::
     %i1 = GETFIELDIREF <@Foo 1> %i          // iref<double>
     STORE <double> %i1 3.14159d
 
-``CMPXCHG succOrd failOrd < T > loc expected desired``
+- ``CMPXCHG succOrd failOrd < T > loc expected desired``
 
     ``succOrd``, ``failOrd``
         *atomic ordering*: memory ordering when this operation is successful
@@ -1294,7 +1294,7 @@ Example 2::
     %done:
         // continue here
 
-``ATOMICRMW atomicOrd atomicRMWOp < T > loc opnd``
+- ``ATOMICRMW atomicOrd atomicRMWOp < T > loc opnd``
 
     ``atomicOrd``
         *atomic ordering*: requirement for atomicity and memory ordering.
@@ -1353,7 +1353,7 @@ Example::
 Fence
 -----
 
-``FENCE atomicOrd``
+- ``FENCE atomicOrd``
 
     ``atomicOrd``
         *atomic ordering*: requirement for atomicity and memory ordering.
@@ -1372,8 +1372,8 @@ For LLVM users: This is the counterpart of the ``fence`` instruction.
 Trap Instructions
 =================
 
-``TRAP < T > nor exc KEEPALIVE ( v1 v2 ... )``
-``WATCHPOINT wpid < T > dis nor exc KEEPALIVE ( v1 v2 ... )``
+- ``TRAP < T > nor exc KEEPALIVE ( v1 v2 ... )``
+- ``WATCHPOINT wpid < T > dis nor exc KEEPALIVE ( v1 v2 ... )``
 
     ``wpid``
         *intImmediate*: Watchpoint identifier.
@@ -1461,7 +1461,7 @@ Example 2: use ``TRAP`` as a client-assisted native function::
 C Foreign Function Interface
 ============================
 
-``CCALL callconv < sig > func ( arg1 arg2 ... )``
+- ``CCALL callconv < sig > func ( arg1 arg2 ... )``
 
     ``callconv``
         *calling convention*: The calling convention.
@@ -1565,7 +1565,7 @@ Example::
 Thread and Stack
 ================
 
-``NEWSTACK < sig > func ( arg1 arg2 ... )``
+- ``NEWSTACK < sig > func ( arg1 arg2 ... )``
 
     ``sig``
         *function signature*: The signature of the callee.
@@ -1600,10 +1600,10 @@ Theoretically, any instructions that matches these criteria can be implemented
 as intrinsic functions. For example: throw and landingpad. In practice, they are
 so special that they deserve their own instruction.
 
-``ICALL func ( arg1 arg2 ... )``
-``ICALL func ( arg1 arg2 ... ) KEEPALIVE ( v1 v2 ... )``
-``IINVOKE func ( arg1 arg2 ... ) nor exc``
-``IINVOKE func ( arg1 arg2 ... ) nor exc KEEPALIVE ( v1 v2 ... )``
+- ``ICALL func ( arg1 arg2 ... )``
+- ``ICALL func ( arg1 arg2 ... ) KEEPALIVE ( v1 v2 ... )``
+- ``IINVOKE func ( arg1 arg2 ... ) nor exc``
+- ``IINVOKE func ( arg1 arg2 ... ) nor exc KEEPALIVE ( v1 v2 ... )``
 
     ``func``
         *global identifier*: identifier for the intrinsic function.
