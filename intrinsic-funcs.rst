@@ -54,6 +54,4 @@ Math functions
 
 TODO: All functions available in math.h should be available in the µVM.
 
-.. uvm:ifunc:: 0x101 : @uvm.math.sin :: double (%opnd: double)
-
 .. vim: tw=80
