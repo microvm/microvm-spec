@@ -352,10 +352,15 @@ intrinsic functions can work on them.
 | 0x0E |
 +------+
 
-``tagref64`` is a union type of ``double``, ``int`` and
+``tagref64`` is a union type of ``double``, ``int<52>`` and
 ``ref``. It occupies 64 bits. The type of the content can be tested at
 run time using the ``@uvm.tr64_is_xxx`` family of intrinsic functions. Intrinsic
 functions like ``@uvm.tr64_to_xxx`` and ``@uvm.tr64_from_xxx`` are for
 converting them to and from regular primitive types.
+
+When a ``tagref64`` contains an object reference, it can hold an ``int<6>`` together
+as a user-defined tag. It is useful to store type information.
+
+This type is only available on some architectures including x86-64 with 48-bit addresses.
 
 .. vim: tw=80
