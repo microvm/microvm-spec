@@ -355,7 +355,7 @@ intrinsic functions can work on them.
 ``tagref64`` is a union type of ``double``, ``int<52>`` and
 ``ref``. It occupies 64 bits. The type of the content can be tested at
 run time using the ``@uvm.tr64.is_xxx`` family of intrinsic functions. Intrinsic
-functions like ``@uvm.tr64.to_xxx`` and ``@uvm.tr64.rom_xxx`` are for
+functions like ``@uvm.tr64.to_xxx`` and ``@uvm.tr64.from_xxx`` are for
 converting them to and from regular primitive types.
 
 When a ``tagref64`` contains an object reference, it can hold an ``int<6>`` together
