@@ -354,12 +354,16 @@ intrinsic functions can work on them.
 
 ``tagref64`` is a union type of ``double``, ``int<52>`` and
 ``ref``. It occupies 64 bits. The type of the content can be tested at
-run time using the ``@uvm.tr64_is_xxx`` family of intrinsic functions. Intrinsic
-functions like ``@uvm.tr64_to_xxx`` and ``@uvm.tr64_from_xxx`` are for
+run time using the ``@uvm.tr64.is_xxx`` family of intrinsic functions. Intrinsic
+functions like ``@uvm.tr64.to_xxx`` and ``@uvm.tr64.rom_xxx`` are for
 converting them to and from regular primitive types.
 
 When a ``tagref64`` contains an object reference, it can hold an ``int<6>`` together
 as a user-defined tag. It is useful to store type information.
+
+This type reuses the NaN space of the IEEE754 double value to multiplex with integers and object references. For this reason, when storing NaN values, it will still be NaN, but may not have the same bit representation.
+
+When extracting values from ``tagref64``, the type must be checked by using ``@uvm.tr64.is_xxx`` or other mechanisms designed by the client (like static checking). Extracting from a ``tagref64`` whose actually contained type differs from the expected type (like attempting to extract an integer from a ``tagref64`` which actually contains a reference) is an undefined behaviour.
 
 This type is only available on some architectures including x86-64 with 48-bit addresses.
 
