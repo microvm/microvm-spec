@@ -49,6 +49,49 @@ state before calling and will enter the ACTIVE state.
 Stop the current thread and kill the current stack. The current stack will enter
 the DEAD state after calling. The current thread stops running.
 
+64-bit Tagged Reference
+=======================
+
+- ``0x211 : @uvm.tr64.is_fp :: int<1> (%tr: tagref64)``
+
+Test if a ``tagref64`` value contains a floating point value. 1 for true, 0 for false.
+
+- ``0x212 : @uvm.tr64.is_int :: int<1> (%tr: tagref64)``
+
+Test if a ``tagref64`` value contains an integer value. 1 for true, 0 for false.
+
+- ``0x213 : @uvm.tr64.is_ref :: int<1> (%tr: tagref64)``
+
+Test if a ``tagref64`` value contains an object reference value. 1 for true, 0 for false.
+
+- ``0x214 : @uvm.tr64.from_fp :: tagref64 (%val: double)``
+
+Construct a ``tagref64`` value from a floating point value.
+
+- ``0x215 : @uvm.tr64.from_int :: tagref64 (%val: int<52>)``
+
+Construct a ``tagref64`` value from an integer value.
+
+- ``0x216 : @uvm.tr64.from_ref :: tagref64 (%ref: ref<void>, %tag: int<6>)``
+
+Construct a ``tagref64`` value from an object reference and a tag.
+
+- ``0x217 : @uvm.tr64.to_fp :: double (%tr: tagref64)``
+
+Extract the floating point value from a ``tagref64``, assuming the ``tagref64`` contains floating point value.
+
+- ``0x218 : @uvm.tr64.to_int :: int<52> (%tr: tagref64)``
+
+Extract the integer value from a ``tagref64``, assuming the ``tagref64`` contains integer.
+
+- ``0x219 : @uvm.tr64.to_ref :: ref<void> (%tr: tagref64)``
+
+Extract the object reference from a ``tagref64``, assuming the ``tagref64`` contains reference.
+
+- ``0x21a : @uvm.tr64.to_ref :: int<6> (%tr: tagref64)``
+
+Extract the ``int<6>`` tag accompanying the object reference from a ``tagref64``, assuming the ``tagref64`` contains reference.
+
 Math functions
 ==============
 
