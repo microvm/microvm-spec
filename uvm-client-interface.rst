@@ -89,4 +89,9 @@ will not be handled. The previous signal handler registered by external
 libraries will be preserved by the µVM in case the error does not occur within
 the client, either, and needs to be daisy-chained to external libraries.
 
+Theoretically the µVM should be the only entity in the process that registers
+signal handlers and all other entities, including the client or other libraries
+designed with the µVM in mind, when having the need to handle signals, should
+use the call-back or message-passing mechanisms provided by the µVM.
+
 .. vim: tw=80
