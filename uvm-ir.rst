@@ -92,19 +92,21 @@ Example::
             RET <int<32>> %rv
     }
 
+All identifier are unique within their scopes. i.e. a global identifier must be
+unique among all top-level definitions, of the same kind of not. A local
+identifier must be unique in a function definition.
+
 Type Definition
 ===============
 
 µVM provides a simple but expressive type system.
 
 A type is constructed by a finite but potentially recursive combination of type
-constructors, including ``int``, ``float``, ``double``,
-``ref``, ``iref``, ``weakref``, ``struct``,
-``array``, ``hybrid``, ``void``, ``func``,
-``thread``, ``stack`` and ``tagref64``. They are
-documented in `<type-system>`__.
+constructors, including ``int``, ``float``, ``double``, ``ref``, ``iref``,
+``weakref``, ``struct``, ``array``, ``hybrid``, ``void``, ``func``, ``thread``,
+``stack`` and ``tagref64``. They are documented in `<type-system>`__.
 
-In the text form, wherever a type is expected, it can be written inline using
+In the text form, wherever a type is expected, it can be written in line using
 the above constructors or give a name to a type and reference that type by name.
 
 A type definition gives a name to a type. It looks like::
@@ -280,35 +282,17 @@ A declared function has no body and can be defined later.
 Note that the definitions does not have an order. It is allowed to define two
 functions that call each other without having to declare the second 
 
-A function can be re-defined provided that the signature is not changed. The new
-function will replace the old one and all existing call sites to the old
-function will automatically call the new version.
+It is an error to have both a function declaration and a function definition of
+the same identifier in a single bundle, even if they have the same signature.
+
+A function can be re-defined in another bundle delivered to the µVM provided
+that the signature is not changed. The new function will replace the old one and
+all existing call sites to the old function will automatically call the new
+version. See `uVM-Client Interface <uvm-client-interface>` for details.
 
 The identifier of a function defined by ``.funcdef`` or ``.funcdecl`` represents
-a constant SSA Value of type ``func``. It can be used by the
-``CALL``, ``INVOKE``, ``TAILCALL`` and
-``NEWSTACK`` instructions.
-
-
-Function Identifier
--------------------
-
-Each function, declared or defined, has a unique function identifier, which is
-**not** the identifier in the text form or the binary form of the µVM IR. It is
-the value of the ``func`` type, which is opaque in the sense that the
-underlying binary runtime representation is an implementation detail of the µVM.
-It may be implemented as the address of the compiled code, but does not have to
-be.
-
-When a function is declared, such a unique ID is reserved for the function. When
-defining a function, the function ID is bound to the definition. When
-re-defining a function, the newly defined function body replaces the older
-version, but the function ID does not change. All existing values of the
-``func`` type remain valid, but refers to the newer version of the
-function, instead. All existing activation of the older version of the function
-remain to be valid. Decided by the implementation, the garbage collector may
-reclaim the space of compiled function code once there is no active frames of
-the older version on all stacks.
+a constant SSA Value of type ``func``. It can be used by the ``CALL``,
+``INVOKE``, ``TAILCALL`` and ``NEWSTACK`` instructions.
 
 Function Body
 =============

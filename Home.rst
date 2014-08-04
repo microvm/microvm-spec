@@ -14,5 +14,7 @@ Contents:
 - `Instruction Set <instruction-set>`__
 - `Intrinsic Functions <intrinsic-funcs>`__
 - `Memory Model <memory-model>`__
+- `µVM-Client Interface <uvm-client-interface>`__
+- `Implementation <implementation>`__
 
 .. vim: tw=80
