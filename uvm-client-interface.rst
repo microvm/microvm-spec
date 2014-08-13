@@ -8,17 +8,36 @@ implemented is not defined by this specification, the concrete interface (i.e.
 the concrete API in high-level languages) of particular µVM implementations may
 vary. 
 
+To reduce confusion, in this article, "message" means a message sent from the
+client to the µVM. "call-back" means a message sent from the µVM to the client.
+Both are synchronous, means the caller should wait for the callee to finish,
+unless explicitly specified as "asynchronous".
+
+How to register those call-backs is implementation-specific. How messages and
+call-backs are represented is implementation-specific. How parameters and return
+values are represented is implementation-specific.
+
+NOTE: They may be represented as classes, objects, methods, delegates, events,
+signals, interfaces, actor messages, functions and so on, depending on whether
+the implementation uses object-oriented, actor-based, functional, procedural or
+other kinds of programming languages.
+
+A "handle" is something that the client can use to refer to some object in the
+µVM. This can be implemented in whatever way convenient to the implementation.
+
 Start-up
 ========
 
 How to start a µVM and/or a client is implementation-specific.
 
-In the beginning, there are no µVM stacks and no µVM threads in the µVM.
+In the beginning, whether there are existing types, signatures, constants,
+global values or functions already defined or declared, or µVM stacks or no µVM
+threads already created is implementation-specific.
 
 µVM IR Code Loading
 ===================
 
-µVM IR code is provided by the client. It is delivered in the unit of a bundle.
+µVM IR code is provided by the client. It is delivered in the unit of bundles.
 A bundle consists of many type definitions, function signature definitions,
 constant definitions, global data definitions, function declarations and
 function definitions, which are collectively called top-level definitions. See
@@ -31,8 +50,8 @@ parallel bundle delivery, the result must be equivalent to as if they were
 delivered in a specific sequence.
 
 In a bundle, if a types, function signatures, constants, global data or function
-declaration has the same ID or name as an existing top-level definition defined
-in a previous bundle, it is an error.
+declaration has the same ID or name as any existing top-level definitions
+defined in previous bundles, it is an error.
 
 If a function definition has the ID as a previous function definition or
 function declaration, it must also have the same function signature and the new
@@ -43,17 +62,102 @@ When a function definition redefines another function definition or declaration,
 all existing call sites to the previously defined or undefined function now
 calls the newly defined function.
 
-TODO: when a µVM thread runs simultaneously with the client loading a bundle, is
-the old version of a function still visible to any µVM thread? If so, is the old
-version of the function still visible to the client?
+All existing activations of any functions remain unchanged. Only new calls will
+activate the new version. IDs of function-local entities, including parameters,
+basic blocks and instructions, cannot be reused, hence old IDs of them still
+refer to them in the old version of functions. Specifically, traps can still
+introspect stack frames of functions of old versions using old IDs of
+instructions.
 
 Stack and Thread Creation
 =========================
 
-TODO
+The ``new_stack`` message
+-------------------------
+
+In addition to the ``NEWSTACK`` instruction, the MicroVM provides the client a
+message ``new_stack`` so that the client can create new stacks.
+
+- name: ``new_stack``
+- parameters:
+
+  - ``callee``: The function whose activation will be at the bottom frame of the
+    stack.
+  - ``args``: The arguments to that function.
+
+- returns: A handle to the new stack
+
+The ``new_thread`` message
+--------------------------
+
+In addition to the ``@uvm.new_thread`` intrinsic function, the MicroVM provides
+the client a message ``new_thread`` so that the client can create new threads.
+
+- name: ``new_thread``
+- parameters:
+
+  - ``stack``: The stack which the new thread is initially bound to.
+
+- returns: A handle to the new thread.
+
+As the ``@uvm.new_thread`` intrinsic function, a newly created thread is started
+immediately.
 
 Trap and Undefined Function Handling
 ====================================
+
+The ``TRAP`` and the ``WATCHPOINT`` instructions represent places that a µVM
+program requires assistance from the client. When a µVM program calls a µVM
+function that is declared but not defined, the µVM also asks the client for
+further actions. In both cases, the µVM pauses the running µVM thread, preserves
+the stack state and transfers the control to call-backs registered by the
+client.
+
+The ``handle_trap`` call-back
+-----------------------------
+
+This call-back is called when a trap (both ``TRAP`` and enabled ``WATCHPOINT``)
+is hit. Since there may be multiple µVM threads running, more than one thread
+may hit the trap simultaneously. The implementation is only required to have all
+of them handled, sequentially or parallelly.
+
+- name: ``handle_trap``
+- parameters:
+
+    - ``thread``: A handle to the thread which hit the trap.
+
+- returns: The client should tell the µVM whether the trap should return
+  normally with the appropriate return value, or exceptionally with an object
+  reference referring to an object as the exception. See the ``TRAP``
+  instruction for more details. If the client stops the thread, the return value
+  is ignored by the µVM.
+
+The ``thread`` handle can be used to introspect all states of the stack,
+including the trap ID which can be obtained as the "current instruction".
+
+The ``handle_undefined_function`` call-back
+-------------------------------------------
+
+This call-back is called when an undefined function is called (by ``CALL``,
+``INVOKE`` or ``TAILCALL``), used by ``NEWSTACK`` or any intrinsic functions
+that may call a µVM function. Since there may be multiple µVM threads running,
+more than one thread may call undefined functions simultaneously. The
+implementation is only required to have all of them handled, sequentially or
+parallelly.
+
+- name: ``handle_undefined_function``
+- parameters:
+
+    - ``thread``: A handle to the thread which hit the trap.
+    - ``function_id``: The ID of the undefined function.
+
+- returns: nothing
+
+The client should define the undefined function. After returning, the µVM
+program will re-execute the same instruction again unless the thread is stopped.
+
+Thread and Stack Introspection
+------------------------------
 
 TODO
 
