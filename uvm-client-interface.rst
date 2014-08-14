@@ -126,11 +126,20 @@ of them handled, sequentially or parallelly.
 
     - ``thread``: A handle to the thread which hit the trap.
 
-- returns: The client should tell the µVM whether the trap should return
-  normally with the appropriate return value, or exceptionally with an object
-  reference referring to an object as the exception. See the ``TRAP``
-  instruction for more details. If the client stops the thread, the return value
-  is ignored by the µVM.
+- returns: The client should tell the µVM how to resume execution.
+
+TODO: Define an extra ``TRAPPED`` state of a stack.
+
+TODO: The trap handler may dis-associate a thread with its stack and
+re-associate with another stack. The state of the new stack is unknown (but a
+good client must be sure about its state).
+  
+.. whether the trap should return
+   normally with the appropriate return value, or exceptionally with an object
+   reference referring to an object as the exception. See the ``TRAP`` instruction
+   for more details. If the client stops the thread, the return value is ignored by
+   the µVM. If OSR happened, the return value is also ignored.
+
 
 The ``thread`` handle can be used to introspect all states of the stack,
 including the trap ID which can be obtained as the "current instruction".
@@ -159,7 +168,87 @@ program will re-execute the same instruction again unless the thread is stopped.
 Thread and Stack Introspection
 ------------------------------
 
-TODO
+When a trap is hit or an undefined function is called, the thread pauses and the
+client takes over the control. It gives the client an opportunity to introspect
+the state of the thread and its associated stack.
+
+This specification defines the relations between some µVM objects and some
+messages to manipulate them. How those objects are represented, how to navigate
+through those objects and how to access their attributes are
+implementation-specific. The implementation may represent them as objects in
+the implementation language (e.g. Java Objects when the µVM and the Client are
+implemented in Java), or just their IDs.
+
+Object ``Thread``
+
+    - attribute ``stack``: its associated stack
+
+Object ``Stack``
+
+    - attribute ``top``: the top frame of the stack
+    - attribute ``state``: the state of a stack (READY, RUNNING, DEAD)
+      (todo: TRAPPED?)
+
+Object ``Frame``
+
+    - attribute ``next``: the next frame under the current frame if the current
+      frame is not the bottom frame of the stack
+    - attribute ``cur_inst``: the current (µVM) instruction
+    - attribute ``func``: the specific version of a function which is active in
+      this frame
+    - attribute ``keep_alives``: the values of local SSA Values kept alive by
+      the KEEPALIVE clause of the current instruction
+
+The kept-alive values of all frames, not just the top frame, can be
+introspected. Since function re-definition is allowed in µVM, a frame is
+associated with an exact version of a function, not just the function itself.
+
+TODO: The top frame may be executing any instruction that is allowed in its
+state. If 
+
+.. The top frame should be executing a ``TRAP`` or ``WATCHPOINT`` instruction when
+    handling a trap, or ``CALL``, ``INVOKE``, ``TAILCALL`` or ``NEWSTACK`` (or
+    intrinsic functions introduced in the future) when handling an undefined
+    function. All frames below are executing ``CALL`` or ``INVOKE`` (or intrinsic
+    functions).
+
+There are only one trap handler and one undefined function handler registered at
+a time. The client can multiplex these handlers by inspecting the ID of the
+current instruction to know which instruction triggered this trap or undefined
+function and handle it accordingly.
+
+On-stack Replacement (OSR)
+--------------------------
+
+On-stack replacement is a way to replace existing function activations (i.e.
+stack frames) with others.
+
+OSR can only be done on a stack whose top frame is executing an OSR point
+instruction.
+
+NOTE: Undefined function calls are not OSR points. ``TRAP``, ``WATCHPOINT`` and
+intrinsic functions labelled as OSR points are.
+
+The µVM imposes restrictions on what OSR can do to a stack.
+
+1. It can pop as many frames as desired.
+2. After popping, it must push one stack with a function and its arguments. This
+   function must have the return value expected by the caller in the frame
+   below. When the execution is resumed to this stack, it will start at the
+   beginning of this new function.
+
+TODO: Is the above two steps atomic, in the sense that it is a single action:
+"pop n frames and push one frame with func and args"? If it is not atomic, what
+intermediate state is a stack in? Is it necessary to maintain some intermediate
+states for those intermediate frames? (e.g. callee-saved registers?)
+
+TODO: Add a "RETURNING" state? But how to "return a value of a specific type to
+a caller that expect this type" in a generic way? In other words, does it
+require return-type-specific code? If it does, it is not different from
+generating a trivial function per type that returns its argument.
+
+TODO: Is it reasonable enough to limit a new frame to start from the beginning
+of a function? It seems to be the only sane solution.
 
 Client-held GC Roots
 ====================
