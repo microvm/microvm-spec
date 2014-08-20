@@ -191,9 +191,11 @@ demonstrates the implementation of a co-routine::
         %cur_num_ref = ALLOCA @i64
         %stopped_ref = ALLOCA @i64  // initially 0
 
+        %cur_stack = ICALL @uvm.current_stack ()
+
         // Create a new stack
-        %coro = NEWSTACK <void (iref<@i64> iref<@i64>)> @one_two_three (
-                %cur_num_ref %stopped_ref
+        %coro = NEWSTACK <void (stack iref<@i64> iref<@i64>)> @one_two_three (
+                %cur_stack %cur_num_ref %stopped_ref
                 )
         BRANCH %head
 

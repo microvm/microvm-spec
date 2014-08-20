@@ -59,6 +59,12 @@ state before calling and will enter the ACTIVE state.
 Stop the current thread and kill the current stack. The current stack will enter
 the DEAD state after calling. The current thread stops running.
 
+.. _ifunc-uvm-current-stack:
+
+- ``0x206 : @uvm.current_stack :: stack ()``
+
+Returns the current stack.
+
 64-bit Tagged Reference
 =======================
 
