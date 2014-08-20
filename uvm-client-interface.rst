@@ -53,6 +53,8 @@ In a bundle, if a types, function signatures, constants, global data or function
 declaration has the same ID or name as any existing top-level definitions
 defined in previous bundles, it is an error.
 
+.. _func-redef:
+
 If a function definition has the ID as a previous function definition or
 function declaration, it must also have the same function signature and the new
 function definition **redefines** the previous function definition or

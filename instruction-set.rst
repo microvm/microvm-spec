@@ -169,11 +169,11 @@ See LLVM's LangRef for the semantic of each operator.
 TODO: the semantics will eventually be written in this document.
 
 The ``EQ`` and the ``NE`` operator are also applicable to ``ref``, ``iref``,
-``func``, ``stack``, ``thread`` (we call them "EQ-comparable") and the result is
-whether they refer to the same object, field, function, stack or thread,
-respectively. In the case of ``tagref64``, it checks for exact bit-wise
-equality, which may not be desired because both operands can contain floating
-point numbers.
+``func``, ``stack``, ``thread`` (which are collectively called "EQ-comparable")
+and the result is whether they refer to the same object, field, function, stack
+or thread, respectively. In the case of ``tagref64``, it checks for exact
+bit-wise equality, which may not be desired because both operands can contain
+floating point numbers.
 
 The return value has type ``int<1>``. 1 for true and 0 for false.
 
@@ -1372,6 +1372,9 @@ For LLVM users: This is the counterpart of the ``fence`` instruction.
 Trap Instructions
 =================
 
+.. _inst-trap:
+.. _inst-watchpoint:
+
 - ``TRAP < T > nor exc KEEPALIVE ( v1 v2 ... )``
 - ``WATCHPOINT wpid < T > dis nor exc KEEPALIVE ( v1 v2 ... )``
 
@@ -1565,6 +1568,8 @@ Example::
 Thread and Stack
 ================
 
+.. _inst-newstack:
+
 - ``NEWSTACK < sig > func ( arg1 arg2 ... )``
 
     ``sig``
@@ -1590,8 +1595,8 @@ See `<intrinsic-funcs>`__ for more operations for stacks and threads.
 Intrinsic Function
 ==================
 
-Intrinsic functions are a mechanism so that we can extend the µVM IR without
-adding a new instruction or changing the grammar.
+Intrinsic functions are a mechanism so that the µVM IR can be extended without
+adding new instructions or changing the grammar.
 
 In µVM, intrinsic functions work just like regular instructions, but has a
 unified form: they take only value parameters, may have a normal destination

@@ -13,6 +13,7 @@ Contents:
 - `Type System <type-system>`__
 - `Instruction Set <instruction-set>`__
 - `Intrinsic Functions <intrinsic-funcs>`__
+- `Threads and Stacks <threads-stacks>`__
 - `Memory Model <memory-model>`__
 - `µVM-Client Interface <uvm-client-interface>`__
 - `Implementation <implementation>`__
