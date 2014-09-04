@@ -60,7 +60,6 @@ Concepts
 ========
 
 data value
-
     A data value is an instance of a µVM type. Data values can (but do not have
     to be) represented as a sequence of bytes.
 
@@ -68,7 +67,6 @@ data value
     implementation, it may represent a flag in some CPU state words.
 
 SSA Value
-
     An SSA Value is a computation that is defined in exactly one place
     (instructions), or something that has a data value which can be used in such
     computations (declared constants, global data references, functions and
@@ -81,13 +79,11 @@ SSA Value
     side effects.
 
 memory
-
     There are three kinds of memory in the µVM, namely the **heap memory**, the
     **stack memory** and the **global memory**. An allocation unit in the heap
     memory is called a **heap object**, or **object** when unambiguous.
 
 memory location
-
     A memory location is a region of data storage in the memory which can
     represent a data value. When the memory location is in the heap memory, it
     is part of a heap object. When the heap object is moved by the garbage
@@ -106,7 +102,6 @@ memory location
     stack or global).
 
 load, store and access
-
     To load is to move data from an SSA Value to the memory. To store is to move
     data from the memory to an SSA Value. To access is to load or store.
 
@@ -114,7 +109,6 @@ load, store and access
     STORE.
 
 conflict
-
     Two memory accesses conflict if one stores to a memory location and the
     other loads from or stores to the same location.
 
