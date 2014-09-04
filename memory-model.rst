@@ -200,8 +200,9 @@ Orders
 Program Order
 -------------
 
-All evaluations performed by a particular thread form a total order, called the
-**program order**.
+An evaluation A is **sequenced before** another evaluation B if A and B are in
+the same thread and A is performed before B. All evaluations performed by a
+particular thread form a total order, called the **program order**.
 
 NOTE: In C, there is only a partial order because of unspecified order of
 evaluations.
@@ -214,6 +215,9 @@ particular total order, called the **modification order** of M. If A and B are
 atomic stores on memory location M, and A happens before B, then A shall precede
 B in the modification order of M.
 
+NOTE: This is to say, the modification order is consistent with the happens
+before order.
+
 A **release sequence** headed by a release operation A on a memory location M is
 a maximal contiguous sub-sequence of atomic store operations in the modification
 order M, where the first operation is A and every subsequent operation either is
@@ -223,10 +227,10 @@ read-modify-write operation.
 TODO: There is no "atomic type" in µVM. The case when a memory location is
 accessed by both atomic and non-atomic operations needs more description.
 
-The Synchronise-with Relation
------------------------------
+The Synchronises With Relation
+------------------------------
 
-TODO: Define the "synchronise with" relation, including all cases.
+TODO: Define the "synchronises with" relation, including all cases.
 
 Dependency
 ----------
@@ -235,7 +239,7 @@ TODO: Define the "carries a dependency to" and "dependency-order before"
 relations.
 
 
-The Happens-before Relation
+The Happens Before Relation
 ---------------------------
 
 TODO: Define the "inter-thread happens before" and "happens before" relation.
