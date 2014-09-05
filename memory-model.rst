@@ -85,9 +85,16 @@ memory
 
 memory location
     A memory location is a region of data storage in the memory which can
-    represent a data value. When the memory location is in the heap memory, it
-    is part of a heap object. When the heap object is moved by the garbage
-    collector, the memory location remains to be the same part of the object.
+    represent a data value.
+    
+    When the memory location is in the heap memory, it is part of a heap object.
+    When the heap object is moved by the garbage collector, the memory location
+    remains to be the same part of the object.
+
+    When the memory location A is in the stack memory, and the memory is
+    deallocated because the stack frame is popped, and the same space is reused
+    by another allocation on the stack, the newly allocated memory location B is
+    different from A.
 
     NOTE: The "object" in the C language is the counterpart of "memory location"
     in µVM. The µVM does not have bit fields and a memory location is always an
@@ -217,6 +224,9 @@ B in the modification order of M.
 
 NOTE: This is to say, the modification order is consistent with the happens
 before order.
+
+NOTE: This reflects the mechanisms, including cache coherence, provided by some
+hardware that guarantees such order.
 
 A **release sequence** headed by a release operation A on a memory location M is
 a maximal contiguous sub-sequence of atomic store operations in the modification
