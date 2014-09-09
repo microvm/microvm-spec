@@ -351,8 +351,9 @@ a dependency from* A, if:
   * A is a comparing or ``INSERTVALUE`` instruction, or
   * B is a ``CALL``, ``INVOKE``, ``EXTRACTVALUE`` or ``CCALL`` instruction, or
 
-- A stores a value to a memory location M, B loads from M and A is sequenced
-  before B, or
+- there is a store operation X such that A is sequenced before X and X is
+  sequenced before B, and, X stores the value of A to a memory location M, and,
+  B is a load operation from M, or
 - for some evaluation X, A carries a dependency to X and X carries a dependency
   to B.
 
