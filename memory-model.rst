@@ -48,10 +48,6 @@ The primitives for atomic accesses and fences are provided by the instruction
 set of µVM rather than the library. Mutex locks, however, have to be implemented
 on top of this memory model.
 
-The presence of garbage collection, especially copying garbage collection,
-introduces differences. The definition of memory location is different and the
-initial values is more complex in the µVM.
-
 There is no ``kill_dependency`` in µVM. There is no direct way to kill
 dependency in hardwares and the µVM does not perform most optimisations. The
 ``kill_dependency`` macro is used to instruct the C compiler that it can stop
@@ -168,6 +164,10 @@ conflict
     Two memory accesses conflict if one stores to a memory location and the
     other loads from or stores to the same location.
 
+thread
+    A thread is the unit of CPU scheduling. In this memory model, a thread is
+    not limited to a µVM thread.
+
 Comparison of Terminology
 -------------------------
 
@@ -197,6 +197,8 @@ STORE, CMPXCHG and ATOMICRMW. Specifically,
 - ATOMICRMW performs both a load and a store operation.
 
 The FENCE instruction is a fence.
+
+    NOTE: Non-µVM code may also perform memory access operations.
 
 Memory accessing instructions and fences have memory orders, which are the
 following:
@@ -262,8 +264,8 @@ Program Order
 
 An evaluation A is **sequenced before** another evaluation B if A and B are in
 the same thread and A is performed before B. All evaluations performed by a
-particular thread and their "sequenced before" relations form a total order,
-called the **program order**.
+particular µVM thread together with their "sequenced before" relations form a
+total order, called the **program order**.
 
     NOTE: In C, there is only a partial order because of unspecified order of
     evaluations.
