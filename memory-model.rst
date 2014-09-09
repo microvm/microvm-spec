@@ -129,9 +129,9 @@ memory location
         which means a "heap object" in the µVM context, "memory location" is
         always used when referring to the memory.
 
-        NOTE: SSA variables in the µVM does not have memory locations, even
+        NOTE: SSA variables in the µVM do not have memory locations, even
         though they may be spilled by the register allocator. For this reason,
-        local variables that are changeable by references should be allocated
+        local variables that can be updated via reference should be allocated
         using ``ALLOCA``.
 
 load, store and access
