@@ -33,8 +33,8 @@ The most unrestricted form of memory access is not atomic. These operations
 allows the µVM implementation and the processor to maximise the throughput while
 relying on the programmer to correctly synchronise their programs.
 
-Notable differences from C
-==========================
+Notable differences from C11
+============================
 
 The program order in the µVM is a total order while the sequenced-before
 relationship in C is a partial order, because there are unspecified order of
@@ -48,10 +48,20 @@ The primitives for atomic accesses and fences are provided by the instruction
 set of µVM rather than the library. Mutex locks, however, have to be implemented
 on top of this memory model.
 
-There is no ``kill_dependency`` in µVM. There is no direct way to kill
-dependency in hardwares and the µVM does not perform most optimisations. The
-``kill_dependency`` macro is used to instruct the C compiler that it can stop
-tracking the dependencies.
+Notable differences from LLVM
+=============================
+
+LLVM does not guarantee that all atomic writes to a memory location has a total
+order unless using ``monotonic`` or stronger memory order. It provides an
+``unordered`` order which is atomic but not "monotonic". The ``unordered`` order
+is intended to support the Java memory model, but whether ``unordered`` is
+necessary and whether the ``relaxed`` order in C11 or the ``monotonic`` in LLVM
+is suitable for Java is not yet known.
+
+In LLVM, an atomic operation can be labelled ``singlethread``, in which case it
+only synchronises with or participates in modification and seq_cst total
+orderings with other operations running in the same thread (for example, in
+signal handlers). C11 provides ``atomic_signal_fence`` for similar purposes.
 
 Concepts
 ========
@@ -351,11 +361,12 @@ a dependency from* A, if:
   * B is a ``PHI`` instruction, and A is not the variable selected by the
     incoming control flow, or
   * A is a comparing or ``INSERTVALUE`` instruction, or
-  * B is a ``CALL``, ``INVOKE``, ``EXTRACTVALUE`` or ``CCALL`` instruction, or
+  * B is a ``KILLDEPENDENCY``, ``CALL``, ``INVOKE``, ``EXTRACTVALUE`` or
+    ``CCALL`` instruction, or
 
 - there is a store operation X such that A is sequenced before X and X is
   sequenced before B, and, X stores the value of A to a memory location M, and,
-  B is a load operation from M, or
+  B performs a load operation from M, or
 - for some evaluation X, A carries a dependency to X and X carries a dependency
   to B.
 
