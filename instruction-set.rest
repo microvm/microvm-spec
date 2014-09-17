@@ -2,33 +2,182 @@
 Instruction Set
 ===============
 
-Special Non-operation Instructions
-==================================
+Overview
+========
 
-Label
------
+The µVM uses the static single assignment (SSA) form and a comprehensive but
+low-level instruction set.
 
-In the text form, it is like::
+SSA Variables
+=============
 
-    %label_name:
+The µVM uses the static single assignment (SSA) form.
 
-that is, a local identifier followed by a colon ``:``.
+An **SSA variable**, or **variable** when unambiguous, holds a data value of a
+specific type. In the SSA form, every variable is defined (assigned) in exactly
+one place, but an SSA variable may hold different values in different contexts
+at different times.
 
-In the binary form, it has a special pseudo-instruction:
+* SSA variable
 
-+------+
-| opct |
-+======+
-| 0xF9 |
-+------+
+  * Global SSA variable
 
-The presence of a label (or the pseudo instruction) indicates the beginning of a
-basic block in a function definition.
+    * Constant
+    * Global cell reference
+    * Function
 
-The label for the first basic block in a function may be omitted. It is
-conventionally called ``%entry``, but this convention is not enforced.
+  * Local SSA variable
 
-For LLVM users: it has labels, too.
+    * Parameter
+    * Instruction
+
+A **global SSA variable** is valid in the whole µVM after it is defined.
+
+A constant definition (see `<uvm-ir>`__) defines a global SSA variable with a
+constant value.
+
+A global cell definition (see `<uvm-ir>`__) defines a global SSA variable whose
+value is an internal reference to the global cell.
+
+A function definition or a function declaration (see `<uvm-ir>`__) defines a
+global SSA variable whose value is a ``func`` value referring to the function.
+Defining a previously undefined function or redefining a function does not
+change this variable.
+
+A **local SSA variable** is valid in the function activation it is in.
+
+A parameter defines a local SSA variable whose value is the value passed in the
+function as argument.
+
+An instruction defines a local SSA variable whose value is the result of its
+latest evaluation (defined later).
+
+There is a one-to-one correspondence between SSA variables and the things that
+define them, hence an SSA variable and the thing that defines it are used
+interchangeably in this specification.
+
+An SSA variable has the same ID and name as the thing that defines it.
+
+    Example: In the instruction ``%foo = ADD <int<32>> %bar %baz``, both "the
+    SSA variable ``%foo`` is an ADD instruction" and "the SSA variable ``%foo``
+    is defined by the ADD instruction" are valid. Both the variable and the
+    instruction have name ``%foo``
+
+Whether an SSA variable uses the memory is implementation dependent. An SSA
+variable does not have a memory location.
+
+    NOTE: This allows the µVM implementation to store constants in the machine
+    instruction flow as immediate values, or save the result of some
+    instructions in registers and also spilling some other registers to the
+    stack.
+
+Common Structures
+=================
+
+These structures are common to several instructions.
+
+Exception Clause
+----------------
+
+*excClause* ::= *(* ``EXC`` *nor* *exc* *)* :sub:`opt`
+
+    nor
+        *basic block*: The normal destination
+    exc
+        *basic block*: The exceptional destination
+
++-----+-----+
+| idt | idt |
++=====+=====+
+| nor | exc |
++-----+-----+
+
+The exception clause provides an alternative to the normal destination when an
+abnormal condition occurred.
+
+The exception clause is optional. When omitted, the next instruction is
+equivalent to the normal destination. In the binary form, an omitted exception
+clause is expressed as *nor* and *exc* both being 0.
+
+The semantic of the exceptional destination is defined per-instruction.
+
+    Example: The ``CALL`` instruction optionally has an exception clause for
+    the case when an exception is thrown from the callee. When the exception
+    clause is absent, the exception is thrown from the caller to its caller.::
+
+        %entry:
+            %rv1 = CALL <@sig1> @func1 (%arg0 %arg1)                        // throw out
+            %rv2 = CALL <@sig2> @func2 (%arg0 %arg1) EXC %cont %exc_hdlr    // caught locally
+        %cont:
+            ...
+        %exc_hdlr:
+            %lp = LANDINGPAD
+
+Keep-alive Clause
+-----------------
+
+*keepAliveClause* ::= *(* ``KEEPALIVE`` ``(`` *lv* :sub:`rep` ``)`` *)* :sub:`opt`
+
+    lv :sub:`rep`
+        *list of local SSA variable*: A sequence of local SSA variables. Those
+        SSA variables are forced to be alive.
+
++------+-----+-----+-----+
+| lent | idt | idt | ... |
++======+=====+=====+=====+
+| nka  | v1  | v2  | ... |
++------+-----+-----+-----+
+
+The keep-alive clause keeps some local SSA variables alive even if they are
+considered "dead" by normal liveness analysis. They are useful during on-stack
+replacement as they give the Client sufficient information about the current
+stack frame.
+
+A variable in the keep-alive clause is considered a "use" of it. It must obey
+the SSA requirement that the definition of a local variable dominates all its
+uses.
+
+The absence of a keep-alive clause is equivalent to a keep-alive clause with
+zero local variables. In the binary form, *nka* is the number of local variables
+(can be zero) and that many IDs follows it.
+
+    Example: The ``TRAP`` instruction optionally has a keep-alive clause. The
+    values of those variables in the clause are available for the Client to
+    introspect::
+
+        %a = ADD ...
+        %b = SUB ...
+        %c = MUL ...
+        %trap1 = TRAP <@ty>                     // Does not keep alive any variables
+        %trap2 = TRAP <@ty> KEEPALIVE (%a %b)   // Keep %a and %b alive
+
+Argument List
+-------------
+
+*argList* ::= ``(`` *var* :sub:`rep` ``)``
+
+    var :sub:`rep`
+        *list of SSA variable*: A sequence of SSA variables. 
+
++-------+------+------+-----+
+| lent  | idt  | idt  | ... |
++=======+======+======+=====+
+| nargs | arg1 | arg2 | ... |
++-------+------+------+-----+
+
+An argument list is a list of SSA variables. It is used by instructions that
+take a variable number of value parameters.
+
+In the binary form, *nargs* is the number of variables (can be zero) and that
+many IDs follows it.
+
+    Example::
+
+        CALL     <@sig> @func (%arg0 %arg1 %arg2)
+        TAILCALL <@sig> @func (%arg0 %arg1 %arg2)
+        CCALL    <@sig> @func (%arg0 %arg1 %arg2)
+        NEWSTACK <@sig> @func (%arg0 %arg1 %arg2)
+        ICALL @some.intrinsic.function (%arg0 %arg1 %arg2)
 
 Basic Operations
 ================
@@ -38,7 +187,7 @@ These operations are the very basic of the µVM.
 Binary Operations
 -----------------
 
-- ``binOp < T > op1 op2````
+``binOp < T > op1 op2````
 
     ``binOp``
         The binary operation. One in the table shown later.

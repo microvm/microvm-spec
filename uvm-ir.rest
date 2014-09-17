@@ -271,10 +271,23 @@ A **constant constructor** can be the following:
 
 ..
 
-    NOTE: The only constant of reference types is ``NULL``. References that
-    potentially refer into the heap are subject to copying by the GC. If some
-    programming languages need such constant references, use *global data*
-    (defined later), instead.
+    NOTE: The only constant of reference types is ``NULL``. The reason why µVM
+    forbids constant references is manifold:
+
+    * To define a constant heap reference, the Client must provide a reference
+      to a heap object, which itself is recursively a constant heap reference.
+      Even if such a reference is created, it renders a heap object immortal (as
+      immortal as a global cell), which defeated the purpose of garbage
+      collection.
+
+    * When a heap object is moved, the garbage collector must update all
+      existing references to the object. This makes the constant reference not
+      really "constant". Extra difficulties are introduced when such references
+      become immediate values in the machine code.
+
+    The global memory is an alternative to such needs. Either store a global
+    data structure in the global memory or allocate it in the heap and assign
+    its reference to a global cell.
 
 ..
 
