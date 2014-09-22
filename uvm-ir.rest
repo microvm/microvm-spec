@@ -432,8 +432,8 @@ block**. Every basic block has a local name.
     NOTE: The name of the entry block is conventionally called ``%entry``, but
     is not compulsory.
 
-Each basic block contains a sequence of **instructions**. An instruction has the
-following form::
+Each basic block contains a sequence of **instructions**. An instruction has one
+of the following forms::
 
     InstName = InstBody
 
@@ -476,74 +476,41 @@ separately in `<instruction-set>`__.
     is useful when performing stack introspection.
 
 The last instruction of any basic block must be a **terminator instruction**,
-which is described in `<instruction-set>`__.
+which is one of the following:
 
-.. (old contents. please move these to instruction-set):
-    - Any instructions that have an **exception clause** (
-    - ``BRANCH``: Unconditional branching.
-    - ``BRANCH2``: Binary conditional branching.
-    - ``SWITCH``: Multi-way branching.
-    - ``INVOKE``: Call a function, anticipating an exception to be thrown.
-    - ``TAILCALL``: Call a function and return its return value.
-    - ``RET``: Return from a function.
-    - ``RETVOID``: Return from a function of ``void`` return type.
-    - ``THROW``: Throw an exception to the caller.
-    - ``TRAP``: Transfer the control to the client for further processing.
-      Exception may be thrown from the client.
-    - ``WATCHPOINT``: A trap that is disabled in the beginning and can be
-      enabled asynchronously by the client later during execution.
-    - ``IINVOKE``: Call an intrinsic function, anticipating an exception.
+- Any instructions that may have an **exception clause** and actually have the
+  exception clause, which are:
+
+  - Binary operations
+  - ``CALL``
+  - ``NEW``, ``NEWHYBRID``, ``ALLOCA``, ``ALLOCAHYBRID``
+  - ``LOAD``, ``STORE``, ``CMPXCHG``, ``ATOMICRMW``
+  - ``TRAP``, ``WATCHPOINT``
+  - ``ICALL``
+
+- ``BRANCH``, ``BRANCH2``, ``SWITCH``
+- ``TAILCALL``
+- ``RET``, ``RETVOID``
+- ``THROW``
+
+..
+
+    NOTE: This is to say, for example, if a particular ``CALL`` instruction does
+    have an exception clause, then it is a terminator. If it does not have
+    exceptional clause clause, it is not a terminator.
 
 **Starter instructions** must not appear in the entry block. All instructions
 between the beginning of a basic block and any starter instruction must be
 starter instructions.
 
+The following instructions are starter instructions:
+
+- ``PHI``
+- ``LANDINGPAD``
+
+..
+
     NOTE: This means ``PHI`` and ``LANDINGPAD`` must be in the beginning of
     non-entry basic blocks.
-
-.. (old contents. move them into instruction-set):
-    - ``PHI``: The phi-node of the SSA form. Its value depends on the
-      incoming control flow.
-    - ``LANDINGPAD``: Only used as the exceptional destination of
-      ``INVOKE``, ``TRAP``, ``WATCHPOINT`` and
-      ``IINVOKE``, which anticipate an exception. Its value is an object
-      reference to the exception object (which may be anything since µVM only
-      require that exceptions are object references, but does not define the content
-      of such objects).
-
-The SSA Form
-------------
-
-TODO: Move the whole section to instruction-set
-
-The µVM IR uses the SSA form. Every instruction operates on SSA Values. An SSA
-Value is defined in exactly one **place**. This does not imply that it is only
-assigned one *time* since a loop structure will re-evaluate an instruction.
-
-An SSA Value is one of
-
-- constant: The Value which never changes. Specifically, 
-
-  - The name of constants defined by the ``.const`` directive represents
-    an SSA Value of the type indicated.
-
-  - In the text form, literal values written inline are treated as constants of
-    the type expected by the respective instructions they are used in.
-
-  - The name of Global data defined by ``.global`` represents a constant
-    SSA Value of type ``iref<T>``, an ``iref`` (internal reference) to
-    the global data whose type is ``T``.
-
-  - The name of a function defined by ``.funcdef`` or ``.funcdecl``
-    represents a constant SSA Value of type ``func``.
-
-- instruction: The Value which is computed. Specifically,
-
-  - The name of an instruction, if present, represents an SSA Value of its
-    return value.
-
-In µVM, parameters are implemented as an instruction implicitly defined by the
-formal parameter list. Control flow analysis can treat them as being defined in
-the beginning of the entry block.
 
 .. vim: textwidth=80

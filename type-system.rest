@@ -51,7 +51,6 @@ The following type constructors are available in the µVM:
 - stack
 - tagref64
 - vector < T length >
-- futex
 
 Parameters of a type are in the angular brackets. They can be integer literals,
 types and function signatures. In the text form, the latter two are type
@@ -66,7 +65,7 @@ There are several kinds of types.
 * ``ref``, ``iref``, ``weakref``, ``func``, ``thread`` and ``stack`` are
   **general reference types**.
 * ``int``, ``float``, ``double``, ``ref``, ``iref``, ``weakref``, ``func``,
-  ``thread``, ``stack``, ``tagref64`` and ``futex`` are **scalar types**.
+  ``thread``, ``stack`` and ``tagref64`` are **scalar types**.
 * ``vector``, ``struct``, ``array`` and ``hybrid`` are **composite types**.
 * ``hybrid`` is the only **variable-length type**. All other types are
   **fixed-length types**.
@@ -77,8 +76,6 @@ marked storage type is represented by a memory location, it exhibits special
 properties. Specifically:
 
 * ``weakref<T>`` is a marked storage type of ``ref<T>``.
-* ``futex`` is a marked storage type of ``int<WordLen>`` where ``WordLen`` is
-  the word length of the specific implementation.
 
 A marked storage type cannot be the type of an SSA variable (defined in
 `<instruction-set>`__). Loading from a memory location of a marked storage type
@@ -497,33 +494,3 @@ dependent.
         vector <double 2>
         vector <double 4>
         vector <int<32> 8>
-
-Futex Type
-----------
-
-``futex``
-
-+------+
-| opct |
-+======+
-| 0x10 |
-+------+
-
-``futex`` is a marked storage type of ``int<WordLen>`` where ``WordLen`` is
-the word length of the specific implementation.
-
-When a memory location has type ``futex``, the memory location can be used as a
-futex by some instructions or intrinsic functions.
-
-    NOTE: This type is intended to introduce a waiting queue interface similar
-    to the futex in the Linux kernel so that high-level locking primitives can
-    be built upon futex.
-
-..
-
-    NOTE: The memory location is considered the same even if it is part of a
-    heap object that is moved by the garbage collector. If implemented as Linux
-    futex, the garbage collector can take care of re-queuing all threads waiting
-    on the old address to the new address.
-
-.. vim: tw=80

@@ -74,7 +74,7 @@ variable does not have a memory location.
 Common Structures
 =================
 
-These structures are common to several instructions.
+The following grammar structures are common to several instructions.
 
 Exception Clause
 ----------------
@@ -182,78 +182,143 @@ many IDs follows it.
 Basic Operations
 ================
 
-These operations are the very basic of the µVM.
-
 Binary Operations
 -----------------
 
-``binOp < T > op1 op2````
+*binOp* ``<`` *T* ``>`` *op1* *op2* *excClause*
 
-    ``binOp``
-        The binary operation. One in the table shown later.
-    ``T``
+    binOp
+        A binary operation.
+    T
         *type*: The type of both operands.
-    ``op1``, ``op2``
-        *value* of ``T``: Two operands.
+    op1, op2
+        *variable* of type *T*: Two operands.
+    excClause:
+        *exception clause*: the destination for erroneous conditions.
     return value
-        Type ``T``: return the result of the computation.
+        Type *T*: return the result of the computation.
 
-+--------+-----+-----+-----+
-| opct   | idt | idt | idt |
-+========+=====+=====+=====+
-| opcode | T   | op1 | op2 |
-+--------+-----+-----+-----+
++--------+-----+-----+-----+-----------+
+| opct   | idt | idt | idt | excClause |
++========+=====+=====+=====+===========+
+| opcode | T   | op1 | op2 | excClause |
++--------+-----+-----+-----+-----------+
 
-``binOp`` is one in the following table:
+*binOp* and *opcode* is one in the following table:
 
-========= ======== ===== ======================== ========== ==========
- Keyword   opcode   T     semantic                 op1        op2
-========= ======== ===== ======================== ========== ==========
- ADD       0x01     int   add                      neutral    neutral
- SUB       0x02     int   subtract                 neutral    neutral
- MUL       0x03     int   multiply                 neutral    neutral
- SDIV      0x04     int   signed divide            signed     signed
- SREM      0x05     int   signed remainder         signed     signed
- UDIV      0x06     int   unsigned divide          unsigned   unsigned
- UREM      0x07     int   unsigned remainder       unsigned   unsigned
- SHL       0x08     int   left shift               neutral    unsigned
- LSHR      0x09     int   logical right shift      unsigned   unsigned
- ASHR      0x0A     int   arithmetic right shift   signed     unsigned
- AND       0x0B     int   bit-wise and             neutral    neutral
- OR        0x0C     int   bit-wise or              neutral    neutral
- XOR       0x0D     int   bit-wise exclusive or    neutral    neutral
- FADD      0xB0     FP    FP add                   FP         FP
- FSUB      0xB1     FP    FP subtract              FP         FP
- FMUL      0xB2     FP    FP multiply              FP         FP
- FDIV      0xB3     FP    FP divide                FP         FP
- FREM      0xB4     FP    FP remainder             FP         FP
-========= ======== ===== ======================== ========== ==========
+========= ======== ===== ========================
+ Keyword   opcode   T     operation
+========= ======== ===== ========================
+ ADD       0x01     int   add                    
+ SUB       0x02     int   subtract               
+ MUL       0x03     int   multiply               
+ SDIV      0x04     int   signed divide          
+ SREM      0x05     int   signed remainder       
+ UDIV      0x06     int   unsigned divide        
+ UREM      0x07     int   unsigned remainder     
+ SHL       0x08     int   left shift             
+ LSHR      0x09     int   logical right shift    
+ ASHR      0x0A     int   arithmetic right shift 
+ AND       0x0B     int   bit-wise and           
+ OR        0x0C     int   bit-wise or            
+ XOR       0x0D     int   bit-wise exclusive or  
+ FADD      0xB0     FP    FP add                 
+ FSUB      0xB1     FP    FP subtract            
+ FMUL      0xB2     FP    FP multiply            
+ FDIV      0xB3     FP    FP divide              
+ FREM      0xB4     FP    FP remainder           
+========= ======== ===== ========================
 
-This family of instructions are simple arithmetic and logical operations.
-Operations started with "F" are for floating point numbers and others are for
-integers. Both ``op1`` and ``op2`` must have type ``T``. The requirement of the
-type ``T`` is listed in the above table.
+In all binary operations, the type of both *op1* and *op2* must be the type *T*.
 
-Most integer arithmetic or logical instructions (``ADD``, ``SUB``, ``MUL``,
-``AND``, ``OR`` and ``XOR``) work for both unsigned and signed integers since
-negative integers are in the 2's complement representation. Others treat
-operands as signed or unsigned integers.
+For ADD, SUB, MUL, SDIV, SREM, UDIV, UREM, SHL, LSHR, ASHR, AND, OR and XOR, *T*
+must be ``int`` of a vector of ``int``. For FADD, FSUB, FMUL, FDIV and FREM, *T*
+must be a floating point type or a vector of floating point type.
 
-TODO: specify overflow, divide by zero and the semantic of each instruction.
+When *T* is a vector type, the operation is applied for the corresponding
+element pairs of the two vectors.
 
-For LLVM users: this is directly borrowed from LLVM. Vector operations are
-currently not supported and will be added in the (near) future.
+For ADD, SUB and MUL, both operands are considered unsigned. When overflow,
+returns the result modulo 2 :sup:`n` where n is the length of the integer.
 
-Example::
+    NOTE: Since negative numbers are encoded in the 2's complement notation,
+    ADD, SUB and MUL work for both signed and unsigned numbers.
 
-    .const @a <int<32>> = 42
-    .const @x <double> = 42.0d
+For SDIV, SREM, UDIV and UREM, divide-by-zero is an implementation-defined
+behaviour. For SDIV and SREM, overflow is an implementation-defined behaviour.
 
-    %b = ADD <int<32>> @a 1
-    %c = SUB <int<32>> @a %b
+For SHL, LSHR and ASHR, the second operand *op2* is considered unsigned. If the
+value of *op2* is greater than or equal to the length of *T*, it is an undefined
+behaviour.
 
-    %y = FADD <double> @x 1.0d
-    %z = FSUB <double> @x %y
+All binary operations may have an exception clause.
+
+µVM implementations should implement the natural behaviour of the underlying
+architecture for maximum performance. When there is a hardware traps and the
+corresponding binary operation has an exception clause *excClause*, it should be
+implemented as an exceptional control flow to the exceptional destination.
+
+Semantics:
+
+ADD
+    Return the sum of the two operands.
+SUB
+    Return the difference of the two operands.
+MUL
+    Return the product of the two operands.
+SDIV
+    Return the quotient of the two operands, rounded towards zero.
+SREM
+    Return the remainder of the two operands.
+UDIV
+    Return the quotient of the two operands, rounded towards zero.
+UREM
+    Return the remainder of the two operands.
+SHL
+    Return the value of *op1* shifted to the left by the value of *op2*. 
+LSHR
+    Return the value of *op1* shifted to the right by the value of *op2*. The
+    most significant bits of the shifted value are filled with 0.
+ASHR
+    Return the value of *op1* shifted to the right by the value of *op2*. The
+    most significant bits of the shifted value are filled with the most
+    significant bit of *op1*.
+AND
+    Return the result of bit-wise "and".
+OR
+    Return the result of bit-wise "or".
+XOR
+    Return the result of bit-wise "xor".
+
+..
+
+    For LLVM users: this is directly borrowed from LLVM. Exceptional cases,
+    including divide-by-zero and signed division overflow, are
+    implementation-defined instead of undefined.
+
+..
+
+    Example::
+
+        .const @a <int<32>> = 42
+        .const @x <double> = 42.0d
+        .const @z <int<64>> = 0
+
+        // in some function
+        %entry:
+            %b = ADD <int<32>> @a 1
+            %c = SUB <int<32>> @a %b
+
+            %y = FADD <double> @x 1.0d
+            %z = FSUB <double> @x %y
+
+            %d = UDIV <int<32>> %b @z EXC %cont %handler    // terminator
+
+        %cont:
+            ...     // continue on normal condition (all µVM implementations)
+
+        %handler:
+            ...     // handle divide-by-zero here (only on some µVM implementations)
 
 Comparison
 ----------
