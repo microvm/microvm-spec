@@ -253,10 +253,33 @@ behaviour.
 
 All binary operations may have an exception clause.
 
-µVM implementations should implement the natural behaviour of the underlying
-architecture for maximum performance. When there is a hardware traps and the
-corresponding binary operation has an exception clause *excClause*, it should be
-implemented as an exceptional control flow to the exceptional destination.
+All binary operations are optional. It is implementation-defined which
+operations are available for which types.
+
+µVM implementations should implement the natural behaviour and operation
+availability of the underlying architecture for maximum performance. When there
+is a hardware traps and the corresponding binary operation has an exception
+clause *excClause*, it should be implemented as an exceptional control flow to
+the exceptional destination.
+
+    For example:
+    
+    * On some ARMv7 platforms where the SDIV and UDIV instructions are not
+      available, the µVM implementation on those platforms does not have to
+      provide the SDIV, SREM, UDIV and UREM instructions. Even if it does, it
+      can decide what will happen if divide-by-zero is performed. Generating an
+      interrupt is not always the best choice because high-level language
+      Clients (for example, Java) expects a language-level exception which can
+      be handled without any system calls.
+    * On platforms without floating point units, the µVM may not provide
+      floating point operations.
+    * On platforms which does not support vector operations, it is allowed not
+      to provide binary operations on vector types. If the CPU only supports
+      vector operations of a particular length, the µVM implementation can only
+      implement the operations for that length.
+    * It is allowed not to provide ADD for ``int<8>`` if the CPU instruction can
+      only add 32-bit integers, but the µVM implementer should keep in mind that
+      there is a trade-off between efficiency, minimalism and convenience.
 
 Semantics:
 
@@ -289,6 +312,16 @@ OR
     Return the result of bit-wise "or".
 XOR
     Return the result of bit-wise "xor".
+FADD
+    Return the sum of the two operands.
+FSUB
+    Return the difference of the two operands.
+FMUL
+    Return the product of the two operands.
+FDIV
+    Return the quotient of the two operands.
+FREM
+    Return the remainder of the two operands.
 
 ..
 
