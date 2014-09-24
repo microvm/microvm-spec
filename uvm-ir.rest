@@ -81,9 +81,10 @@ Names and Identifiers
 ---------------------
 
 Many things in the µVM are **identified**. An identified thing has an
-identifiers (ID) and optionally a name.  An identifier (ID) is a 32-bit integer
-and a name is a string starting with a ``@`` or a ``%``. Both, if present,
-uniquely identifies an **identified** thing.
+identifiers (ID) and optionally a name.  An identifier (ID) is a 32-bit integer.
+A name is a string starting with a ``@`` or a ``%`` and followed by many
+characters in the set: `[0-9a-zA-Z_-.]`. Both, if present, uniquely identifies
+an **identified** thing.
 
 In the µVM IR text form, names are exclusively used and IDs are automatically
 generated.

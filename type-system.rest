@@ -470,7 +470,7 @@ Vector Type
         *integer literal*: The number of elements.
 
 +------+-----+--------+
-| opct | idt | aryszt |
+| opct | idt | lent   |
 +======+=====+========+
 | 0x0F | T   | length |
 +------+-----+--------+

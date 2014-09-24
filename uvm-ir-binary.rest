@@ -11,139 +11,96 @@ Overview
 The µVM IR Binary Form is similar to the `Text Form <uvm-ir>`__ in structure,
 but has notable differences.
 
-Numerical ID
-------------
+Numerical IDs are used exclusively instead of textual names. The binary form
+also provides a special "name binding" pseudo-top-level definition which
+associates IDs with names.
 
-The Binary Form identifies objects using numerical identifiers rather than
-textual identifiers.  In this document, **ID** means the numerical identifier
-while **name** means the textual identifier.
+It is not allowed to define types, function signatures or constants in line.
+They must be defined separately in their own top-level definitions and referred
+by IDs.
 
-An **ID** is a 32-bit unsigned integer. It is used so that one defined object
-can refer to others. Types, function signatures, constants, global data,
-functions, parameters, instructions and intrinsic functions have IDs.
+    NOTE: The reason for this rule is consistency. By doing this, every
+    definition creates exactly one object. All object refers to others using IDs
+    rather than containing them. For most programming languages, there are only
+    a few primitive types which can be exhaustively defined before writing other
+    code. For user-defined types (classes, structs, etc.), they have to be
+    defined and the number of types is far smaller than the number of uses. So
+    it is worth defining them separately.
 
-An **ID** uniquely identifies one object of the kinds above. There is no
-distinction between "global" ID and "local" ID as there is in the text form.
-However, an ID may refer to related but different objects in different contexts.
-For example, the ID of a constant may refer to the constant definition itself,
-but also the SSA Value which is a constant of the type defined in the
-definition. The ID of a function may refer to the function itself and can be
-redefined using the ID, but also an SSA Value which is a constant of the
-``func`` type, referring to that function.
+    Take Java-like language as an example. All primitive types can be defined
+    before other code::
 
-Zero (0) is an invalid ID. ID numbers within 1-65535 are reserved by the µVM.
-Other numbers are free for the client to use.
+        .typedef @byte      = int<8>
+        .typedef @short     = int<16>
+        .typedef @int       = int<32>
+        .typedef @long      = int<64>
+        .typedef @char      = int<16>
+        .typedef @boolean   = int<32>
+        .typedef @float     = float
+        .typedef @double    = double
+        .typedef @void      = void
+        .typedef @Object    = struct <...>
+        .typedef @ObjectRef = ref<@Object>
 
-No nested or implicit definitions
----------------------------------
+        .typedef @type_id   = int<64>
+        .typedef @object_header = @type_id
 
-Unlike the text form, every object, including types, signatures and constants,
-must be defined separately, not nested. For example, the following is valid in
-the text form::
+        .typedef @array_length = int<64>
+        .typedef @array_header = struct<@object_header @array_length>
 
-    .typedef @Foo = struct <float struct <int<64> double>>  // nested struct
+        .typedef @bytearray    = hybrid<@array_header @byte>
+        .typedef @shortarray   = hybrid<@array_header @short>
+        .typedef @intarray     = hybrid<@array_header @int>
+        .typedef @longarray    = hybrid<@array_header @long>
+        .typedef @chararray    = hybrid<@array_header @char>
+        .typedef @booleanarray = hybrid<@array_header @byte>    // different
+        .typedef @floatarray   = hybrid<@array_header @float>
+        .typedef @doublearray  = hybrid<@array_header @double>
+        .typedef @refarray     = hybrid<@array_header @ObjectRef>
 
-    .const @foo <@Foo> = {100.0f, {42, 3.14d}}              // nested constant
+    When loading a class, the Client should define a struct type itself, a ref
+    to it and an iref to it::
 
-    .funcdef @add1 <int<32> (int<32>)> (%a) { // signature (including its int<32>) must be defined separately
-        %b = ADD <int<32>> %a 1     // int<32> and 1 should be defined separately.
-    }
-
-However, in the binary form, every declaration must contain exactly one
-constructor (type constructor or constant literal) and nested constructors must
-be moved to their own definitions. The example above must be written in binary
-equivalent to this form::
-
-    .typedef @i64  = int<64>
-    .typedef @d    = double
-    .typedef @f    = float
-    .typedef @Foo1 = struct <@i64 @d>
-    .typedef @Foo  = struct <@f @Foo1>
-
-    .const @forty_two <@i64>  = 42
-    .const @pi        <@d>    = 3.14d
-    .const @foo1      <@Foo1> = {@forty_two, @pi}
-    .const @fpnum100  <@f>    = 100.0f
-    .const @foo       <@Foo>  = {@fpnum100, @foo1}
-
-    .typedef @i32 = int<32>
-    .funcsig @add1_sig = @i32 (@i32)
-    .const @one <@i32> = 1
-    .funcdef @add1 <@add1_sig> (%a) {
-        %b = ADD <@i32> %a @one
-    }
-
-NOTE: The reason for this rule is consistency. By doing this, every definition
-creates exactly one object. All object refers to others using IDs rather than
-containing them. For most programming languages, there are only a few primitive
-types which can be exhaustively defined before writing other code. For
-user-defined types (classes, structs, etc.), they have to be defined and the
-number of types is far smaller than the number of uses. So it is worth defining
-them separately.
-
-Take Java as an example. It is recommended to define all primitive types before
-other code::
-
-    .typedef @byte      = int<8>
-    .typedef @short     = int<16>
-    .typedef @int       = int<32>
-    .typedef @long      = int<64>
-    .typedef @char      = int<16>
-    .typedef @boolean   = int<32>
-    .typedef @float     = float
-    .typedef @double    = double
-    .typedef @void      = void
-    .typedef @Object    = struct <...>
-    .typedef @ObjectRef = ref<@Object>
-
-    .typedef @bytearray    = hybrid<@int @byte>    // @int is for the length
-    .typedef @shortarray   = hybrid<@int @short>
-    .typedef @intarray     = hybrid<@int @int>
-    .typedef @longarray    = hybrid<@int @long>
-    .typedef @chararray    = hybrid<@int @char>
-    .typedef @booleanarray = hybrid<@int @byte>    // different
-    .typedef @floatarray   = hybrid<@int @float>
-    .typedef @doublearray  = hybrid<@int @double>
-    .typedef @refarray     = hybrid<@int @ObjectRef>
-
-When loading a class, the client should define a struct type itself, a ref to it
-and an iref to it::
-
-    .typedef @String     = struct <...>
-    .typedef @StringRef  = ref<@String>
-    .typedef @StringIRef = iref<@String>
+        .typedef @String     = struct <@object_header ...>
+        .typedef @StringRef  = ref<@String>
+        .typedef @StringIRef = iref<@String>
 
 Binary format
 =============
 
 A bundle in the binary form consists of many numbers encoded in bytes. All
 numbers are encoded in **little endian** and are **tightly packed** which means
-there are no padding bytes between two adjacent numbers for alignment. For
-floating point numbers, it is equivalent to convert them bit-by-bit into integer
-types of the same length and convert to bytes in little endian.
+there are no padding bytes between two adjacent numbers. For floating point
+numbers, it is equivalent to convert them bit-by-bit into integer types of the
+same length and convert to bytes in little endian.
 
-This document uses the following notation for types:
+Binary Types
+------------
+
+A sequence of bytes has a **binary type** which maps the bytes to the value they
+represent. Possible binary types are:
 
 i8, i16, i32, i64
     Integer types of the respective lengths.
 float, double
     Floating point types of 32 bits and 64 bits, respectively.
 idt
-    The type of binary IDs. Alias to i32.
+    Alias to i32. Used for IDs.
 lent
-    The type of lengths, used for the number of items contained in
-    variable-length definitions (e.g. struct type and parameter list). Alias to
-    i16.
+    Alias to i16. Used for lengths of variable-length structures including the
+    number of fields in a struct and the number of items in a parameter list.
 aryszt
-    The type of array sizes, used for the number of items contained in the array
-    type. Alias to i64.
+    Alias to i64. Used for the length of arrays.
 opct
-    The opcode type, but not just used for instruction opcodes. Alias to i8.
+    Alias to i8. Used for instruction opcodes, operations or flags.
+*other structures*
+    One structure can contain other structures defined separately.
 
-For each concrete construction, the binary format appears in a table. It has two
-rows. The first row is a list of binary types of the respective column and the
-second row specifies for each column either a symbolic name for that field or
-the exact binary content expected.
+A table is used to represent a contiguous structure. The first row is a list of
+binary types specifying the type of each column and the second row specifies for
+each column either a symbolic name for that field or the exact binary content
+expected. Such a structure consists of a sequence of numbers of the types of the
+first row.
 
 +-------+------------------+
 | type1 | type2            |
@@ -151,20 +108,26 @@ the exact binary content expected.
 | num   | or symbolic name | 
 +-------+------------------+
 
-The general binary format follows the type-length-value principle. Most
-definitions can identify its length by its opcode. Other variable-length
-definitions are preceded by a field of ``lent`` indicating the number of
-elements.
+Common Structures
+=================
+
+Some structures are common in multiple structures.
+
+ID List
+-------
+
+An ID list, denoted as **idList**, is a list of IDs. It has the general form:
+
++------+-----+-----+-----+
+| lent | idt | idt | ... |
++======+=====+=====+=====+
+| nIDs | id1 | id2 | ... |
++------+-----+-----+-----+
+
+``nIDs`` specifies the number of IDs and there are ``nIDs`` IDs following it.
 
 Top-level Structure
 ===================
-
-In the binary form, the top-level definitions are type definitions, function
-signature definitions, constant definitions, global data definitions, function
-definitions, function declarations and name bindings.
-
-Only name bindings are not in the text form. It is for associating numerical IDs
-to names for debugging purposes.
 
 Type Definition
 ---------------
@@ -172,33 +135,32 @@ Type Definition
 Type definition has the following form:
 
 +------+-----+------------------+
-| opct | idt |                  |
+| opct | idt | type constructor |
 +======+=====+==================+
-| 0x01 | id  | type constructor |
+| 0x01 | id  | cons             |
 +------+-----+------------------+
 
 ``id`` is the identifier of the defined type. A type constructor follows the
-opcode 0x01 and the id. See `<type-system>`__ for a complete list of type
+opcode 0x01 and the ID. See `<type-system>`__ for a complete list of type
 constructors.
 
-NOTE: this is equivalent to: ``.typedef id = type constructor``.
+    NOTE: this is equivalent to: ``.typedef id = cons``.
 
 Function Signature Definition
 -----------------------------
 
 Function signature definition has the following form:
 
-+------+-----+-------+---------+----------+----------+-----+
-| opct | idt | idt   | lent    | idt      | idt      | ... |
-+======+=====+=======+=========+==========+==========+=====+
-| 0x02 | id  | retty | nparams | paramty1 | paramty2 | ... |
-+------+-----+-------+---------+----------+----------+-----+
++------+-----+-------+----------+
+| opct | idt | idt   | idList   |
++======+=====+=======+==========+
+| 0x02 | id  | retty | paramtys |
++------+-----+-------+----------+
 
 ``id`` is the identifier of the defined function signature. ``retty`` is the
-ID of the return type. ``nparams`` is the number of parameters and it is
-followed by nparams IDs each specifying the type of each parameter.
+ID of the return type. ``paramtys`` is a list of IDs of its parameter types.
 
-NOTE: this is equivalent to: ``.funcsig id = retty (paramty1 paramty2 ...)``
+    NOTE: this is equivalent to: ``.funcsig id = retty (paramtys)``
 
 Constant Definition
 -------------------
@@ -206,16 +168,16 @@ Constant Definition
 Constant definition has the following form:
 
 +------+-----+------+----------------------+
-| opct | idt | idt  |                      |
+| opct | idt | idt  | constant constructor |
 +======+=====+======+======================+
-| 0x03 | id  | type | constant constructor |
+| 0x03 | id  | type | cons                 |
 +------+-----+------+----------------------+
 
 ``id`` is the identifier of the defined constant. ``type`` is the type of the
 constant and must match the constant constructor. A constant constructor follows
 the type.
 
-NOTE: this is equivalent to: ``.const id <type> = constant constructor``
+    NOTE: this is equivalent to: ``.const id <type> = cons``
 
 Integer Constant Constructor
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -228,12 +190,11 @@ An integer constant constructor has the following form:
 | 0x01 | number |
 +------+--------+
 
-``number`` is the integer constant number. Although all integer constant
-constructors have 64-bit numbers, only the lowest ``n`` bits are valid if the
-type specified in the Constant Definition is ``int<n>``. Extra high bits are
-removed.
+``number`` is the integer constant number. If the integer constant has a type
+with fewer bits, only the least significant bits are valid. The binary form
+cannot encode integer constants larger than 64 bits.
 
-NOTE: this is equivalent to an integer literal in the text form.
+    NOTE: this is equivalent to an integer literal in the text form.
 
 Floating Point Constant Constructors
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -248,7 +209,7 @@ A float constant constructor has the following form:
 
 ``number`` is the float constant number.
 
-NOTE: this is equivalent to a float literal in the text form.
+    NOTE: this is equivalent to a float literal in the text form.
 
 A double constant constructor has the following form:
 
@@ -260,24 +221,24 @@ A double constant constructor has the following form:
 
 ``number`` is the double constant number.
 
-NOTE: this is equivalent to a double literal in the text form.
+    NOTE: this is equivalent to a double literal in the text form.
 
 Struct Constant Constructor
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A struct constant constructor has the following form:
 
-+------+---------+--------+--------+-----+
-| opct | lent    | idt    | idt    | ... |
-+======+=========+========+========+=====+
-| 0x04 | nfields | field1 | field2 | ... |
-+------+---------+--------+--------+-----+
++------+---------+
+| opct | idList  |
++======+=========+
+| 0x04 | fields  |
++------+---------+
 
-``nfields`` is the number of fields. It is followed by nfields identifiers, each
-of which refers to another constant which will be the field of the current
-struct constant.
+``fields`` is a list of IDs, each of which refers to another constant which is
+the value of the corresponding field of the struct.
 
-NOTE: this is equivalent to struct literal: ``{field1 field2 ...}``
+    NOTE: this is equivalent to the struct literal ``{fields}`` in the text
+    form.
 
 NULL Constant Constructor
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -290,14 +251,12 @@ A NULL constant constructor has the following form:
 | 0x05 |
 +------+
 
-Only an opcode.
+    NOTE: this is equivalent to the ``NULL`` keyword in the text form.
 
-NOTE: this is equivalent to the ``NULL`` keyword in the text form.
-
-Global Data Definition
+Global Cell Definition
 ----------------------
 
-Global data definition has the following form:
+Global cell definition has the following form:
 
 +------+-----+------+
 | opct | idt | idt  |
@@ -305,15 +264,15 @@ Global data definition has the following form:
 | 0x04 | id  | type |
 +------+-----+------+
 
-``id`` is the ID of the defined global data. ``type`` is the type of the global
-data.
+``id`` is the ID of the defined global cell. ``type`` is the type of the global
+cell.
 
-NOTE: this is equivalent to: ``.global id <type>``
+    NOTE: this is equivalent to: ``.global id <type>``
 
 Function Definition and Declaration
 -----------------------------------
 
-Function declaration is shorter and has the following form:
+Function declaration has the following form:
 
 +------+-----+-----+
 | opct | idt | idt |
@@ -324,36 +283,43 @@ Function declaration is shorter and has the following form:
 ``id`` is the ID of the declared function. ``sig`` is the function signature of
 it.
 
-NOTE: this is equivalent to: ``.funcdecl id <sig>``
+    NOTE: this is equivalent to: ``.funcdecl id <sig>``
 
-Function definition is longer and has the following form:
+Function definition has the following form:
 
-+------+-----+-----+---------+--------+--------+-----+------+---------------+
-| opct | idt | idt | lent    | idt    | idt    |     | i32  |               |
-+======+=====+=====+=========+========+========+=====+======+===============+
-| 0x06 | id  | sig | nparams | param1 | param2 | ... | nbbs | function body |
-+------+-----+-----+---------+--------+--------+-----+------+---------------+
++------+-----+-------+-----+--------+---------------+
+| opct | idt | idt   | idt | idList | function body |
++======+=====+=======+=====+========+===============+
+| 0x06 | id  | verid | sig | params | body          |
++------+-----+-------+-----+--------+---------------+
 
-``id`` is the ID of the defined function. ``sig`` is the function signature of
-it. ``paramx`` are identifiers of parameters. ``nbbs`` is the number of basic
-blocks in the function body.
+``id`` is the ID of the defined function. ``verid`` is the ID of the version of
+the function. ``sig`` is the function signature of it. ``params`` is a list of
+IDs, each of which is the ID of its parameter. ``body`` is the function body.
 
-NOTE: this is equivalent to: ``.funcdef id <sig> (param1 param2 ...) { function
-body }``
+    NOTE: this is equivalent to: ``.funcdef id VERSION verid <sig> (params) {
+    body }``
 
 Function Body
 =============
 
-Inside the function body, there are many basic blocks and each basic block has
-many instructions.
+A function body has the following form:
+
++------+-------------+-------------+-----+
+| lent | basic block | basic block | ... |
++======+=============+=============+=====+
+| nbbs | bb1         | bb2         | ... |
++------+-------------+-------------+-----+
+
+``nbbs`` is the number of basic blocks. ``bbx`` are basic blocks.
 
 A basic block has the following form:
 
-+-----+--------+-----------------+
-| idt | i32    |                 |
-+=====+========+=================+
-| id  | ninsts | instructions... |
-+-----+--------+-----------------+
++-----+--------+-------------+-------------+-----+
+| idt | lent   | instruction | instruction | ... |
++=====+========+=============+=============+=====+
+| id  | ninsts | inst1       | inst2       | ... |
++-----+--------+-------------+-------------+-----+
 
 ``id`` is the ID of the basic block. Every basic block must have an ID,
 *even the entry block*. ``ninsts`` is the number of instructions in the current
@@ -362,13 +328,13 @@ basic block. There are ninsts basic blocks following the header.
 An instruction has the following form:
 
 +-----+------------------+
-| idt |                  |
+| idt | instruction body |
 +=====+==================+
-| id  | instruction body |
+| id  | instbody         |
 +-----+------------------+
 
-``id`` is the ID of the instruction. ``instruction body`` is specific to each
-instruction. See `<instruction-set>`__ for an exhaustive list.
+``id`` is the ID of the instruction. ``instbody`` is instruction body which is
+specific to each instruction. See `<instruction-set>`__ for an exhaustive list.
 
 Name Binding
 ============
@@ -388,7 +354,8 @@ A name binding has the following form:
 ``id`` is the ID to bind. ``nbytes`` is the number of bytes in the name and
 ``bytex`` is the value of each byte.
 
-The name is encoded in UTF-8.
+The name is encoded in ASCII and must follow the rules of global names, local
+names and allowed characters as defined in `<uvm-ir>`__.
 
 Example
 =======
@@ -456,6 +423,10 @@ form::
     .typedef @65550     = tagref64
     // 01    0e 00 01 00  0e
 
+    //       @vec_4xfloat
+    .typedef @65793     = vector < @float       4     >
+    // 01    01 01 01 00  0f       02 00 01 00  04 00
+
     //       @sig1        @void
     .funcsig @65551     = @65546        ()      // void ()
     // 02    0f 00 01 00  0a 00 01 00   00 00
@@ -496,24 +467,36 @@ form::
     .funcdecl   @65600      <@65551>
     // 05       40 00 01 00  0f 00 01 00
 
-    //          @func1       @sig2          2 params    %p0          %p1          1 basic block
-    .funcdef    @65601      <@65552>        (           %65602       %65603)      {
-    // 06       41 00 01 00  10 00 01 00    02 00       42 00 01 00  43 00 01 00  01 00 00 00
+    //          @func1       @sig2                              2 params    %p0          %p1          1 basic block
+    .funcdef    @65601      <@65552>        VERSION @65794      (           %65602       %65603)      {
+    // 06       41 00 01 00  10 00 01 00            02 01 00 00 02 00       42 00 01 00  43 00 01 00  01 00
 
-    //  %entry       3 instructions
+    //  %entry       2 instructions
         %65604:
-    //  44 00 01 00  03 00 00 00
+    //  44 00 01 00  02 00
 
-            // %v1                           @i64         %p1
+            // %v1                           @i64         %p1               no exception clause
             %65605 =        LOAD NOT_ATOMIC <@65537>      %65603
-            // 45 00 01 00  1a   00          01 00 01 00  43 00 01 00
+            // 45 00 01 00  1a   00          01 00 01 00  43 00 01 00       00 00 00 00 00 00 00 00
 
-            // %v2                @i64          %p0          %v1
-            %65606 =        ADD  <@65537>       %65602       %65605
-            // 46 00 01 00  01   01 00 01 00    42 00 01 00  45 00 01 00
+            // %v2                @i64          %p0          %v1            
+            %65606 =        SDIV <@65537>       %65602       %65605         EXC %cont %catch
+            // 46 00 01 00  04   01 00 01 00    42 00 01 00  45 00 01 00    48 00 01 00 49 00 01 00
+
+    //  %cont        1 instruction
+        %65608:
+    //  48 00 01 00  01 00
 
             %65607 =        RET  <@65537>       %v2
             // 47 00 01 00  63   01 00 01 00    46 00 01 00
+
+    //  %catch       1 instruction
+        %65609:
+    //  49 00 01 00  01 00
+
+            %65610 =        RET  <@65537>       %v1
+            // 4a 00 01 00  63   01 00 01 00    45 00 01 00
+        
         
     }
 

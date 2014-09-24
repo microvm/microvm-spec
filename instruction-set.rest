@@ -229,13 +229,14 @@ Binary Operations
  FREM      0xB4     FP    FP remainder           
 ========= ======== ===== ========================
 
-In all binary operations, the type of both *op1* and *op2* must be the type *T*.
+In all binary operations, the type of both ``op1`` and ``op2`` must be the type
+``T``.
 
-For ADD, SUB, MUL, SDIV, SREM, UDIV, UREM, SHL, LSHR, ASHR, AND, OR and XOR, *T*
-must be ``int`` of a vector of ``int``. For FADD, FSUB, FMUL, FDIV and FREM, *T*
-must be a floating point type or a vector of floating point type.
+For ADD, SUB, MUL, SDIV, SREM, UDIV, UREM, SHL, LSHR, ASHR, AND, OR and XOR,
+``T`` must be ``int`` of a vector of ``int``. For FADD, FSUB, FMUL, FDIV and
+FREM, ``T`` must be a floating point type or a vector of floating point type.
 
-When *T* is a vector type, the operation is applied for the corresponding
+When ``T`` is a vector type, the operation is applied for the corresponding
 element pairs of the two vectors.
 
 For ADD, SUB and MUL, both operands are considered unsigned. When overflow,
@@ -247,9 +248,9 @@ returns the result modulo 2 :sup:`n` where n is the length of the integer.
 For SDIV, SREM, UDIV and UREM, divide-by-zero is an implementation-defined
 behaviour. For SDIV and SREM, overflow is an implementation-defined behaviour.
 
-For SHL, LSHR and ASHR, the second operand *op2* is considered unsigned. If the
-value of *op2* is greater than or equal to the length of *T*, it is an undefined
-behaviour.
+For SHL, LSHR and ASHR, the second operand ``op2`` is considered unsigned. If
+the value of ``op2`` is greater than or equal to the length of ``T``, it is an
+undefined behaviour.
 
 All binary operations may have an exception clause.
 
@@ -259,7 +260,7 @@ operations are available for which types.
 µVM implementations should implement the natural behaviour and operation
 availability of the underlying architecture for maximum performance. When there
 is a hardware traps and the corresponding binary operation has an exception
-clause *excClause*, it should be implemented as an exceptional control flow to
+clause ``excClause``, it should be implemented as an exceptional control flow to
 the exceptional destination.
 
     For example:
@@ -298,14 +299,14 @@ UDIV
 UREM
     Return the remainder of the two operands.
 SHL
-    Return the value of *op1* shifted to the left by the value of *op2*. 
+    Return the value of ``op1`` shifted to the left by the value of ``op2``. 
 LSHR
-    Return the value of *op1* shifted to the right by the value of *op2*. The
-    most significant bits of the shifted value are filled with 0.
+    Return the value of ``op1`` shifted to the right by the value of ``op2``.
+    The most significant bits of the shifted value are filled with 0.
 ASHR
-    Return the value of *op1* shifted to the right by the value of *op2*. The
-    most significant bits of the shifted value are filled with the most
-    significant bit of *op1*.
+    Return the value of ``op1`` shifted to the right by the value of ``op2``.
+    The most significant bits of the shifted value are filled with the most
+    significant bit of ``op1``.
 AND
     Return the result of bit-wise "and".
 OR
