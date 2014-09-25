@@ -188,11 +188,11 @@ Binary Operations
 *binOp* ``<`` *T* ``>`` *op1* *op2* *excClause*
 
     binOp
-        A binary operation.
+        The binary operation.
     T
         *type*: The type of both operands.
     op1, op2
-        *variable* of type *T*: Two operands.
+        *variable* of type *T*: The two operands.
     excClause:
         *exception clause*: the destination for erroneous conditions.
     return value
@@ -204,7 +204,7 @@ Binary Operations
 | opcode | T   | op1 | op2 | excClause |
 +--------+-----+-----+-----+-----------+
 
-*binOp* and *opcode* is one in the following table:
+*binOp* and *opcode* are one in the following table:
 
 ========= ======== ===== ========================
  Keyword   opcode   T     operation
@@ -229,14 +229,16 @@ Binary Operations
  FREM      0xB4     FP    FP remainder           
 ========= ======== ===== ========================
 
-In all binary operations, the type of both ``op1`` and ``op2`` must be the type
-``T``.
+In all binary operations, the type of both *op1* and *op2* must be the type
+*T*.
 
 For ADD, SUB, MUL, SDIV, SREM, UDIV, UREM, SHL, LSHR, ASHR, AND, OR and XOR,
-``T`` must be ``int`` of a vector of ``int``. For FADD, FSUB, FMUL, FDIV and
-FREM, ``T`` must be a floating point type or a vector of floating point type.
+*T* must be ``int`` of a vector of ``int``.
 
-When ``T`` is a vector type, the operation is applied for the corresponding
+For FADD, FSUB, FMUL, FDIV and FREM, *T* must be a floating point type or a
+vector of floating point type.
+
+When *T* is a vector type, the operation is applied for the corresponding
 element pairs of the two vectors.
 
 For ADD, SUB and MUL, both operands are considered unsigned. When overflow,
@@ -248,9 +250,11 @@ returns the result modulo 2 :sup:`n` where n is the length of the integer.
 For SDIV, SREM, UDIV and UREM, divide-by-zero is an implementation-defined
 behaviour. For SDIV and SREM, overflow is an implementation-defined behaviour.
 
-For SHL, LSHR and ASHR, the second operand ``op2`` is considered unsigned. If
-the value of ``op2`` is greater than or equal to the length of ``T``, it is an
+For SHL, LSHR and ASHR, the second operand *op2* is considered unsigned. If
+the value of *op2* is greater than or equal to the length of *T*, it is an
 undefined behaviour.
+
+All floating point operations follow the IEEE 754 standard.
 
 All binary operations may have an exception clause.
 
@@ -260,7 +264,7 @@ operations are available for which types.
 µVM implementations should implement the natural behaviour and operation
 availability of the underlying architecture for maximum performance. When there
 is a hardware traps and the corresponding binary operation has an exception
-clause ``excClause``, it should be implemented as an exceptional control flow to
+clause *excClause*, it should be implemented as an exceptional control flow to
 the exceptional destination.
 
     For example:
@@ -299,20 +303,20 @@ UDIV
 UREM
     Return the remainder of the two operands.
 SHL
-    Return the value of ``op1`` shifted to the left by the value of ``op2``. 
+    Return the value of *op1* shifted to the left by the value of *op2*. 
 LSHR
-    Return the value of ``op1`` shifted to the right by the value of ``op2``.
+    Return the value of *op1* shifted to the right by the value of *op2*.
     The most significant bits of the shifted value are filled with 0.
 ASHR
-    Return the value of ``op1`` shifted to the right by the value of ``op2``.
+    Return the value of *op1* shifted to the right by the value of *op2*.
     The most significant bits of the shifted value are filled with the most
-    significant bit of ``op1``.
+    significant bit of *op1*.
 AND
     Return the result of bit-wise "and".
 OR
-    Return the result of bit-wise "or".
+    Return the result of bit-wise inclusive "or".
 XOR
-    Return the result of bit-wise "xor".
+    Return the result of bit-wise exclusive "or".
 FADD
     Return the sum of the two operands.
 FSUB
@@ -346,6 +350,7 @@ FREM
             %y = FADD <double> @x 1.0d
             %z = FSUB <double> @x %y
 
+            // The presence of the exception clause makes it a terminator
             %d = UDIV <int<32>> %b @z EXC %cont %handler    // terminator
 
         %cont:
@@ -357,16 +362,18 @@ FREM
 Comparison
 ----------
 
-- ``cmpOp < T > op1 op2``
+*cmpOp* ``<`` *T* ``>`` *op1* *op2*
 
-    ``cmpOp``
-        The comparison operation. One in the table shown later.
-    ``T``
+    cmpOp
+        The comparison operation.
+    T
         *type*: The type of both operands.
-    ``op1``, ``op2``
-        *value* of ``T``: Two operands.
+    op1, op2
+        *variable* of *T*: The two operands.
     return value
-        Type ``int<1>``: returns 1 for true or 0 for false.
+        * Type ``int<1>``: returns 1 for true or 0 for false, or
+        * Type ``vector<int<1> n>``: returns a vector of ``int<1>`` where each
+          element is the result of the comparison of the corresponding elements.
 
 +--------+-----+-----+-----+
 | opct   | idt | idt | idt |
@@ -374,91 +381,187 @@ Comparison
 | opcode | T   | op1 | op2 |
 +--------+-----+-----+-----+
 
-``cmpOp`` is one in the following table:
+*cmpOp* and *opcode* are one in the following table:
 
-========= ======== =======================
- Keyword   opcode   T
-========= ======== =======================
- EQ        0x20     int or EQ-comparable
- NE        0x21     int or EQ-comparable
- SGE       0x22     int
- SGT       0x23     int
- SLE       0x24     int
- SLT       0x25     int
- UGE       0x26     int
- UGT       0x27     int
- ULE       0x28     int
- ULT       0x29     int
- FFALSE    0xC0     FP
- FTRUE     0xC1     FP
- FUNO      0xC2     FP
- FUEQ      0xC3     FP
- FUNE      0xC4     FP
- FUGT      0xC5     FP
- FUGE      0xC6     FP
- FULT      0xC7     FP
- FULE      0xC8     FP
- FORD      0xC9     FP
- FOEQ      0xCA     FP
- FONE      0xCB     FP
- FOGT      0xCC     FP
- FOGE      0xCD     FP
- FOLT      0xCE     FP
- FOLE      0xCF     FP
-========= ======== =======================
+========= ======== =============== ==================================
+ Keyword   opcode   T               Condition
+========= ======== =============== ==================================
+ EQ        0x20     EQ-comparable   equal
+ NE        0x21     EQ-comparable   not equal
+ SGE       0x22     int             signed greater than or equal
+ SGT       0x23     int             signed greater than
+ SLE       0x24     int             signed less than or equal
+ SLT       0x25     int             signed less than
+ UGE       0x26     int             unsigned greater than or equal
+ UGT       0x27     int             unsigned greater than
+ ULE       0x28     int             unsigned less than or equal
+ ULT       0x29     int             unsigned less than
+ FFALSE    0xC0     FP              always false
+ FTRUE     0xC1     FP              always true
+ FUNO      0xC2     FP              unordered
+ FUEQ      0xC3     FP              unordered equal
+ FUNE      0xC4     FP              unordered not equal
+ FUGT      0xC5     FP              unordered greater than
+ FUGE      0xC6     FP              unordered greater than or equal
+ FULT      0xC7     FP              unordered less than
+ FULE      0xC8     FP              unordered less than or equal
+ FORD      0xC9     FP              ordered
+ FOEQ      0xCA     FP              ordered equal
+ FONE      0xCB     FP              ordered not equal
+ FOGT      0xCC     FP              ordered greater than
+ FOGE      0xCD     FP              ordered greater than or equal
+ FOLT      0xCE     FP              ordered less than
+ FOLE      0xCF     FP              ordered less than or equal
+========= ======== =============== ==================================
 
-This family of instructions are simple comparison operations.  Operations
-started with "F" are for floating point numbers and others are for integers. The
-type ``T`` must be ``float``, ``double`` or ``int<...>`` according to the
-operator and both ``op1`` and ``op2`` must have type ``T``.
+In all comparison operations, both *op1* and *op2* must have type *T*.
 
-See LLVM's LangRef for the semantic of each operator.
+For EQ and NE, *T* must be a EQ-comparable type (see `<type-system>`__) or a
+vector of EQ-comparable types.
 
-TODO: the semantics will eventually be written in this document.
+For SGE, SGT, SLE, SLT, UGE, UGT, ULE and ULT, *T* must be ``int`` or a vector
+of ``int``.
 
-The ``EQ`` and the ``NE`` operator are also applicable to ``ref``, ``iref``,
-``func``, ``stack``, ``thread`` (which are collectively called "EQ-comparable")
-and the result is whether they refer to the same object, field, function, stack
-or thread, respectively. In the case of ``tagref64``, it checks for exact
-bit-wise equality, which may not be desired because both operands can contain
-floating point numbers.
+For FFALSE, FTRUE, FUNO, FUEQ, FUNE, FUGT, FUGE, FULT, FULE, FORD, FOEQ, FONE,
+FOGT, FOGE, FOLT, FOLE, *T* must be a floating point type or a vector of a
+floating point type.
 
-The return value has type ``int<1>``. 1 for true and 0 for false.
+If *T* is a vector type, the comparison is done element-wise.
 
-For LLVM users: this is directly borrowed from LLVM. Vector operations are
-currently not supported and will be added in the (near) future.
+Floating point comparisons are optional. If they are implemented, they follow
+the IEEE 754 standard.
 
-Example::
+    NOTE: The µVM implementation does not need to implement FP comparisons if
+    there is no FP units in the underlying architecture.
 
-    .const @a <int<32>> = 42
-    .const @b <int<32>> = 43
-    %c = GT <int<32>> @a 0
-    %d = LT <int<32>> @a @b
+This instruction returns 1 if the condition of the comparison is true, or 0
+otherwise. The conditions are:
 
-    .const @w <double> = 42.0d
-    .const @x <double> = 43.0d
-    %y = FULT <double> @w 0.0d
-    %z = FUGT <double> @w @x
+EQ
+    For integers, *op1* is equal to *op2*. For general reference types, *op1*
+    refers to the same object/memory location/function/stack/thread.
+NE
+    The opposite of EQ.
+SGE
+    Interpret the operands as signed values and *op1* is greater than or equal
+    to *op2*.
+SGT
+    Interpret the operands as signed values and *op1* is greater than *op2*.
+SLE
+    Interpret the operands as signed values and *op1* is less than or equal to
+    *op2*.
+SLT
+    Interpret the operands as signed values and *op1* is less than *op2*.
+UGE
+    Interpret the operands as unsigned values and *op1* is greater than or equal
+    to *op2*.
+UGT
+    Interpret the operands as unsigned values and *op1* is greater than *op2*.
+ULE
+    Interpret the operands as unsigned values and *op1* is less than or equal to
+    *op2*.
+ULT
+    Interpret the operands as unsigned values and *op1* is less than *op2*.
+FFALSE
+    Always false.
+FTRUE 
+    Always true.
+FUNO  
+    Either operand is qNaN.
+FUEQ  
+    Either operand is qNaN or *op1* is equal to *op2*.
+FUNE  
+    Either operand is qNaN or *op1* is not equal to *op2*.
+FUGT  
+    Either operand is qNaN or *op1* is greater than *op2*.
+FUGE  
+    Either operand is qNaN or *op1* is greater than or equal to *op2*.
+FULT  
+    Either operand is qNaN or *op1* is less than *op2*.
+FULE  
+    Either operand is qNaN or *op1* is less than or equal to *op2*.
+FORD  
+    Both operands are not qNaN.
+FOEQ  
+    Both operands are not qNaN and *op1* is equal to *op2*.
+FONE  
+    Both operands are not qNaN and *op1* is not equal to *op2*.
+FOGT  
+    Both operands are not qNaN and *op1* is greater than *op2*.
+FOGE  
+    Both operands are not qNaN and *op1* is greater than or equal to *op2*.
+FOLT  
+    Both operands are not qNaN and *op1* is less than *op2*.
+FOLE  
+    Both operands are not qNaN and *op1* is less than or equal to *op2*.
 
-    %e = NEW <int<64>>
-    %f = EQ <ref<int<64>>> %e %e
+..
 
-    %g = ALLOCA <int<64>>
-    %h = EQ <iref<int<64>>> %g %g
+    NOTE: All floating point numbers of the same type are comparable, including
+    NaN.  When comparing, there can only be four results: *equal*, *less than*,
+    *greater than* and *unordered*. Unordered is returned whenever either of the
+    operands is NaN. Those floating point comparisons can be summarised by the
+    following table, where a predicate is true if and only if the comparison
+    gets one of the listed results.
+
+    =========== =========== =========== =============== =========== ===========
+    Comparison  unordered   less than   greater than    equal       Inverse
+    =========== =========== =========== =============== =========== ===========
+    FFALSE                                                          FTRUE 
+    FOEQ                                                EQ          FUNE
+    FOGT                                GT                          FULE
+    FOGE                                GT              EQ          FULT
+    FOLT                    LT                                      FUGE
+    FOLE                    LT                          EQ          FUGT
+    FONE                    LT          GT                          FUEQ
+    FORD                    LT          GT              EQ          FUNO
+    FUNO        unordered                                           FORD
+    FUEQ        unordered                               EQ          FONE
+    FUGT        unordered               GT                          FOLE
+    FUGE        unordered               GT              EQ          FOLT
+    FULT        unordered   LT                                      FOGE
+    FULE        unordered   LT                          EQ          FOGT
+    FUNE        unordered   LT          GT                          FOEQ
+    FTRUE       unordered   LT          GT              EQ          FFALSE
+    =========== =========== =========== =============== =========== ===========
+
+..
+
+    For LLVM users: this is directly borrowed from LLVM.
+
+..
+
+    Example::
+
+        .const @a <int<32>> = 42
+        .const @b <int<32>> = 43
+        %c = GT <int<32>> @a 0
+        %d = LT <int<32>> @a @b
+
+        .const @w <double> = 42.0d
+        .const @x <double> = 43.0d
+        %y = FULT <double> @w 0.0d
+        %z = FUGT <double> @w @x
+
+        %e = NEW <int<64>>
+        %f = EQ <ref<int<64>>> %e %e
+
+        %g = ALLOCA <int<64>>
+        %h = EQ <iref<int<64>>> %g %g
 
 Conversion
 ----------
 
-- ``convOp < T1 T2 > opnd``
+*convOp* ``<`` *T1* *T2* ``>`` *opnd*
 
-    ``convOp``
-        The conversion operation. One in the table shown later.
-    ``T1``, ``T2``
+    convOp
+        The conversion operation.
+    T1, T2
         *type*: The source type and the destination type, respectively.
-    ``opnd``
-        *value* of ``T1``: The operand.
+    opnd
+        *value* of type *T1*: The operand.
     return value
-        Type ``T2``: The result of the conversion.
+        Type *T2*: The result of the conversion.
 
 +--------+-----+-----+-----+
 | opct   | idt | idt | idt |
@@ -466,84 +569,150 @@ Conversion
 | opcode | T1  | T2  | op  |
 +--------+-----+-----+-----+
 
-``convOp`` is one in the following table.
+*convOp* and *opcode* are one in the following table.
 
-========== ======== ========= =========
- Keyword    opcode   T1        T2
-========== ======== ========= =========
- TRUNC      0x30     int       int    
- ZEXT       0x31     int       int    
- SEXT       0x32     int       int    
- FPTRUNC    0x33     FP        FP
- FPEXT      0x34     FP        FP
- FPTOUI     0x35     FP        int    
- FPTOSI     0x36     FP        int    
- UITOFP     0x37     int       FP
- SITOFP     0x38     int       FP
- BITCAST    0x39     int/FP    FP/int
- REFCAST    0x3A     ref       ref
- IREFCAST   0x3B     iref      iref
- FUNCCAST   0x3C     func      func
-========== ======== ========= =========
+========== ======== ============    ============
+ Keyword    opcode   T1              T2
+========== ======== ============    ============
+ TRUNC      0x30     int             int    
+ ZEXT       0x31     int             int    
+ SEXT       0x32     int             int    
+ FPTRUNC    0x33     FP              FP
+ FPEXT      0x34     FP              FP
+ FPTOUI     0x35     FP              int    
+ FPTOSI     0x36     FP              int    
+ UITOFP     0x37     int             FP
+ SITOFP     0x38     int             FP
+ BITCAST    0x39    (see below)     (see below)
+ REFCAST    0x3A    (see below)     (see below)
+========== ======== ============    ============
 
-This family of instructions convert one primitive type to another or adjust the
-length of numbers. ``T1`` and ``T2`` are the source type and the destination
-type, respectively and the operand ``opnd`` must match the type ``T1``.
+In all conversions, the operand *opnd* must have type *T1*. All conversions
+convert *opnd* to type *T2*.
 
-``REFCAST`` casts between object reference types ``ref<T>``; ``IREFCAST`` casts
-between internal reference types ``iref<T>``; ``FUNCCAST`` casts between
-function types ``func<sig>``. They only changes the referent type or the
-function signature and does not change the value of the reference or the
-referred function and does not perform any kind of runtime type checking.
+*T1* and *T2* can be either scalar types as shown below or vector types of the
+types shown below as its elements. In the case of vector types, *T1* and *T2*
+must have the same length and the conversion is done element-wise.
 
-See LLVM's documentation for the semantic of other operators.
+* For TRUNC, ZEXT and SEXT, Both *T1* and *T2* must be integer types.
 
-For LLVM users: These instructions are borrowed from LLVM. µVM currently lacks
-the conversion between raw pointer types and numerical types and they will be
-added when raw pointers are introduce. ``REFCAST``, ``IREFCAST`` and
-``FUNCCAST`` are µVM-specific. µVM cannot use ``bitcast`` to cast between
-reference types.
+  + For TRUNC, the length of *T2* must be less than the length of *T1*.
+  + For ZEXT and SEXT, the length of *T2* must be greater than the length of *T1*.
 
-Example::
+* For FPTRUNC and FPEXT, Both *T1* and *T2* must be floating point types.
 
-    .const @a  <int<32>> = 42
-    .const @a2 <int<32>> = -42
-    %b  = TRUNC <int<32> int<16>> @a    // is int<16>
-    %c  = ZEXT <int<32> int<64>> @a     // is int<64>
-    %c2 = SEXT <int<32> int<64>> @a2    // is int<64>
-    %d  = UITOFP <int<32> double> @a    // is double
-    %d2 = SITOFP <int<32> double> @a2   // is double
+  + For FPTRUNC, the length of *T2* must be less than the length of *T1*.
+  + For FPEXT, the length of *T2* must be greater than the length of *T1*.
 
-    .const @x  <double> = 42.0d
-    %y = FPTRUNC <double float> @x      // is float
-    %z = FPEXT <float double> %y        // is double
-    %w = FPTOSI <double int<64>> @x     // is int<64>
+* For FPTOUI and FPTOSI, *T1* must be a floating point type and *T2* must be an
+  integer type.
+* For UITOFP and SITOFP, *T1* must be an integer type and *T2* must be a
+  floating point type.
+* For BITCAST, *T1* and *T2* must be one of the following combinations:
 
-    %f = NEW <@Foo>                         // is ref<@Foo>
-    %g = REFCAST <ref<@Foo> ref<@Bar>> %f   // is ref<@Bar>
+  + *T1* is an integer type and *T2* is a floating point type of the same number
+    of bits.
+  + *T2* is a floating point type and *T1* is an integer type of the same number
+    of bits.
 
-    %h = ALLOCA <@Foo>                      // is ref<@Foo>
-    %i = IREFCAST <ref<@Foo> iref<@Bar>> %h // is ref<@Bar>
+* For REFCAST, *T1* and *T2* must be one of the following combinations:
 
-    .funcsig @vv = void ()
-    .funcsig @main_sig = int<32> (int<32> iref<iref<int<8>>>)
-    .funcdecl @j <@main_sig>
-    %k = FUNCCAST <@main_sig @vv> @j    // is func<@vv>
+  + Both *T1* and *T2* are ``ref``.
+  + Both *T1* and *T2* are ``iref``.
+  + Both *T1* and *T2* are ``func``.
 
-Selection (a.k.a. Conditional Move)
------------------------------------
+All conversions are optional. It is implementation-defined which conversion is
+available for which type.
 
-- ``SELECT < T > cond iftrue iffalse``
+Semantics:
 
-    ``T``
-        *type*: The type of ``iftrue``, ``iffalse`` and the result.
-    ``cond``
-        *value* of ``int<1>``: The condition
-    ``iftrue``, ``iffalse``
-        *value* of ``T``: The result for this instruction when ``cond`` is 1 or
-        0, respectively.
+TRUNC
+    Truncate the high order bits of *opnd*, keeping only the lowest n bits of
+    *opnd* where n is the length of *T2*.
+ZEXT 
+    Fill zero bits to *opnd* until it reaches the length of *T2*.
+SEXT 
+    Copy the highest order bit of *opnd* until it reaches the length of *T2*.
+FPTRUNC
+    Convert *opnd* to a smaller floating point type.
+FPEXT
+    Convert *opnd* to a larger floating point type.
+FPTOUI
+    Convert *opnd* to an unsigned integer, rounding towards zero.
+FPTOSI
+    Convert *opnd* to a signed integer, rounding towards zero.
+UITOFP
+    Interpret *opnd* as unsigned and convert *opnd* to a floating point type.
+SITOFP
+    Interpret *opnd* as signed and convert *opnd* to a floating point type.
+BITCAST
+    The result has the same bit-wise representation as *opnd*.
+REFCAST
+    * When converting between ``ref``, the result refers to the same object as
+      *opnd*, but may have a different referent type.
+    * When converting between ``iref``, the result refers to a memory location
+      with the same beginning as *opnd*.
+    * When converting between ``func``, the result refers to the same function
+      as *opnd*, but may treat the function as having a different signature.
+
+..
+
+    TODO: Document in a separate chapter `<floating-point>`__ and mention the
+    relation between µVM floating point operations and the IEEE 754, including
+    operations, rounding, exception handling and so on. Also provide intrinsic
+    functions for conversions and other operations that have different
+    requirements.
+
+..
+
+    For LLVM users: These instructions are borrowed from LLVM. µVM currently
+    lacks the conversion between raw pointer types and numerical types and they
+    will be added when raw pointers are introduce. ``REFCAST`` is µVM-specific.
+    µVM cannot use ``bitcast`` to cast between reference types.
+
+..
+
+    Example::
+
+        .const @a  <int<32>> = 42
+        .const @a2 <int<32>> = -42
+        %b  = TRUNC <int<32> int<16>> @a    // is int<16>
+        %c  = ZEXT <int<32> int<64>> @a     // is int<64>
+        %c2 = SEXT <int<32> int<64>> @a2    // is int<64>
+        %d  = UITOFP <int<32> double> @a    // is double
+        %d2 = SITOFP <int<32> double> @a2   // is double
+
+        .const @x  <double> = 42.0d
+        %y = FPTRUNC <double float> @x      // is float
+        %z = FPEXT <float double> %y        // is double
+        %w = FPTOSI <double int<64>> @x     // is int<64>
+
+        %f = NEW <@Foo>                         // is ref<@Foo>
+        %g = REFCAST <ref<@Foo> ref<@Bar>> %f   // is ref<@Bar>
+
+        %h = ALLOCA <@Foo>                      // is ref<@Foo>
+        %i = REFCAST <iref<@Foo> iref<@Bar>> %h // is ref<@Bar>
+
+        .funcsig @vv = void ()
+        .funcsig @main_sig = int<32> (int<32> iref<iref<int<8>>>)
+        .funcdecl @j <@main_sig>
+        %k = REFCAST <@main_sig @vv> @j     // is func<@vv>
+
+Conditional Move
+----------------
+
+``SELECT`` ``<`` *S* *T* ``>`` *cond* *iftrue* *iffalse*
+
+    S
+        *type*: The type of *cond*.
+    T
+        *type*: The type of *iftrue*, *iffalse* and the result.
+    cond
+        *variable* of type *S*: The condition.
+    iftrue, iffalse
+        *variable* of *T*: The candidates of the result.
     return value
-        Type ``T``: ``iftrue`` or ``iffalse`` according to ``cond``
+        Type *T*: A value according to *cond*.
 
 +------+-----+-------+--------+---------+
 | opct | idt | idt   | idt    | idt     |
@@ -551,33 +720,50 @@ Selection (a.k.a. Conditional Move)
 | 0x40 | T   | cond  | iftrue | iffalse |
 +------+-----+-------+--------+---------+
 
-The ``SELECT`` instruction is a conditional instruction. When ``cond``
-is 1, the value of this ``SELECT`` is the value of ``iftrue``, otherwise
-``iffalse``. This will translate to the concrete architecture's conditional move
-instructions (e.g. the CMOV for x86).
+*S* can be either ``int<1>`` or a vector type of ``int<1>``. When *S* is a
+vector type of ``int<1>``, *T* must also be a vector type of the same length as
+*S*.
 
-For LLVM users: This instruction is inspired by LLVM's ``select`` instruction.
+*cond* must have type *S*. Both *iftrue* and *iffalse* must have the same type
+as *T*. The result of this instruction has type *T*.
 
-Example::
+When *S* is ``int<1>``, then the result is *iftrue* if *cond* is 1, or *iffalse*
+if *cond* is 0.
 
-    .const @a <int<64>> = 42
-    %a_mod_2    = SREM <int<64>> @a 2
-    %a_is_even  = EQ <int<64>> %a_mod_2 0
-    %b = SELECT <int<64>> %a_is_even 100 200    // %b is 100 if %a is even
-                                                // 200 otherwise
+When *S* is a vector of ``int<1>``, the corresponding element of the result is
+the corresponding element of *iftrue* if the corresponding element of *cond* is
+1, or the corresponding element of *iffalse* otherwise.
+
+..
+
+    For LLVM users: This instruction is directly borrowed from LLVM's ``select``
+    instruction.
+
+..
+
+    Example::
+
+        .typedef @i1 = int<1>
+        .typedef @i64 = int<64>
+
+        .const @a <@i64> = 42
+        %a_mod_2    = SREM <@64> @a 2
+        %a_is_even  = EQ <@64> %a_mod_2 0
+        %b = SELECT <@i1 @i64> %a_is_even 100 200   // %b is 100 if %a is even
+                                                    // 200 otherwise
 
 Intra-function Control Flow
 ===========================
 
-The following instructions are for jumping within a function.
+    NOTE: The following instructions are for jumping within a function.
 
-One-way (unconditional) Branch
-------------------------------
+One-way (unconditional) Branching
+---------------------------------
 
-- ``BRANCH dest``
+``BRANCH`` *dest*
 
-    ``dest``
-        *label*: The destination of jumping.
+    dest
+        *basic block*: The destination of jumping.
 
 +------+------+
 | opct | idt  |
@@ -585,28 +771,29 @@ One-way (unconditional) Branch
 | 0x90 | dest |
 +------+------+
 
-``BRANCH`` transfers the control flow to the beginning of a basic block,
-identified by the label ``dest``.
+*dest* must be a basic block.
 
-For LLVM users: This is the same as the one-branch ``br`` instruction.
+This instruction jumps to the beginning of a basic block *dest*.
 
-Example::
+    For LLVM users: This is the same as the one-branch ``br`` instruction.
 
-    %entry:
-        BRANCH %head
+    Example::
 
-    %head:
-        // Continue executing here.
+        %entry:
+            BRANCH %head
 
-Two-way Branch
---------------
+        %head:
+            // Continue executing here.
 
-- ``BRANCH2 cond iftrue iffalse``
+Two-way Branching
+-----------------
 
-    ``cond``
-        *value* of ``int<1>``: The condition
-    ``iftrue``, ``iffalse``
-        *label*: The destination to jump to when ``cond`` is 1 or 0,
+``BRANCH2`` *cond* *iftrue* *iffalse*
+
+    cond
+        *variable* of ``int<1>``: The condition
+    iftrue, iffalse
+        *basic block*: The destinations to jump to when *cond* is 1 or 0,
         respectively
 
 +------+------+--------+---------+
@@ -615,42 +802,44 @@ Two-way Branch
 | 0x91 | cond | iftrue | iffalse |
 +------+------+--------+---------+
 
-``BRANCH2`` branches based on a conditional value, usually computed by a
-comparison instruction. If cond is 1, jump to ``iftrue``, otherwise jump to
-``iffalse``.
+*cond* must have type ``int<1>``. *iftrue* and *iffalse* must be basic blocks.
 
-For LLVM users: This is the same as the two-branch ``br`` instruction.
+If *cond* is 1, jump to *iftrue*, otherwise jump to *iffalse*.
 
-Example::
+    For LLVM users: This is the same as the two-branch ``br`` instruction.
 
-    .const @a <int<64>> = ...
+..
 
-    %entry:
-        %b = EQ <int<64>> @a 42
-        BRANCH2 %b %equal %notequal
+    Example::
 
-    %equal:
-        // if %b is 1, jump here
+        .const @a <int<64>> = ...
 
-    %notequal:
-        // if %b is 0, jump here
+        %entry:
+            %b = EQ <int<64>> @a 42
+            BRANCH2 %b %equal %notequal
 
-Multi-way Branch (Switching)
-----------------------------
+        %equal:
+            // if %b is 1, jump here
 
-- ``SWITCH < T > opnd default { case1 : dest1 ; case2 : dest2 ; ...  }``
+        %notequal:
+            // if %b is 0, jump here
 
-    ``T``
-        *type*: The type of ``opnd`` and ``casex``
-    ``opnd``
-        *value* of ``T``: The value to compare against.
-    ``default``:
-        *label*: The default destination. i.e. The destination if no case
+Multi-way Branching
+-------------------
+
+``SWITCH`` ``<`` *T* ``>`` *opnd* *default* ``{`` *(* *casex* ``:`` *destx* ``;`` *)* :sub:`rep` ``}``
+
+    T
+        *type*: The type of *opnd* and *casex*
+    opnd
+        *variable* of *T*: The value to compare against.
+    default:
+        *basic block*: The default destination, i.e. the destination if no case
         matches.
-    ``casex``:
-        *constant value* of ``T``: The case value for a branch.
-    ``destx``:
-        *label*: The destination for the corresponding case.
+    casex:
+        *constant value* of *T*: The case value for a branch.
+    destx:
+        *basic block*: The destination for the corresponding case.
 
 +------+-----+------+---------+--------+-------+-------+-----+
 | opct | idt | idt  | idt     | lent   | idt   | idt   | ... |
@@ -658,52 +847,60 @@ Multi-way Branch (Switching)
 | 0x92 | T   | opnd | default | ncases | casex | destx | ... |
 +------+-----+------+---------+--------+-------+-------+-----+
 
-``SWITCH`` compares the value of ``opnd`` against each case. If value
-equals ``casex``, then branch to ``destx``. If none matches, branch to
-``default``.
+There are zero or more *casex*-*destx* pairs.
 
-In the binary form, ncases is the number of cases and there are this number of
-case-target pairs following.
+*opnd* and all *casex* must have type *T*. *default* and all *destx* must be
+basic blocks.
 
-For LLVM users: This is the same as the ``switch`` instruction.
+*T* must be an EQ-comparable type.
 
-Example::
+All *casex* must be constants and must have distinct values.
 
-    .const @a <int<64>> = ...
+In the binary form, *ncases* is the number of cases and there are this number of
+case-destination pairs following *ncases*.
 
-    %entry:
-        SWITCH <int<64>> @a %defbranch {
-            1: %one;
-            2: %two;
-            3: %three;
-            }
+If the value of *opnd* equals one of the *casex*, then jump to the corresponding
+*destx*. If no such *casex* equals *opnd*, then jump to *default*.
 
-    %defbranch:
-        ...
+    For LLVM users: This is the same as the ``switch`` instruction.
 
-    %one:
-        ...
+    Example::
 
-    %two:
-        ...
-        
-    %three:
-        ...
+        .const @a <int<64>> = ...
+
+        %entry:
+            SWITCH <int<64>> @a %defbranch {
+                1: %one;
+                2: %two;
+                3: %three;
+                }
+
+        %defbranch:
+            ...
+
+        %one:
+            ...
+
+        %two:
+            ...
+            
+        %three:
+            ...
 
 Phi-node
 --------
 
-- ``PHI < T > { bb1 : val1 ; bb2 : val2 ; ...  }``
+``PHI`` ``<`` *T* ``>`` ``{`` *(* *bbx* ``:`` *valx* ``;`` *)* :sub:`rep1` ``}``
 
-    ``T``
-        *type*: The type of this instruction and ``valx``.
-    ``bbx``
-        *label*: The basic block where the control flow comes from.
-    ``valx``
-        *value* of ``T``: The value of the current instruction for the
+    T
+        *type*: The type of *valx* and the result.
+    bbx
+        *basic block*: The basic block where the control flow comes from.
+    valx
+        *variable* of type *T*: The value of the current instruction for the
         corresponding control flow source.
     return value
-        Type ``T``: One of ``valx`` according to the control flow.
+        Type *T*: One of *valx* according to the control flow.
 
 +------+-----+------+-----+------+-----+
 | opct | idt | lent | idt | idt  | ... |
@@ -711,42 +908,46 @@ Phi-node
 | 0x93 | T   | nbbs | bbx | valx | ... |
 +------+-----+------+-----+------+-----+
 
-The value of the ``PHI`` instruction depends on the incoming control
-flow. If the control flow comes from ``bbx`` then the value is ``valx``. The set
-of all ``bbx`` must exhaust all possible branches to the current basic block.
+There must be at least one basic block-value pair. All *valx* must have type
+*T*. All *bbx* must be basic blocks.
+
+In the binary format, *nbbs* is the number of the basic block-value pairs and
+there are this number of pairs following *nbbs*.
+
+If the previous basic block executed before this basic block is one of the
+*bbx*, then the value is the corresponding *valx*. Otherwise it is an error.
 
 The ``PHI`` instruction must appear in the beginning of a basic block.
 Multiple ``PHI`` instructions are allowed.
 
-In the binary format, ``nbbs`` is the number of ``bbx`` and there are this
-number of bb-val pair following.
+    For LLVM users: This is the same as the ``phi`` instruction.
 
-For LLVM users: This is the same as the ``phi`` instruction.
+..
 
-Example::
+    Example::
 
-    %bb1:
-        ...
-        %x1 = ADD <int<64>> ... ...
-        BRANCH %bbfoo
+        %bb1:
+            ...
+            %x1 = ADD <int<64>> ... ...
+            BRANCH %bbfoo
 
-    %bb2:
-        ...
-        %x2 = SUB <int<64>> ... ...
-        BRANCH %bbfoo
+        %bb2:
+            ...
+            %x2 = SUB <int<64>> ... ...
+            BRANCH %bbfoo
 
-    %bb3:
-        ...
-        %x3 = MUL <int<64>> ... ...
-        BRANCH %bbfoo
+        %bb3:
+            ...
+            %x3 = MUL <int<64>> ... ...
+            BRANCH %bbfoo
 
-    %bbfoo:
-        %x = PHI <int<64>> {
-            %bb1: %x1;
-            %bb2: %x2;
-            %bb3: %x3;
-            }
-        ...
+        %bbfoo:
+            %x = PHI <int<64>> {
+                %bb1: %x1;
+                %bb2: %x2;
+                %bb3: %x3;
+                }
+            ...
 
 Inter-function Control Flow
 ===========================

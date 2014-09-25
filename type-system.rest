@@ -69,6 +69,8 @@ There are several kinds of types.
 * ``vector``, ``struct``, ``array`` and ``hybrid`` are **composite types**.
 * ``hybrid`` is the only **variable-length type**. All other types are
   **fixed-length types**.
+* ``int``, ``ref``, ``iref``, ``func``, ``stack`` or ``thread`` are
+  **EQ-comparable types**.
 
 A **marked storage type** T1 of another type T2 represents the same set of
 values as T2; in this case T2 is called the **unmarked type** of T1. When a

@@ -382,8 +382,8 @@ where:
 * ``Params`` is a list of local names for the formal parameter list, and
 * ``Body`` is a sequence of instructions, constants and labels.
 
-The ``VERSION VerName`` clause is optional. When omitted, it defines an
-anonymous version of a function.
+The ``VERSION VerName`` clause is optional in the text form. When omitted, it
+defines an anonymous version of a function.
 
     NOTE: Calling a function will always call the most recent version, but stack
     introspection and on-stack replacement needs to know the concrete version.
@@ -445,9 +445,9 @@ where:
 * ``InstName`` is a local name for the instruction, and
 * ``InstBody`` defines the instruction itself.
 
-The name of an instruction can be omitted, in which case the instruction has no
-name. The grammar of the ``InstBody`` part for each instruction is defined
-separately in `<instruction-set>`__.
+The name of an instruction can be omitted in the text form, in which case the
+instruction has no name. The grammar of the ``InstBody`` part for each
+instruction is defined separately in `<instruction-set>`__.
 
     Example::
 
