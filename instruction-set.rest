@@ -81,10 +81,10 @@ Exception Clause
 
 *excClause* ::= *(* ``EXC`` *nor* *exc* *)* :sub:`opt`
 
-    nor
-        *basic block*: The normal destination
-    exc
-        *basic block*: The exceptional destination
+nor
+    *basic block*: The normal destination
+exc
+    *basic block*: The exceptional destination
 
 +-----+-----+
 | idt | idt |
@@ -118,9 +118,9 @@ Keep-alive Clause
 
 *keepAliveClause* ::= *(* ``KEEPALIVE`` ``(`` *lv* :sub:`rep` ``)`` *)* :sub:`opt`
 
-    lv :sub:`rep`
-        *list of local SSA variable*: A sequence of local SSA variables. Those
-        SSA variables are forced to be alive.
+lv :sub:`rep`
+    *list of local SSA variable*: A sequence of local SSA variables. Those
+    SSA variables are forced to be alive.
 
 +------+-----+-----+-----+
 | lent | idt | idt | ... |
@@ -156,8 +156,8 @@ Argument List
 
 *argList* ::= ``(`` *var* :sub:`rep` ``)``
 
-    var :sub:`rep`
-        *list of SSA variable*: A sequence of SSA variables. 
+var :sub:`rep`
+    *list of SSA variable*: A sequence of SSA variables. 
 
 +-------+------+------+-----+
 | lent  | idt  | idt  | ... |
@@ -187,16 +187,16 @@ Binary Operations
 
 *binOp* ``<`` *T* ``>`` *op1* *op2* *excClause*
 
-    binOp
-        The binary operation.
-    T
-        *type*: The type of both operands.
-    op1, op2
-        *variable* of type *T*: The two operands.
-    excClause:
-        *exception clause*: the destination for erroneous conditions.
-    return value
-        Type *T*: return the result of the computation.
+binOp
+    The binary operation.
+T
+    *type*: The type of both operands.
+op1, op2
+    *variable* of type *T*: The two operands.
+excClause:
+    *exception clause*: the destination for erroneous conditions.
+return value
+    Type *T*: return the result of the computation.
 
 +--------+-----+-----+-----+-----------+
 | opct   | idt | idt | idt | excClause |
@@ -364,16 +364,16 @@ Comparison
 
 *cmpOp* ``<`` *T* ``>`` *op1* *op2*
 
-    cmpOp
-        The comparison operation.
-    T
-        *type*: The type of both operands.
-    op1, op2
-        *variable* of *T*: The two operands.
-    return value
-        * Type ``int<1>``: returns 1 for true or 0 for false, or
-        * Type ``vector<int<1> n>``: returns a vector of ``int<1>`` where each
-          element is the result of the comparison of the corresponding elements.
+cmpOp
+    The comparison operation.
+T
+    *type*: The type of both operands.
+op1, op2
+    *variable* of *T*: The two operands.
+return value
+    * Type ``int<1>``: returns 1 for true or 0 for false, or
+    * Type ``vector<int<1> n>``: returns a vector of ``int<1>`` where each
+      element is the result of the comparison of the corresponding elements.
 
 +--------+-----+-----+-----+
 | opct   | idt | idt | idt |
@@ -554,14 +554,14 @@ Conversion
 
 *convOp* ``<`` *T1* *T2* ``>`` *opnd*
 
-    convOp
-        The conversion operation.
-    T1, T2
-        *type*: The source type and the destination type, respectively.
-    opnd
-        *value* of type *T1*: The operand.
-    return value
-        Type *T2*: The result of the conversion.
+convOp
+    The conversion operation.
+T1, T2
+    *type*: The source type and the destination type, respectively.
+opnd
+    *value* of type *T1*: The operand.
+return value
+    Type *T2*: The result of the conversion.
 
 +--------+-----+-----+-----+
 | opct   | idt | idt | idt |
@@ -703,16 +703,16 @@ Conditional Move
 
 ``SELECT`` ``<`` *S* *T* ``>`` *cond* *iftrue* *iffalse*
 
-    S
-        *type*: The type of *cond*.
-    T
-        *type*: The type of *iftrue*, *iffalse* and the result.
-    cond
-        *variable* of type *S*: The condition.
-    iftrue, iffalse
-        *variable* of *T*: The candidates of the result.
-    return value
-        Type *T*: A value according to *cond*.
+S
+    *type*: The type of *cond*.
+T
+    *type*: The type of *iftrue*, *iffalse* and the result.
+cond
+    *variable* of type *S*: The condition.
+iftrue, iffalse
+    *variable* of *T*: The candidates of the result.
+return value
+    Type *T*: A value according to *cond*.
 
 +------+-----+-------+--------+---------+
 | opct | idt | idt   | idt    | idt     |
@@ -762,8 +762,8 @@ One-way (unconditional) Branching
 
 ``BRANCH`` *dest*
 
-    dest
-        *basic block*: The destination of jumping.
+dest
+    *basic block*: The destination of jumping.
 
 +------+------+
 | opct | idt  |
@@ -790,11 +790,11 @@ Two-way Branching
 
 ``BRANCH2`` *cond* *iftrue* *iffalse*
 
-    cond
-        *variable* of ``int<1>``: The condition
-    iftrue, iffalse
-        *basic block*: The destinations to jump to when *cond* is 1 or 0,
-        respectively
+cond
+    *variable* of ``int<1>``: The condition
+iftrue, iffalse
+    *basic block*: The destinations to jump to when *cond* is 1 or 0,
+    respectively
 
 +------+------+--------+---------+
 | opct | idt  | idt    | idt     |
@@ -829,17 +829,17 @@ Multi-way Branching
 
 ``SWITCH`` ``<`` *T* ``>`` *opnd* *default* ``{`` *(* *casex* ``:`` *destx* ``;`` *)* :sub:`rep` ``}``
 
-    T
-        *type*: The type of *opnd* and *casex*
-    opnd
-        *variable* of *T*: The value to compare against.
-    default:
-        *basic block*: The default destination, i.e. the destination if no case
-        matches.
-    casex:
-        *constant value* of *T*: The case value for a branch.
-    destx:
-        *basic block*: The destination for the corresponding case.
+T
+    *type*: The type of *opnd* and *casex*
+opnd
+    *variable* of *T*: The value to compare against.
+default:
+    *basic block*: The default destination, i.e. the destination if no case
+    matches.
+casex:
+    *constant value* of *T*: The case value for a branch.
+destx:
+    *basic block*: The destination for the corresponding case.
 
 +------+-----+------+---------+--------+-------+-------+-----+
 | opct | idt | idt  | idt     | lent   | idt   | idt   | ... |
@@ -892,15 +892,15 @@ Phi-node
 
 ``PHI`` ``<`` *T* ``>`` ``{`` *(* *bbx* ``:`` *valx* ``;`` *)* :sub:`rep1` ``}``
 
-    T
-        *type*: The type of *valx* and the result.
-    bbx
-        *basic block*: The basic block where the control flow comes from.
-    valx
-        *variable* of type *T*: The value of the current instruction for the
-        corresponding control flow source.
-    return value
-        Type *T*: One of *valx* according to the control flow.
+T
+    *type*: The type of *valx* and the result.
+bbx
+    *basic block*: The basic block where the control flow comes from.
+valx
+    *variable* of type *T*: The value of the current instruction for the
+    corresponding control flow source.
+return value
+    Type *T*: One of *valx* according to the control flow.
 
 +------+-----+------+-----+------+-----+
 | opct | idt | lent | idt | idt  | ... |
