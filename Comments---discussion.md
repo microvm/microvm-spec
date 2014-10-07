@@ -8,10 +8,15 @@ I propose an alternative, which I call "goto with values".  This alternative wou
 * Each branch label (both labels in a conditional branch, the single labels in an unconditional branch, etc.) would list locally visible values being "sent" to the branch target.
 
 Example:
+
 x = 3;
+
 y = 25;
+
 goto l(x, y);
+
 ...
+
 l: (x2:int<32>,y2:int<8>)
 
 This form makes it clear that the association ("assignment") of values to phi-variables has to happen as part of the control transfer.  Phi-functions are simply one way of representing that, but they're not not a way that seems immediately helpful for code generation.
