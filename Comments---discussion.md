@@ -17,7 +17,7 @@ goto l(x, y);
 
 ...
 
-l: (x2:int<32>,y2:int<8>)
+l: (x2:int&lt;32&gt;,y2:int&lt;8&gt;)
 
 This form makes it clear that the association ("assignment") of values to phi-variables has to happen as part of the control transfer.  Phi-functions are simply one way of representing that, but they're not not a way that seems immediately helpful for code generation.
 
