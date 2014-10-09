@@ -16,6 +16,6 @@ Contents:
 - `Threads and Stacks <threads-stacks>`__
 - `Memory Model <memory-model>`__
 - `µVM-Client Interface <uvm-client-interface>`__
-- `Implementation <implementation>`__
+- `Portability and Implementation Advices <portability>`__
 
 .. vim: tw=80
