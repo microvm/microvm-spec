@@ -1,0 +1,191 @@
+==============
+Portability
+==============
+
+As both a thin layer over the hardware and an abstraction over concurrency, JIT
+compiling and GC, the µVM must strike a balance between portability and the
+ability to exploit platform-specific features. Thus the µVM is designed in such
+a way that
+
+1. There is a basic set of types and instructions that have common and defined
+   behaviours and reasonably good performance on all platforms.
+2. The µVM also includes platform-specific instructions. These instructions are
+   either defined by this µVM specification or extended by µVM implementations.
+
+In this chapter, **required** features must be implemented by the µVM
+implementation and **optional** features may or may not be implemented. However,
+if an optional feature is implemented, it must behave as specified.
+
+    NOTE: Although "behaving as specified", the implementation can still reject
+    some inputs in a compliant way. For example, if an array type is too large,
+    the µVM still needs to accept the µVM IR that contains such a type, but may
+    always refuse to allocate such a type in the memory.
+
+Type System
+===========
+
+The ``int`` type of lengths 1, 8, 16, 32, and 64 are required. ``int`` of 6 and
+52 bits are required if the µVM also implements the ``tagref64`` type. Other
+lengths are optional.
+
+Both ``float`` and ``double`` are required.
+
+The vector types ``vector<int<32> 4>``, ``vector<float 4>`` and ``vector<double
+2>`` are required. Other vector types are optional.
+
+    NOTE: Even though required to be accepted by the µVM, they are not required
+    to be implemented using hardware-provided vector instructions or vector
+    registers of the exact same length. They can be implemented totally with
+    scalar operations and general-purpose registers or memory, or implemented
+    using different hardware vector sizes, larger or smaller.
+
+Reference types ``ref<T>``, ``iref<T>`` and ``weakref<T>`` are required if ``T``
+is implemented. Otherwise optional.
+
+A struct type ``struct<...>`` are required if it has at most 256 fields and all
+of its field types are implemented. Otherwise optional.
+
+An array type ``array<T n>`` is required if T is implemented and n is at most
+2^64 Otherwise optional.
+
+    NOTE: This implies the µVM must accept arrays of up to 2^64 elements.
+    However, arrays must be in the memory. Whether such an array can be
+    successfully allocated is a different story.
+
+A hybrid type ``hybrid<F V>`` is required if both ``F`` and ``V`` are
+implemented.
+
+The void type ``void`` is required.
+
+A function type ``func<Sig>`` is required if ``Sig`` is implemented.
+
+The opaque types ``thread`` and ``stack`` are both required.
+
+The tagged reference type ``tagref64`` is optional.
+
+A function signature ``R (P0 P1 ...)`` is required if all of its parameter types
+and its return type are implemented and there are at most 256 parameters.
+Otherwise optional.
+
+Constants
+=========
+
+An integer constant of type ``T = int<n>`` is required if T is implemented and n
+is at most 64.
+
+    NOTE: The binary representation currently only defines 64-bit literals. This
+    is subject to extension.
+
+Float and double constants are required.
+
+A struct constant is required if constants for all of its fields are
+implemented.
+
+All NULL constants are required.
+
+Instructions
+============
+
+All integer binary operations and comparisons are required for ``int`` of length
+8, 16, 32, 64 and required integer vector types, and optional for other integer
+lengths or integer vector types. All floating-point binary operations and
+comparisons are required for all floating point types and required floating
+point vector types, and optional for other floating point vector types.
+
+In the event of signed and unsigned integer overflow in binary operations, the
+result is truncated to the length of the operand type.
+
+Divide-by-zero caused by ``UDIV`` and ``SDIV`` results in exceptional control
+flows. The result of signed overflow by ``SDIV`` is the left-hand-side.
+
+    NOTE: -0x80000000 / -1 == -0x80000000 for signed 32-bit int.
+
+For shifting instructions ``SHL``, ``LSHR`` and ``ASHR`` for integer type
+``int<n>``, only the lowest ``m`` bits of the right-hand-side are used, where
+``m`` is the smallest integer that 2^m >= n.
+
+Conversions are required between any two implemented types suitable for the
+respective conversion instructions.
+
+    TODO: rounding, signalling NaN, conversion involving NaN.
+
+Switch is required for the operand type of ``int`` of length 8, 16, 32 and 64.
+Otherwise optional.
+
+Any ``CALL`` or ``TAILCALL`` instruction can result in error, in which case the
+exceptional control flow is taken and the ``LANDINGPAD`` instruction receives
+``NULL``.
+
+    NOTE: This is for ``NULL`` function calling, stack overflow and other
+    errors.
+
+All memory allocation instructions ``NEW``, ``NEWHYBRID``, ``ALLOCA`` and
+``ALLOCAHYBRID`` are allowed to result in error, in which case the exceptional
+control flow is taken.
+
+    NOTE: This is for out-of-memory error and other errors.
+
+The ``GETELEMIREF`` and ``SHIFTIREF`` instructions accept any integer type as
+the index or offset type. The index and the offset are treated as signed.
+
+All memory access instructions ``LOAD``, ``STORE``, ``CMPXCHG`` and
+``ATOMICRMW`` are allowed to result in an error, in which case the exceptional
+control flow is taken.
+
+The following types are required for both non-atomic and atomic ``LOAD`` and
+``STORE`` for all implemented ``T`` and ``Sig``: ``int<8>``, ``int<16>``,
+``int<32>``, ``int<64>``, ``float``, ``double``, ``ref<T>``, ``iref<T>``,
+``weakref<T>``, ``func<Sig>``, ``thread`` and ``stack``. Other types and
+atomicity combinations are optional for ``LOAD`` and ``STORE``.
+
+``int<32>`` and ``int<64>`` are required for ``CMPXCHG`` and all ``ATOMICRMW``
+operations. Other types are optional for ``CMPXCHG`` and any subset of
+``ATOMICRMW`` operations.
+
+    NOTE: One atomic µVM instruction does not necessarily correspond to exactly
+    one machine instruction.
+
+``CCALL`` is optional.
+
+``NEWSTACK`` is allowed to result in error, in which case the exceptional
+control flow is taken.
+
+The availability of ``COMMINST`` is specified in the next section.
+
+    TODO: Rename "intrinsic function" to "common instruction".
+
+In any cases when an error occurs, the control should be transferred to the
+exceptional control flow, but the exception clause is not supplied, then it is
+an undefined behaviour.
+
+All instructions whose availability is not explicitly specified above are
+required for all types and signatures that are implemented and suitable.
+
+Common Instructions
+===================
+
+Required:
+
++ @uvm.new_thread
++ @uvm.current_stack
++ @uvm.kill_stack
++ @uvm.thread_exit
++ @uvm.futex.wait for ``int<32>`` and ``int<64>`` memory locations
++ @uvm.futex.wake for ``int<32>`` and ``int<64>`` memory locations
+
+Required when ``tagref64`` is implemented:
+
+* @uvm.tr64.is_fp
+* @uvm.tr64.is_int
+* @uvm.tr64.is_ref
+* @uvm.tr64.to_fp
+* @uvm.tr64.to_int
+* @uvm.tr64.to_ref
+* @uvm.tr64.to_tag
+* @uvm.tr64.from_fp
+* @uvm.tr64.from_int
+* @uvm.tr64.from_ref
+
+The µVM implementation may add common instructions.
+
+.. vim: tw=80
