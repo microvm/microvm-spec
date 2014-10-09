@@ -112,12 +112,10 @@ respective conversion instructions.
 Switch is required for the operand type of ``int`` of length 8, 16, 32 and 64.
 Otherwise optional.
 
-Any ``CALL`` or ``TAILCALL`` instruction can result in error, in which case the
-exceptional control flow is taken and the ``LANDINGPAD`` instruction receives
-``NULL``.
+Calling a function whose value is ``NULL`` is undefined behaviour.
 
-    NOTE: This is for ``NULL`` function calling, stack overflow and other
-    errors.
+Stack overflow when calling a function results in taking the exceptional control
+flow and the ``LANDINGPAD`` instruction receives ``NULL``.
 
 All memory allocation instructions ``NEW``, ``NEWHYBRID``, ``ALLOCA`` and
 ``ALLOCAHYBRID`` are allowed to result in error, in which case the exceptional
@@ -126,11 +124,21 @@ control flow is taken.
     NOTE: This is for out-of-memory error and other errors.
 
 The ``GETELEMIREF`` and ``SHIFTIREF`` instructions accept any integer type as
-the index or offset type. The index and the offset are treated as signed.
+the index or offset type. The index and the offset are treated as signed. When
+these two instructions result in a reference beyond the size of the actual array
+in the memory, they have undefined behaviours.
+
+All memory addressing instructions ``GETIREF``, ``GETFIELDIREF``,
+``GETELEMIREF``, ``SHIFTIREF``, ``GETFIXEDPARTIREF`` and ``GETVARPARTIREF`` that
+work on ``NULL`` references are undefined behaviours.
 
 All memory access instructions ``LOAD``, ``STORE``, ``CMPXCHG`` and
-``ATOMICRMW`` are allowed to result in an error, in which case the exceptional
-control flow is taken.
+``ATOMICRMW`` that access the ``NULL`` references either have undefined
+behaviour or take the exceptional control flow depending on the implementation.
+The decision may differ in every execution.
+
+Accessing a memory location which represents a different type from the type
+expected by the instruction is an undefined behaviour.
 
 The following types are required for both non-atomic and atomic ``LOAD`` and
 ``STORE`` for all implemented ``T`` and ``Sig``: ``int<8>``, ``int<16>``,
@@ -154,9 +162,9 @@ The availability of ``COMMINST`` is specified in the next section.
 
     TODO: Rename "intrinsic function" to "common instruction".
 
-In any cases when an error occurs, the control should be transferred to the
-exceptional control flow, but the exception clause is not supplied, then it is
-an undefined behaviour.
+In any cases when an error occurs and the control flow is expected to transfer
+to the exceptional control flow, but the exception clause is not supplied, then
+it is an undefined behaviour.
 
 All instructions whose availability is not explicitly specified above are
 required for all types and signatures that are implemented and suitable.
