@@ -8,11 +8,11 @@ Overview
 The µVM has a comprehensive type system. It is close to the machine level, but
 also has reference types for exact garbage collection.
 
-In the µVM IR, a type is created by a (possibly recursive) combination type
+In the µVM IR, a type is created by a (possibly recursive) combination of type
 constructors.
 
-By convention, types are written in lower cases. Type parameters are written in
-angular brackets ``< >``.
+By convention, types are written in lower cases. Parameters to types are written
+in angular brackets ``< >``.
 
 The binary form of the type constructors is shown in the table after each type
 constructor.
@@ -26,8 +26,8 @@ unambiguous, is one of its elements.
 A type also has an in-memory format by which its data values can be represented
 in bytes. That is described in `<uvm-memory>`__.
 
-    NOTE: The format mentioned above only applies to memory. Values held by SSA
-    variables do not need to respect that format. See `<instruction-set>`__.
+    NOTE: The format mentioned above only applies to the memory. Values held by
+    SSA variables do not need to respect that format. See `<instruction-set>`__.
 
 Types and Type Constructors
 ===========================
@@ -53,9 +53,8 @@ The following type constructors are available in the µVM:
 - vector < T length >
 
 Parameters of a type are in the angular brackets. They can be integer literals,
-types and function signatures. In the text form, the latter two are type
-expressions and function signature expressions, respectively. (See `<uvm-ir>`__)
-In the binary form, they must be IDs.
+types and function signatures. In the text form, the latter two are global
+names (See `<uvm-ir>`__). In the binary form, they are IDs.
 
 There are several kinds of types.
 
@@ -118,11 +117,11 @@ complement notation where the highest bit is the sign bit.
 
     Example::
 
-        int<1>
-        int<8>
-        int<16>
-        int<32>
-        int<64>
+        .typedef @i1 = int<1>
+        .typedef @i8 = int<8>
+        .typedef @i16 = int<16>
+        .typedef @i32 = int<32>
+        .typedef @i64 = int<64>
 
 Floating Point Types
 --------------------
@@ -152,8 +151,8 @@ floating point number type, respectively.
 
     Example::
 
-        float
-        double
+        .typedef @float = float
+        .typedef @double = double
 
 Reference Types
 ---------------
@@ -222,15 +221,23 @@ object or memory location.
 
     Example::
 
-        ref<int<32>>
-        ref<struct<int<32> int<16> int<8> double float>>
-        ref<array<int<8> 100>>
-        iref<int<32>>
-        iref<struct<int<32> int<16> int<8> double float>>
-        iref<array<int<8> 100>>
-        weakref<int<32>>
-        weakref<struct<int<32> int<16> int<8> double float>>
-        weakref<array<int<8> 100>>
+        .typedef @i8  = int<8>
+        .typedef @i16 = int<16>
+        .typedef @i32 = int<32>
+        .typedef @float = float
+        .typedef @double = double
+        .typedef @some_struct = struct<@i32 @i16 @i8 @double @float>
+        .typedef @some_array = array<@i8 100>
+
+        .typedef @ref1 = ref<@i32>
+        .typedef @ref2 = ref<@some_struct>
+        .typedef @ref3 = ref<@some_array>
+        .typedef @iref1 = iref<@i32>
+        .typedef @iref2 = iref<@some_struct>
+        .typedef @iref3 = iref<@some_array>
+        .typedef @weakref1 = weakref<@i32>
+        .typedef @weakref2 = weakref<@some_struct>
+        .typedef @weakref3 = weakref<@some_array>
 
 Struct
 ------
@@ -265,9 +272,15 @@ fields. Exactly that number of type IDs follows the ``nfields`` literal.
 
     Example::
 
-        struct<>
-        struct<int<32> int<16> int<8> double float>
-        struct<struct<int<32> int<32>> float struct<int<8> double>>
+        .typedef @byte = int<8>
+        .typedef @short = int<16>
+        .typedef @int = int<32>
+        .typedef @f = float
+        .typedef @d = double
+
+        .typedef @struct1 = struct<>
+        .typedef @struct2 = struct<@byte @short @int @f @d>
+        .typedef @struct3 = struct<@f @f @struct2 @d @d> // nesting structs
 
 Array
 -----
@@ -295,7 +308,7 @@ of the array.
 
 ..
 
-    For LLVM users: **An array is always fixed-length**. There is no type for
+    For LLVM users: **An array always has a fixed length**. There is no type for
     "array of run-time-determined length" in the µVM type system. The closest
     counterpart is the ``hybrid`` type.
 
@@ -303,10 +316,14 @@ of the array.
 
     Example::
 
-        array<int<8> 4096>                  // array of 4096 bytes
-        array<double 100>                   // array of 100 doubles
-        array<struct<int<64> ref<void>> 16> // array of 16 long-ref pairs
-        array<array<int<64> 1024> 1024>     // array of arrays
+        .typedef @u8 = int<8>
+        .typedef @real = double
+        .typedef @cmpx = struct<@real @real>
+
+        .typedef @array1 = array<@u8 4096>      // array of 4096 bytes
+        .typedef @array2 = array<@real 100>     // array of 100 doubles
+        .typedef @array3 = array<@cmpx 16>      // array of 16 structs
+        .typedef @array4 = array<@array2 1024>  // array of 1024 nested arrays
 
 Hybrid
 ------
@@ -340,12 +357,16 @@ of the *elements* of the variable part.
 
     Example::
 
-        hybrid<int<64> int<8>>      // one int64 followed by many int8
-        hybrid<
-            struct<int<64> int<64> int<64>>     // three initial int64 headers
-            double                              // followed by many doubles
-            >
-        hybrid<void int<8>>         // no header. Just many int8.
+        .typedef @void = void
+        .typedef @byte = int<8>
+        .typedef @long = int<64>
+        .typedef @double = double
+
+        .typedef @struct1 = struct<@long @long @long>
+
+        .typedef @hybrid1 = hybrid<@long @byte>         // one int<64> followed by many int<8>
+        .typedef @hybrid2 = hybrid<@struct1 @double>    // one struct followed by many double
+        .typedef @hybrid3 = hybrid<@void @byte>         // no header. Just many int<8>.
 
 Void Type
 ---------
@@ -360,7 +381,8 @@ Void Type
 
 The ``void`` type has no value. It can only be used in the following ways:
 
-* As the referent type of reference types.
+* As the type of allocation units that do not represent values. Hence it is
+  usable as the referent type of reference types.
 * As the fixed part of a ``hybrid`` to indicate the absence of the fixed part.
 * As the type of instructions or the return type of functions that do not return
   values.
@@ -391,6 +413,14 @@ A ``NULL`` value of a ``func`` type does not refer to any function.
 
 ..
 
+    NOTE: The difference between a function signature and the ``func`` is that a
+    signature can be used in many scenarios, including the foreign function
+    interface, but a value of the ``func`` type must refer to a µVM function,
+    not a C function, a Client function, an interpreted high-level language
+    function or anything else.
+
+..
+
     For LLVM users: the ``func`` type in µVM is not a pointer (it may be
     implemented under the hood as a pointer to a function, but the Client should
     not depend on that). It is opaque.
@@ -398,10 +428,15 @@ A ``NULL`` value of a ``func`` type does not refer to any function.
 ..
 
     Example::
+        
+        .typedef @i64 = int<64>
+        .typedef @void = void
 
-        func<int<64> (int<64> int<64>)>
-        func<int<32> (int<32> iref<iref<int<8>>>)>
-        func<void ()>
+        .funcsig @sig1 = @i64 (@i64 @i64)
+        .funcsig @sig2 = @void ()
+
+        .typedef @func1 = func<@sig1>
+        .typedef @func2 = func<@sig2>
 
 Opaque Types
 ------------
@@ -424,8 +459,8 @@ Opaque Types
 
 ``thread`` and ``stack`` are opaque reference types to µVM threads and µVM
 stacks, respectively. They are not interchangeable with reference types. Only
-some special instructions (e.g. ``NEWSTACK``) or intrinsic functions can operate
-on them.
+some special instructions (e.g. ``NEWSTACK``) or common instructions (e.g.
+``@uvm.new_thread``) can operate on them.
 
 Both ``thread`` and ``stack`` values can be ``NULL``, which does not refer to
 any threads or stacks.
@@ -445,11 +480,13 @@ Tagged Reference
 int<6>``. It occupies 64 bits. A ``tagref64`` value holds both a state which
 identifies the type it is currently representing and a value of that type.
 
+
     NOTE: When a ``tagref64`` contains an object reference, it can hold an
     ``int<6>`` together as a user-defined tag. It is useful to store type
     information.
 
-..
+When a ``tagref64`` represents a ``double`` NaN value, it does not preserve the
+bit-wise representation of the NaN.
 
     NOTE: This type is intended to reuse the NaN space of the IEEE754 double
     value to multiplex with integers and object references. For this reason,
@@ -483,16 +520,19 @@ type. *T* is the type of its elements and *length* is the number of elements.
 
 It is allowed to have SSA variables of vector types.
 
-What types are allowed as the element type of vector types is implementation
-dependent.
-
     For LLVM users: This is the counterpart of the LLVM vector type.
 
 ..
 
     Example::
+    
+        .typedef @i32 = int<32>
+        .typedef @float = float
+        .typedef @double = double
 
-        vector <float 4>
-        vector <double 2>
-        vector <double 4>
-        vector <int<32> 8>
+        .typedef @vector1 = vector<@i32 4>
+        .typedef @vector2 = vector<@float 4>
+        .typedef @vector3 = vector<@double 2>
+        .typedef @vector4 = vector<@double 4>
+
+.. vim: tw=80

@@ -1,0 +1,18 @@
+==============
+The µVM Memory
+==============
+
+The µVM supports automatic memory management via garbage collection. There is a
+**heap** which contains garbage-collected **objects** as well as many **stacks**
+and a **global memory** which contain data that are not garbage-collected.
+
+Heap, Stack and Global Memory
+=============================
+
+Object Layout
+=============
+
+TODO: Scalar, structs and arrays.
+
+
+.. vim: tw=80

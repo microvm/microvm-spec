@@ -13,7 +13,7 @@ compiling or even Ahead-of-time compiling.
 and a binary form for compact encoding. Concrete µVM implementations may
 introduce their own formats as long as they are equivalent.
 
-This document describes the text form and the things not specific to the binary
+This document describes the text form and the aspects not specific to the binary
 form. For the binary form, see `<uvm-ir-binary>`__.
 
 For the documents of the type system and the instruction set, see:
@@ -26,45 +26,51 @@ Example
 
 Here is an example of µVM IR in the text form::
 
-    .const @answer <int<64>> = 42
+    .typedef @i64 = int<64>
+    .typedef @double = double
+    .typedef @void = void
+    .typedef @refvoid = ref<@void>
 
-    .global @some_global_data <struct <int<64> double ref<void>>>
+    .const @i64_0 <@i64> = 0
+    .const @answer <@i64> = 42
 
-    .typedef @Node = struct<int<64>, @NodeRef>
+    .typedef @some_global_data_t = struct <@i64 @double @refvoid>
+    .global @some_global_data <@some_global_data_t>
+
+    .typedef @Node = struct<@i64 @NodeRef>
     .typedef @NodeRef = ref<@Node>
 
-    .funcsig @BinaryFunc = int<64> (int<64> int<64>)
+    .funcsig @BinaryFunc = @i64 (@i64 @i64)
 
-    .funcdecl @square_sum <int<64> (int<64> int<64>)>
+    .funcdecl @square_sum <@BinaryFunc>
 
-    .funcdef @gcd VERSION @gcd_v1 <int<64> (int<64> int<64>)> (%a0 %b0) {
+    .funcdef @gcd VERSION @gcd_v1 <@BinaryFunc> (%a0 %b0) {
         %entry:
             BRANCH %head
 
         %head:
-            %a = PHI <int<64>> { %entry: %a0; %body: %b; }
-            %b = PHI <int<64>> { %entry: %b0; %body: %b1; }
-            %z = EQ <int<64>> %b 0
+            %a = PHI <@i64> { %entry: %a0; %body: %b; }
+            %b = PHI <@i64> { %entry: %b0; %body: %b1; }
+            %z = EQ <@i64> %b @i64_0
             BRANCH2 %z %exit %body
 
         %body:
-            %b1 = SREM <int<64>> %a %b
+            %b1 = SREM <@i64> %a %b
             BRANCH %head
 
         %exit:
-            RET <int<64>> %a
+            RET <@i64> %a
     }
 
 Later the client can submit a function that defines a previously undefined
 function or a new version of a function that replaces the old version::
 
-
-    .funcdef @square_sum <int<64> (int<64> int<64>)> {
-        // define the function
+    .funcdef @square_sum VERSION @square_sum_v1 <@BinaryFunc> (%p0 %p1) {
+        // define the function (if not defined)
     }
 
-    .funcdef @gcd VERSION @gcd_v2 <int<64> (int<64> int<64>)> (%a0 %b0) {
-        // replaces existing version
+    .funcdef @gcd VERSION @gcd_v2 <@BinaryFunc> (%p0 %p1) {
+        // or replace an existing version (if already defined)
     }
 
 Top-level Structure
@@ -80,53 +86,97 @@ definition**, **function signature definition**, **constant definition**,
 Names and Identifiers
 ---------------------
 
-Many things in the µVM are **identified**. An identified thing has an
+Many entities in the µVM are **identified**. An identified entity has an
 identifiers (ID) and optionally a name.  An identifier (ID) is a 32-bit integer.
 A name is a string starting with a ``@`` or a ``%`` and followed by many
-characters in the set: `[0-9a-zA-Z_-.]`. Both, if present, uniquely identifies
-an **identified** thing.
+characters in the set: ``[0-9a-zA-Z_-.]``. Both, if present, uniquely identifies
+an **identified** entity.
+
+    NOTE: This specification does not define what is an "entity". An English
+    dictionary would define "entity" as "a thing with distinct and independent
+    existence".
 
 In the µVM IR text form, names are exclusively used and IDs are automatically
-generated.
+generated. In the binary form, IDs are exclusively generated and names can be
+introduced via name-binding.
 
 Names
 ~~~~~
 
-A **global name** begin with ``@``. Top-level definitions and versions of
-functions use global name. They are valid in the whole µVM, not limited
-to a single bundle.
+A **global name** begins with ``@``. All identified entities can use global
+names. Top-level definitions and the version name of functions must use global
+names. Global names are valid in the whole µVM, not limited to a single bundle.
 
     Example::
 
+        .typedef    @i8 = int<8>
+        .typedef    @i32 = int<32>
         .typedef    @i64 = int<64>
-        .funcsig    @main_sig = int<32> (int<32> iref<iref<int<8>>>)
-        .const      @zero <int<64>> = 0
-        .global     @errno <int<64>>
-        .funcdecl   @main <@main_sig>
+        .typedef    @ir_i8 = iref<@i8>
+        .typedef    @ir_ir_i8 = iref<@ir_i8>
+        .typedef    @void = void
 
-        .funcdef    @main VERSION @main_v1 <@main_sig> (%argc %argv) {
-            // ...
+        .funcsig    @some_fun_sig = @void ()
+        .funcsig    @main_sig = @i32 (@i32 @ir_ir_i8)
+
+        .const      @i32_1 <@i32> = 1
+        .const      @i64_0 <@i64> = 0
+
+        .global     @errno <@i64>
+
+        .funcdecl @some_fun <@some_fun_sig>
+
+        .funcdef @main VERSION @main_v1 <@main_sig> (@main_v1.argc @main_v1.argv) {
+            @main_v1.entry:
+                @main_v1.rv = ADD <@i32> @main_v1.argc @i32_1
+                BRANCH @main_v1.bb1
+            @main_v1.bb1:
+                RET <@i32> @main_v1.rv
         }
 
-A **local name** begin with ``%``. Parameters, basic blocks and
-instructions use local name. They are valid within the function it is
-defined in.
+A **local name** begins with ``%``. Parameters, basic blocks and instructions,
+which are defined within a function definition, may use local names. A local
+name of the form ``%localname`` within a function definition of version
+``@funcver`` is equivalent to the global name ``@funcver.localname``.
 
     Example::
 
-        .funcdef @main <@main_sig> (%argc %argv) {  // Parameters are local
-            %entry
-                %rv = ADD <int<32>> %argc 1         // Instruction are local
+        .funcdef @main VERSION @main_v1 <@main_sig> (%argc %argv) {
+            %entry:
+                %rv = ADD <@i32> %argc @i32_1
                 BRANCH %bb1
-            %bb1:                                   // Labels are local
-                RET <int<32>> %rv
+            %bb1:
+                RET <@i32> %rv
         }
+
+    In the above example:
+    
+    - ``%argc`` is equivalent to ``@main_v1.argc``
+    - ``%argv`` is equivalent to ``@main_v1.argv``
+    - ``%entry`` is equivalent to ``@main_v1.entry``
+    - ``%rv`` is equivalent to ``@main_v1.rv``
+    - ``%bb1`` is equivalent to ``@main_v1.bb1``
+
+    Individual instructions (for example, the ``%rv`` instruction), can be
+    addressed globally using the global name ``@main_v1.rv`` or locally within
+    this function definition using ``%rv``. Mixing global names and local names
+    is allowed, though not recommended::
+
+        @main_v1.rv = ADD <@i32> %argc @i32_1
+        RET <@i32> %rv
+
+..
+
+    NOTE: Since all identified entities, even local entities, have global names,
+    it is convenient during trap, stack introspection and OSR to use the global
+    names to identify all traps, local variables and the version of
+    functions.
 
 Identifiers
 ~~~~~~~~~~~
 
-There is no "global" or "local" ID, but every ID must uniquely identify one
-thing in the whole µVM.
+All identifiers are global. Every ID must uniquely identify one entity in the
+whole µVM.
 
 0 is an invalid ID. IDs in the range of 1-65535 are reserved by the µVM. This
 µVM specification only uses 1-32767. 32768-65535 can be used by the µVM
@@ -154,28 +204,24 @@ where:
 
     It gives a name ``@i64`` to a 64-bit integer.
 
+..
+
     Example: The following type definition defines a recursive type::
 
-        .typedef @Node = struct<int<64> @NodeRef>
+        .typedef @i64 = int<64>
+        .typedef @Node = struct<@i64 @NodeRef>
         .typedef @NodeRef = ref<@Node>
 
     These define a node in a singly-linked list. The second field of the struct
     is an object reference to itself. Note that **the order of top-level
     definitions does not matter**. They can be written in any order.
 
+..
+
     NOTE: There is no way to simply make an alias of another type. ``.typedef
     @Foo = @Bar`` is illegal because ``@Bar`` is not a type constructor. In this
     event, replacing all occurrences of ``@Foo`` with ``@Bar`` in the whole
     program is the desired approach.
-
-Type Expression
----------------
-
-In the text form, a **type expression** is either a name of a type or a type
-constructor. A type constructor represents an anonymous type. An anonymous type
-has no name, but has a generated ID.
-
-.. (commented out) In the binary form, a type expression must be the ID of a type.
 
 Function Signature Definition
 =============================
@@ -197,40 +243,48 @@ A function signature constructor has the form::
 
 where:
 
-* ``RetTy`` is a type expression for the return type and
-* ``ParamTys`` is a list of type expressions separated by spaces for the
-  types of parameters.
+* ``RetTy`` is a global name for the return type and
+* ``ParamTys`` is a list of global names separated by spaces for the types of
+  parameters.
 
-Function Signature Expression
------------------------------
+    Example: The following signature receives no parameters and returns
+    ``void``::
 
-In the text form, a **function signature expression** is either a name of a
-signature or a signature constructor. A signature constructor represents an
-anonymous signature. An anonymous signature has no name, but has a generated ID.
+        .typedef @void = void
+        .funcsig @empty_func_s = @void ()
 
-.. (commented out) In the binary form, a function signature expression must be
-   the ID of a function signature.
+    The following signature receives a 64-bit integer and a double as parameters
+    and returns an object reference to a 64-bit integer::
+
+        .typedef @double = double
+        .typedef @i64 = int<64>
+        .typedef @refi64 = ref<@i64>
+        .funcsig @some_func_s = @refi64 (@i64 @double)
 
 Constant Definition
 ===================
 
 A **constant definition** has the form::
 
-    .const Name <TypeExpr> = ConstCtor
+    .const Name <Type> = ConstCtor
 
 where:
 
 * ``Name`` is global name for the constant;
-* ``TypeExpr`` is a type expression for the type of the constant, and
+* ``Type`` is a global name for the type of the constant, and
 * ``ConstCtor`` is a constant constructor.
 
 A **constant constructor** can be the following:
 
 - An **integer constructor** creates an integer constant. It is written as an
-  integer literal. An **integer literal** is an optional sign [+-], a sequence
-  of digits [0-9a-fA-F] and optionally a prefix. A prefix 0 represents an octal
-  number. A prefix 0x represents a hexadecimal number. Otherwise it is a decimal
-  number.
+  integer literal. An **integer literal** is:
+  
+  + an optional sign [+-], followed by
+  + an optional prefix: ``0`` or ``0x``, and
+  + a sequence of digits [0-9a-fA-F].
+    
+  A prefix 0 represents an octal number. A prefix 0x represents a hexadecimal
+  number. Otherwise it is a decimal number.
 
 - A **floating point constructor** creates a floating point number. It can be
   one of the following forms:
@@ -255,25 +309,32 @@ A **constant constructor** can be the following:
     the same bit-wise representation as the 32-bit or 64-bit integer of
     ``intlit``, respectively.
 
-- A **struct constructor** creates a struct constant. It begins with an open
-  brace ``{`` followed by a sequence of constant expressions (described later)
-  separated by spaces and ends with a closing brace ``}``.
-- A **null constructor** create a null value of *general reference types*
-  (defined in `<type-system>`__). It is the literal ``NULL``. 
+- A **struct constructor** creates a struct constant. It is:
+
+  + an opening brace ``{``, followed by
+  + a sequence of global names of other constants separated by spaces, and
+  + a closing brace ``}``.
+
+  A constant must not be recursive.
+
+- A **null constructor** create a null value of *general reference types* except
+  ``weakref`` (defined in `<type-system>`__). It is the literal ``NULL``. 
 
 ..
 
-    NOTE: Negative numbers use the 2's complement notation.
-
-.. 
-
     NOTE: The Client must ensure the number (integer or floating point) can be
-    represented by the type, or it is an undefined behaviour.
+    represented by the type, or it is an error.
+
+..
+
+    NOTE: ``weakref`` is a marked storage type of ``ref`` and, thus, cannot be
+    the type of an SSA variable, but all constants are SSA variables. (See
+    `<type-system>`__ and `<instruction-set>`__).
 
 ..
 
     NOTE: The only constant of reference types is ``NULL``. The reason why µVM
-    forbids constant references is manifold:
+    forbids constant object references is manifold:
 
     * To define a constant heap reference, the Client must provide a reference
       to a heap object, which itself is recursively a constant heap reference.
@@ -288,11 +349,13 @@ A **constant constructor** can be the following:
 
     The global memory is an alternative to such needs. Either store a global
     data structure in the global memory or allocate it in the heap and assign
-    its reference to a global cell.
+    its reference to a global cell. In fact, the ID or the name of any global
+    cell is a constant SSA variable of an internal reference to it. The ID or
+    the name of a µVM function is a constant SSA variable of a ``func``.
 
 ..
 
-    Example::
+    Example of constant definitions::
 
         .typedef @i64 = int<64>
         .typedef @float = float
@@ -315,17 +378,30 @@ A **constant constructor** can be the following:
         .const @double5 <@float> = +infd
         .const @double6 <@float> = -infd
         .const @double7 <@float> = bitsd(0x7ff0000000000000)   // nan
-        .const @some_record <struct<
-                int<64> @i64 float double struct<
-                    int<8> int<16> int<32>>>> = {1 2 3.0f 4.0d {5 6 7}} // nested constructors
-        .const @other_record <struct<@i64 double>> = {@dec1 @double1} // use name
 
-        .const @null_ref <ref<void>> = NULL
-        .const @null_iref <iref<void>> = NULL
-        .const @null_weakref <weakref<void>> = NULL
-        .const @null_func <func<void ()>> = NULL
-        .const @null_thread <thread> = NULL
-        .const @null_stack <stack> = NULL
+        .typedef @record_t = struct<@i64 @double>
+        .const @record <@record_t> = {@dec1 @double1}
+
+        .typedef @nested_record_t = struct<@i64 @record_t @float>
+        .const @nested_record <@nested_record_t> = {@hex1 @record @float2} // nesting
+
+        .typedef @void = void
+        .funcsig @noparamsnoret = @void ()
+
+        .typedef @ref_void = ref<@void>
+        .const @null_ref <@ref_void> = NULL
+
+        .typedef @iref_void = iref<@void>
+        .const @null_iref <@iref_void> = NULL
+
+        .typedef @some_func = func<@noparamsnoret>
+        .const @null_func <@some_func> = NULL
+
+        .typedef @thread = thread
+        .const @null_thread <@thread> = NULL
+
+        .typedef @stack = stack
+        .const @null_stack <@stack> = NULL
 
 Global Cell Definition
 ======================
@@ -339,25 +415,31 @@ information about the global memory.
 
 A global cell definition has the form::
 
-    .global Name <TypeExpr>
+    .global Name <Type>
 
 * where ``Name`` is a global name for the global cell and
-* ``TypeExpr`` is a type expression for the type of the data the global cell
+* ``Type`` is a global name for the type of the data the global cell
   represents.
 
 ..
 
     Example::
 
-        .global @my_errno <int<32>>
+        .typedef    @i8 = int<8>
+        .typedef    @i32 = int<32>
+        .const      @i32_0 <@i32> = 0
 
-        .typedef @small_char_array = array<int<8> 12>
+        .global @my_errno <@i32>
+
+        .typedef @small_char_array = array<@i8 12>
         .global @hello_world_str <@small_char_array>
+        
+        // The client can populate the memory in @hello_world_str at loading time
 
-        .funcdef @func <...> (...) {
+        .funcdef @func VERSION ... <...> (...) {
         %entry:
-            %a = LOAD <int<32>> @my_errno       // @my_errno has type iref<int<32>>
-            STORE <int<32>> @my_errno 0
+            %a = LOAD <@i32> @my_errno       // @my_errno has type @i32
+            STORE <@i32> @my_errno @i32_0
             ...
         }
 
@@ -366,54 +448,48 @@ Function Definition and Declaration
 
 **Functions** represent executable code in the µVM.
 
-A **function definition** defines a **version of function**. It has one of the
-following forms::
+A **function definition** defines a **version of function**. It has the
+following form::
 
-    .funcdef Name <SigExpr> (Params) { Body }
-
-    .funcdef Name VERSION VerName <SigExpr> (Params) { Body }
+    .funcdef Name VERSION VerName <Sig> (Params) { Body }
 
 where:
 
 * ``Name`` is a global name for the function
 * ``VerName`` is a global name of this particular version of function
-* ``SigExpr`` is a function signature expression for the signature of the
-  function
-* ``Params`` is a list of local names for the formal parameter list, and
+* ``Sig`` is a global name for the signature of the function
+* ``Params`` is a list of names for the formal parameter list, and
 * ``Body`` is a sequence of instructions, constants and labels.
 
-The ``VERSION VerName`` clause is optional in the text form. When omitted, it
-defines an anonymous version of a function.
+..
 
-    NOTE: Calling a function will always call the most recent version, but stack
-    introspection and on-stack replacement needs to know the concrete version.
-    Omitting the version name makes these tasks more difficult, though not
-    completely impossible.
+    NOTE: The version is required for each definition. Although calling a
+    function will always call the most recent version, stack introspection and
+    on-stack replacement still need to know the concrete version.
 
 ..
 
     Example::
 
-        .funcdef @example1 <int<64> (float double)> (%p0 %p1) {
-            ...
-        }
+        .typedef @i64 = int<64>
+        .typedef @float = float
+        .typedef @double = double
 
-        .funcsig @ExampleSig = int<64> (float double)
+        .funcsig @ExampleSig = @i64 (@float @double)
 
-        .funcdef @example2 VERSION @example2_v1 <@ExampleSig> (%p0 %p1) {
+        .funcdef @example VERSION @example_v1 <@ExampleSig> (%p0 %p1) {
             ...
         }
 
 A **function declaration** declares a function without defining it. It has the
 following form::
 
-    .funcdecl Name <SigExpr>
+    .funcdecl Name <Sig>
 
 where:
 
 * ``Name`` is a global name for the function and
-* ``SigExpr`` is a function signature expression for the signature of the
-  function.
+* ``Sig`` is a global name for the signature of the function.
 
 It is an error to have multiple function declarations and/or function
 definitions of the same name in the same bundle.
@@ -427,8 +503,10 @@ Function Body
 
 A function definition has a **function body**.
 
-A function body has many **basic block**. The first basic block is the **entry
-block**. Every basic block has a local name.
+A function body has many **basic block** enclosed between ``{`` and ``}``. The
+first basic block is called the **entry block**. A basic block starts with a
+name followed by a colon ``:``. It ends with the beginning of another basic
+block or the end of the function body
 
     NOTE: The name of the entry block is conventionally called ``%entry``, but
     is not compulsory.
@@ -442,7 +520,7 @@ of the following forms::
 
 where:
 
-* ``InstName`` is a local name for the instruction, and
+* ``InstName`` is a name for the instruction, and
 * ``InstBody`` defines the instruction itself.
 
 The name of an instruction can be omitted in the text form, in which case the
@@ -451,30 +529,42 @@ instruction is defined separately in `<instruction-set>`__.
 
     Example::
 
-        .funcdef @gcd <int<64> (int<64> int<64>)> (%a0 %b0) {
+        .typedef @i64 = int<64>
+        .funcsig @gcd_sig = @i64 (@i64 @i64)
+
+        .const @i64_0 <@i64> = 0
+
+        .funcdef @gcd VERSION @gcd_v1 <@gcd_sig> (%a0 %b0) {
             %entry:
                 BRANCH %head
 
             %head:
-                %a = PHI <int<64>> { %entry: %a0; %body: %b; }
-                %b = PHI <int<64>> { %entry: %b0; %body: %b1; }
-                %z = EQ <int<64>> %b 0
+                %a = PHI <@i64> { %entry: %a0; %body: %b; }
+                %b = PHI <@i64> { %entry: %b0; %body: %b1; }
+                %z = EQ <@i64> %b @i64_0
                 BRANCH2 %z %exit %body
 
             %body:
-                %b1 = SREM <int<64>> %a %b
+                %b1 = SREM <@i64> %a %b
                 BRANCH %head
 
             %exit:
-                RET <int<64>> %a
+                RET <@i64> %a
         }
 
 ..
 
-    NOTE: It is allowed to give name to instructions that does not return value
-    (expressed as "returning void"). In this case, the client can refer to this
-    instruction using this name. So ``%br = BRANCH %head`` is still valid. This
-    is useful when performing stack introspection.
+    NOTE: It is allowed to give names to instructions that does not return
+    values (expressed as "returning void"). In this case, the client can refer
+    to this instruction using their names. So ``%br = BRANCH %head`` is still
+    valid. This is useful when performing stack introspection. Such an
+    instruction can be interpreted in two ways:
+
+    - The name ``%br`` binds to the instruction itself.
+    - The name ``%br`` is a variable of type ``void`` and it is defined by the
+      ``BRANCH`` instruction.
+
+    Both interpretations are reasonable.
 
 The last instruction of any basic block must be a **terminator instruction**,
 which is one of the following:
@@ -487,7 +577,8 @@ which is one of the following:
   - ``NEW``, ``NEWHYBRID``, ``ALLOCA``, ``ALLOCAHYBRID``
   - ``LOAD``, ``STORE``, ``CMPXCHG``, ``ATOMICRMW``
   - ``TRAP``, ``WATCHPOINT``
-  - ``ICALL``
+  - ``NEWSTACK``
+  - Some common instructions via the generic ``COMMINST`` instruction
 
 - ``BRANCH``, ``BRANCH2``, ``SWITCH``
 - ``TAILCALL``
@@ -508,6 +599,7 @@ The following instructions are starter instructions:
 
 - ``PHI``
 - ``LANDINGPAD``
+- Some common instructions via the generic ``COMMINST`` instruction
 
 ..
 

@@ -15,56 +15,6 @@ Numerical IDs are used exclusively instead of textual names. The binary form
 also provides a special "name binding" pseudo-top-level definition which
 associates IDs with names.
 
-It is not allowed to define types, function signatures or constants in line.
-They must be defined separately in their own top-level definitions and referred
-by IDs.
-
-    NOTE: The reason for this rule is consistency. By doing this, every
-    definition creates exactly one object. All object refers to others using IDs
-    rather than containing them. For most programming languages, there are only
-    a few primitive types which can be exhaustively defined before writing other
-    code. For user-defined types (classes, structs, etc.), they have to be
-    defined and the number of types is far smaller than the number of uses. So
-    it is worth defining them separately.
-
-    Take Java-like language as an example. All primitive types can be defined
-    before other code::
-
-        .typedef @byte      = int<8>
-        .typedef @short     = int<16>
-        .typedef @int       = int<32>
-        .typedef @long      = int<64>
-        .typedef @char      = int<16>
-        .typedef @boolean   = int<32>
-        .typedef @float     = float
-        .typedef @double    = double
-        .typedef @void      = void
-        .typedef @Object    = struct <...>
-        .typedef @ObjectRef = ref<@Object>
-
-        .typedef @type_id   = int<64>
-        .typedef @object_header = @type_id
-
-        .typedef @array_length = int<64>
-        .typedef @array_header = struct<@object_header @array_length>
-
-        .typedef @bytearray    = hybrid<@array_header @byte>
-        .typedef @shortarray   = hybrid<@array_header @short>
-        .typedef @intarray     = hybrid<@array_header @int>
-        .typedef @longarray    = hybrid<@array_header @long>
-        .typedef @chararray    = hybrid<@array_header @char>
-        .typedef @booleanarray = hybrid<@array_header @byte>    // different
-        .typedef @floatarray   = hybrid<@array_header @float>
-        .typedef @doublearray  = hybrid<@array_header @double>
-        .typedef @refarray     = hybrid<@array_header @ObjectRef>
-
-    When loading a class, the Client should define a struct type itself, a ref
-    to it and an iref to it::
-
-        .typedef @String     = struct <@object_header ...>
-        .typedef @StringRef  = ref<@String>
-        .typedef @StringIRef = iref<@String>
-
 Binary format
 =============
 
@@ -303,7 +253,7 @@ IDs, each of which is the ID of its parameter. ``body`` is the function body.
 Function Body
 =============
 
-A function body has the following form:
+A **function body** has the following form:
 
 +------+-------------+-------------+-----+
 | lent | basic block | basic block | ... |
@@ -313,7 +263,7 @@ A function body has the following form:
 
 ``nbbs`` is the number of basic blocks. ``bbx`` are basic blocks.
 
-A basic block has the following form:
+A **basic block** has the following form:
 
 +-----+--------+-------------+-------------+-----+
 | idt | lent   | instruction | instruction | ... |
@@ -325,7 +275,7 @@ A basic block has the following form:
 *even the entry block*. ``ninsts`` is the number of instructions in the current
 basic block. There are ninsts basic blocks following the header.
 
-An instruction has the following form:
+An **instruction** has the following form:
 
 +-----+------------------+
 | idt | instruction body |
@@ -341,7 +291,7 @@ Name Binding
 
 Name binding is a definition specific to the binary form. It binds a name to an
 ID. It is designed for debugging purposes and is optional. The name must be a
-valid textual identifier (prefix with '@' for global and '%' for local).
+valid textual global identifier (including the prefix '@').
 
 A name binding has the following form:
 
@@ -467,7 +417,7 @@ form::
     .funcdecl   @65600      <@65551>
     // 05       40 00 01 00  0f 00 01 00
 
-    //          @func1       @sig2                              2 params    %p0          %p1          1 basic block
+    //          @func1       @sig2                  @sig2_v1    2 params    %p0          %p1          1 basic block
     .funcdef    @65601      <@65552>        VERSION @65794      (           %65602       %65603)      {
     // 06       41 00 01 00  10 00 01 00            02 01 00 00 02 00       42 00 01 00  43 00 01 00  01 00
 
@@ -500,7 +450,7 @@ form::
         
     }
 
-    // Bind ID 65604 with the string "%entry"
-    07  44 00 01 00  06  25 65 6e 74 72 79
+    // Bind ID 65604 with the string "@sig2_v1.entry"
+    07  44 00 01 00  06  40 73 69 67 32 5f 76 31 2e 65 6e 74 72 79
 
 .. vim: textwidth=80

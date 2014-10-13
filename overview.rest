@@ -10,7 +10,7 @@ and instruction set, but has native support for three major functions:
 - concurrency
 - just-in-time compiling
 
-Traditional virtual machines must implement them as well as implementing the
+Traditional virtual machines must implement them in addition to implementing the
 high-level programming language. When a programming language is implemented on
 top of the µVM, it can depend on the µVM for proper GC, JIT and concurrency
 support.
@@ -85,7 +85,5 @@ implementation provides APIs for the clients to do more things, including:
   garbage-collected.
 
 See `µVM IR <uvm-ir>`__ for an overview of the µVM IR.
-
-The documentation of the implementation will be provided soon.
 
 .. vim: tw=80

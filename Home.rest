@@ -14,6 +14,7 @@ Contents:
 - `Instruction Set <instruction-set>`__
 - `Intrinsic Functions <intrinsic-funcs>`__
 - `Threads and Stacks <threads-stacks>`__
+- `µVM Memory and Garbage Collection <uvm-memory>`__
 - `Memory Model <memory-model>`__
 - `µVM-Client Interface <uvm-client-interface>`__
 - `Portability and Implementation Advices <portability>`__
