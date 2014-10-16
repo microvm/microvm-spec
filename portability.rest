@@ -107,7 +107,12 @@ For shifting instructions ``SHL``, ``LSHR`` and ``ASHR`` for integer type
 Conversions are required between any two implemented types suitable for the
 respective conversion instructions.
 
-    TODO: rounding, signalling NaN, conversion involving NaN.
+Binary floating point operations round to nearest and round ties to even.
+Conversions involving floating point numbers round towards zero except
+converting from floating point to integer, in which case, round towards zero and
+the range is clamped to that of the result type and NaN is converted to 0.
+Binary operations, comparisons and conversions involving floating point numbers
+never raise exceptions or hardware traps.
 
 Switch is required for the operand type of ``int`` of length 8, 16, 32 and 64.
 Otherwise optional.

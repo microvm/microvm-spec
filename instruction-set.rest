@@ -8,6 +8,44 @@ Overview
 The µVM uses the static single assignment (SSA) form and a comprehensive but
 low-level instruction set.
 
+Conventions
+===========
+
+In all examples in this chapter, the following definitions are assumed to be
+present::
+
+    .typedef @i1  = int<1>
+    .typedef @i8  = int<8>
+    .typedef @i16 = int<16>
+    .typedef @i32 = int<32>
+    .typedef @i64 = int<64>
+    .typedef @float  = float
+    .typedef @double = double
+    .typedef @void = void
+    .typedef @refvoid     = ref<@void>
+    .typedef @irefvoid    = iref<@void>
+    .typedef @weakrefvoid = weakref<@void>
+    .typedef @refi64  = ref<@i64>
+    .typedef @irefi64 = iref<@i64>
+    .typedef @stack    = stack
+    .typedef @thread   = thread
+    .typedef @tagref64 = tagref64
+
+    .typedef @4xi32 = vector<@i32 4>
+    .typedef @4xfloat = vector<@float 4>
+    .typedef @2xdouble = vector<@double 2>
+
+    .const @I32_0 <@i64> = 0
+    .const @I32_1 <@i64> = 1
+    .const @I64_0 <@i64> = 0
+    .const @I64_1 <@i64> = 1
+    .const @F_0 <@float> = 0.0f
+    .const @F_1 <@float> = 1.0f
+    .const @F_NAN <@float> = nanf
+    .const @D_0 <@double> = 0.0d
+    .const @D_1 <@double> = 1.0d
+    .const @D_NAN <@double> = nand
+
 SSA Variables
 =============
 
@@ -17,6 +55,14 @@ An **SSA variable**, or **variable** when unambiguous, holds a data value of a
 specific type. In the SSA form, every variable is defined (assigned) in exactly
 one place, but an SSA variable may hold different values in different contexts
 at different times.
+
+    NOTE: The original publications about SSA used the term "SSA form" and
+    simply "variable". This specification uses the term "SSA variable" to
+    emphasise that they are not variables in the usual sense that they can be
+    updated arbitrarily as opposite to "constants". Most SSA variables, or
+    simply "variables", in the µVM never change. Some are changeable
+    (instructions) not because they are assigned in another place, but because
+    they themselves are re-evaluated.
 
 * SSA variable
 
@@ -44,7 +90,7 @@ global SSA variable whose value is a ``func`` value referring to the function.
 Defining a previously undefined function or redefining a function does not
 change this variable.
 
-A **local SSA variable** is valid in the function activation it is in.
+A **local SSA variable** is valid in the same function activation it is in.
 
 A parameter defines a local SSA variable whose value is the value passed in the
 function as argument.
@@ -58,7 +104,7 @@ interchangeably in this specification.
 
 An SSA variable has the same ID and name as the thing that defines it.
 
-    Example: In the instruction ``%foo = ADD <int<32>> %bar %baz``, both "the
+    Example: In the instruction ``%foo = ADD <@i32> %bar %baz``, both "the
     SSA variable ``%foo`` is an ADD instruction" and "the SSA variable ``%foo``
     is defined by the ADD instruction" are valid. Both the variable and the
     instruction have name ``%foo``
@@ -79,7 +125,7 @@ The following grammar structures are common to several instructions.
 Exception Clause
 ----------------
 
-*excClause* ::= *(* ``EXC`` *nor* *exc* *)* :sub:`opt`
+*excClause* ::= *(* ``EXC`` ``(`` *nor* *exc* ``)`` *)* :sub:`opt`
 
 nor
     *basic block*: The normal destination
@@ -92,26 +138,56 @@ exc
 | nor | exc |
 +-----+-----+
 
-The exception clause provides an alternative to the normal destination when an
-abnormal condition occurred.
+The exception clause provides two destinations for instructions that may have
+diverging control flows. The *nor* basic block is called the **normal
+destination** and the *exc* basic block is called the **exceptional
+destination**.
 
-The exception clause is optional. When omitted, the next instruction is
-equivalent to the normal destination. In the binary form, an omitted exception
-clause is expressed as *nor* and *exc* both being 0.
+The exception clause can be omitted. In the binary form, an omitted exception
+clause is expressed as *nor* and *exc* both being 0. Any instruction that may
+have exception clauses is not a *terminator* (see `<uvm-ir>`__) if the exception
+clause is omitted. Otherwise it is a *terminator*.
 
-The semantic of the exceptional destination is defined per-instruction.
+Any instruction that may have exception clause may **continue normally** or
+**continue exceptionally**. An instruction shall continue normally unless
+explicitly defined otherwise.
 
-    Example: The ``CALL`` instruction optionally has an exception clause for
-    the case when an exception is thrown from the callee. When the exception
-    clause is absent, the exception is thrown from the caller to its caller.::
++ When continuing normally,
+  - if the exception clause is absent, then the execution continues with the
+    next instruction after the current instruction;
+  - if the exception clause is present, then branch to the normal destination.
++ When continuing exceptionally,
+  - if the exception clause is absent, it has undefined behaviour unless
+    explicitly defined by the concrete instruction;
+  - if the exception clause is present, then branch to the exceptional
+    destination.
+
+..
+
+    For example, the ``CALL`` instruction has an exception clause. When the
+    exception clause is omitted, the exception will be thrown out of the current
+    function::
 
         %entry:
             %rv1 = CALL <@sig1> @func1 (%arg0 %arg1)                        // throw out
-            %rv2 = CALL <@sig2> @func2 (%arg0 %arg1) EXC %cont %exc_hdlr    // caught locally
+            %rv2 = CALL <@sig2> @func2 (%arg0 %arg1) EXC(%cont %exc_hdlr)   // caught locally
         %cont:
             ...
         %exc_hdlr:
             %lp = LANDINGPAD
+
+    On the contrary,  ``UDIV`` and ``SDIV`` rely on the exceptional destination
+    to handle the case of division by zero. If the exception clause is omitted
+    and the right-hand-side operand is zero, then they have undefined
+    behaviours::
+
+        %entry:
+            %rv1 = DIV <@i64> %some_val @I64_0                         // undefined behaviour
+            %rv2 = DIV <@i64> %some_val @I64_0 EXC(%cont %exc_hdlr)    // handled locally
+        %cont:
+            ...
+        %exc_hdlr:
+            ... // handle divide-by-zero error here
 
 Keep-alive Clause
 -----------------
@@ -149,7 +225,7 @@ zero local variables. In the binary form, *nka* is the number of local variables
         %b = SUB ...
         %c = MUL ...
         %trap1 = TRAP <@ty>                     // Does not keep alive any variables
-        %trap2 = TRAP <@ty> KEEPALIVE (%a %b)   // Keep %a and %b alive
+        %trap2 = TRAP <@ty> KEEPALIVE(%a %b)    // Keep %a and %b alive
 
 Argument List
 -------------
@@ -177,7 +253,7 @@ many IDs follows it.
         TAILCALL <@sig> @func (%arg0 %arg1 %arg2)
         CCALL    <@sig> @func (%arg0 %arg1 %arg2)
         NEWSTACK <@sig> @func (%arg0 %arg1 %arg2)
-        ICALL @some.intrinsic.function (%arg0 %arg1 %arg2)
+        COMMINST @some.common.instruction (%arg0 %arg1 %arg2)
 
 Basic Operations
 ================
@@ -229,8 +305,7 @@ return value
  FREM      0xB4     FP    FP remainder           
 ========= ======== ===== ========================
 
-In all binary operations, the type of both *op1* and *op2* must be the type
-*T*.
+In all binary operations, the type of both *op1* and *op2* must have type *T*.
 
 For ADD, SUB, MUL, SDIV, SREM, UDIV, UREM, SHL, LSHR, ASHR, AND, OR and XOR,
 *T* must be ``int`` of a vector of ``int``.
@@ -239,52 +314,33 @@ For FADD, FSUB, FMUL, FDIV and FREM, *T* must be a floating point type or a
 vector of floating point type.
 
 When *T* is a vector type, the operation is applied for the corresponding
-element pairs of the two vectors.
+elements of the two vectors.
+
+SDIV, SREM, UDIV and UREM may have exception clause. For other operations, the
+exception clause must be omitted.
 
 For ADD, SUB and MUL, both operands are considered unsigned. When overflow,
-returns the result modulo 2 :sup:`n` where n is the length of the integer.
+returns the result modulo 2^n where n is the length of *T*.
 
     NOTE: Since negative numbers are encoded in the 2's complement notation,
     ADD, SUB and MUL work for both signed and unsigned numbers.
 
-For SDIV, SREM, UDIV and UREM, divide-by-zero is an implementation-defined
-behaviour. For SDIV and SREM, overflow is an implementation-defined behaviour.
+For SDIV, SREM, UDIV and UREM, when dividing by zero, it *continues
+exceptionally*. For SDIV and SREM, when overflow, the result is truncated to n
+bits where n is the length of *T*.
 
-For SHL, LSHR and ASHR, the second operand *op2* is considered unsigned. If
-the value of *op2* is greater than or equal to the length of *T*, it is an
-undefined behaviour.
+For SHL, LSHR and ASHR, the second operand *op2* is considered unsigned. Only
+the lowest m bits of *op2* are used, where m is the smallest integer that 2^m >=
+n and n is the length *T*.
 
-All floating point operations follow the IEEE 754 standard.
+    NOTE: For 32-bit and 64-bit integers, the lowest 5 and 6 bits of *op2* are
+    used, respectively. This is the "natural" behaviour of x86_64 and A64, but
+    not ARMv7.
 
-All binary operations may have an exception clause.
-
-All binary operations are optional. It is implementation-defined which
-operations are available for which types.
-
-µVM implementations should implement the natural behaviour and operation
-availability of the underlying architecture for maximum performance. When there
-is a hardware traps and the corresponding binary operation has an exception
-clause *excClause*, it should be implemented as an exceptional control flow to
-the exceptional destination.
-
-    For example:
-    
-    * On some ARMv7 platforms where the SDIV and UDIV instructions are not
-      available, the µVM implementation on those platforms does not have to
-      provide the SDIV, SREM, UDIV and UREM instructions. Even if it does, it
-      can decide what will happen if divide-by-zero is performed. Generating an
-      interrupt is not always the best choice because high-level language
-      Clients (for example, Java) expects a language-level exception which can
-      be handled without any system calls.
-    * On platforms without floating point units, the µVM may not provide
-      floating point operations.
-    * On platforms which does not support vector operations, it is allowed not
-      to provide binary operations on vector types. If the CPU only supports
-      vector operations of a particular length, the µVM implementation can only
-      implement the operations for that length.
-    * It is allowed not to provide ADD for ``int<8>`` if the CPU instruction can
-      only add 32-bit integers, but the µVM implementer should keep in mind that
-      there is a trade-off between efficiency, minimalism and convenience.
+All floating point operations follow the IEEE 754 standard.  They use the
+default roundTiesToEven rounding attribute.  If either operand is NaN, the
+result is NaN. Floating point exceptions do not cause exceptional control flow
+in the µVM.
 
 Semantics:
 
@@ -303,20 +359,22 @@ UDIV
 UREM
     Return the remainder of the two operands.
 SHL
-    Return the value of *op1* shifted to the left by the value of *op2*. 
+    Return the value of *op1* shifted to the left by the value of some lowest
+    bits of *op2*. 
 LSHR
-    Return the value of *op1* shifted to the right by the value of *op2*.
-    The most significant bits of the shifted value are filled with 0.
+    Return the value of *op1* shifted to the right by the value of some lowest
+    bits of *op2*. The most significant bits of the shifted value are filled
+    with 0.
 ASHR
-    Return the value of *op1* shifted to the right by the value of *op2*.
-    The most significant bits of the shifted value are filled with the most
-    significant bit of *op1*.
+    Return the value of *op1* shifted to the right by the value of some lowest
+    bits of *op2*. The most significant bits of the shifted value are filled
+    with the most significant bit of *op1*.
 AND
-    Return the result of bit-wise "and".
+    Return the result of bit-wise AND.
 OR
-    Return the result of bit-wise inclusive "or".
+    Return the result of bit-wise inclusive OR.
 XOR
-    Return the result of bit-wise exclusive "or".
+    Return the result of bit-wise exclusive OR.
 FADD
     Return the sum of the two operands.
 FSUB
@@ -331,33 +389,34 @@ FREM
 ..
 
     For LLVM users: this is directly borrowed from LLVM. Exceptional cases,
-    including divide-by-zero and signed division overflow, are
-    implementation-defined instead of undefined.
+    including division by zero and signed division overflow, have defined
+    behaviours in the µVM.
 
 ..
 
     Example::
 
-        .const @a <int<32>> = 42
-        .const @x <double> = 42.0d
-        .const @z <int<64>> = 0
+
+        .const @a <@i32>    = 42
+        .const @x <@double> = 42.0d
+        .const @z <@i64>    = 0
 
         // in some function
         %entry:
-            %b = ADD <int<32>> @a 1
-            %c = SUB <int<32>> @a %b
+            %b = ADD <@i32> @a @I32_1
+            %c = SUB <@i32> @a %b
 
-            %y = FADD <double> @x 1.0d
-            %z = FSUB <double> @x %y
+            %y = FADD <@double> @x @D_1
+            %z = FSUB <@double> @x %y
 
             // The presence of the exception clause makes it a terminator
-            %d = UDIV <int<32>> %b @z EXC %cont %handler    // terminator
+            %d = UDIV <@i32> %b @z EXC(%cont %handler)   // terminator
 
         %cont:
-            ...     // continue on normal condition (all µVM implementations)
+            ...     // continue on normal condition
 
         %handler:
-            ...     // handle divide-by-zero here (only on some µVM implementations)
+            ...     // handle divide-by-zero error here
 
 Comparison
 ----------
@@ -428,13 +487,10 @@ floating point type.
 
 If *T* is a vector type, the comparison is done element-wise.
 
-Floating point comparisons are optional. If they are implemented, they follow
-the IEEE 754 standard.
+All floating point operations follow the IEEE 754 standard.  Floating point
+exceptions do not cause exceptional control flow in the µVM.
 
-    NOTE: The µVM implementation does not need to implement FP comparisons if
-    there is no FP units in the underlying architecture.
-
-This instruction returns 1 if the condition of the comparison is true, or 0
+Comparison operations return 1 if the condition of the comparison is true, or 0
 otherwise. The conditions are:
 
 EQ
@@ -443,57 +499,57 @@ EQ
 NE
     The opposite of EQ.
 SGE
-    Interpret the operands as signed values and *op1* is greater than or equal
+    Interpret both operands as signed values and *op1* is greater than or equal
     to *op2*.
 SGT
-    Interpret the operands as signed values and *op1* is greater than *op2*.
+    Interpret both operands as signed values and *op1* is greater than *op2*.
 SLE
-    Interpret the operands as signed values and *op1* is less than or equal to
+    Interpret both operands as signed values and *op1* is less than or equal to
     *op2*.
 SLT
-    Interpret the operands as signed values and *op1* is less than *op2*.
+    Interpret both operands as signed values and *op1* is less than *op2*.
 UGE
-    Interpret the operands as unsigned values and *op1* is greater than or equal
-    to *op2*.
+    Interpret both operands as unsigned values and *op1* is greater than or
+    equal to *op2*.
 UGT
-    Interpret the operands as unsigned values and *op1* is greater than *op2*.
+    Interpret both operands as unsigned values and *op1* is greater than *op2*.
 ULE
-    Interpret the operands as unsigned values and *op1* is less than or equal to
-    *op2*.
+    Interpret both operands as unsigned values and *op1* is less than or equal
+    to *op2*.
 ULT
-    Interpret the operands as unsigned values and *op1* is less than *op2*.
+    Interpret both operands as unsigned values and *op1* is less than *op2*.
 FFALSE
     Always false.
 FTRUE 
     Always true.
 FUNO  
-    Either operand is qNaN.
+    Either operand is NaN.
 FUEQ  
-    Either operand is qNaN or *op1* is equal to *op2*.
+    Either operand is NaN or *op1* is equal to *op2*.
 FUNE  
-    Either operand is qNaN or *op1* is not equal to *op2*.
+    Either operand is NaN or *op1* is not equal to *op2*.
 FUGT  
-    Either operand is qNaN or *op1* is greater than *op2*.
+    Either operand is NaN or *op1* is greater than *op2*.
 FUGE  
-    Either operand is qNaN or *op1* is greater than or equal to *op2*.
+    Either operand is NaN or *op1* is greater than or equal to *op2*.
 FULT  
-    Either operand is qNaN or *op1* is less than *op2*.
+    Either operand is NaN or *op1* is less than *op2*.
 FULE  
-    Either operand is qNaN or *op1* is less than or equal to *op2*.
+    Either operand is NaN or *op1* is less than or equal to *op2*.
 FORD  
-    Both operands are not qNaN.
+    Both operands are not NaN.
 FOEQ  
-    Both operands are not qNaN and *op1* is equal to *op2*.
+    Both operands are not NaN and *op1* is equal to *op2*.
 FONE  
-    Both operands are not qNaN and *op1* is not equal to *op2*.
+    Both operands are not NaN and *op1* is not equal to *op2*.
 FOGT  
-    Both operands are not qNaN and *op1* is greater than *op2*.
+    Both operands are not NaN and *op1* is greater than *op2*.
 FOGE  
-    Both operands are not qNaN and *op1* is greater than or equal to *op2*.
+    Both operands are not NaN and *op1* is greater than or equal to *op2*.
 FOLT  
-    Both operands are not qNaN and *op1* is less than *op2*.
+    Both operands are not NaN and *op1* is less than *op2*.
 FOLE  
-    Both operands are not qNaN and *op1* is less than or equal to *op2*.
+    Both operands are not NaN and *op1* is less than or equal to *op2*.
 
 ..
 
@@ -533,21 +589,25 @@ FOLE
 
     Example::
 
-        .const @a <int<32>> = 42
-        .const @b <int<32>> = 43
-        %c = GT <int<32>> @a 0
-        %d = LT <int<32>> @a @b
+        .const @a <@i32> = 42
+        .const @b <@i32> = 43
+        .const @w <@double> = 42.0d
+        .const @x <@double> = 43.0d
 
-        .const @w <double> = 42.0d
-        .const @x <double> = 43.0d
-        %y = FULT <double> @w 0.0d
-        %z = FUGT <double> @w @x
+        %c = GT <@i32> @a @b    // 0 (false)
+        %d = LT <@i32> @a @b    // 1 (true)
 
-        %e = NEW <int<64>>
-        %f = EQ <ref<int<64>>> %e %e
+        %y = FOGT <@double> @w @x   // 0 (false)
+        %z = FULT <@double> @w @x   // 1 (true)
 
-        %g = ALLOCA <int<64>>
-        %h = EQ <iref<int<64>>> %g %g
+        %u = FOGT <@double> @w @D_NAN   // 0 (false) (result is "unordered")
+        %v = FUGT <@double> @w @D_NAN   // 1 (true)  (result is "unordered")
+
+        %e = NEW <@i64>
+        %f = EQ <@refi64> %e %e     // 1 (true) (same object)
+
+        %g = ALLOCA <@i64>
+        %h = EQ <@irefi64> %g %g    // 1 (true) (same location)
 
 Conversion
 ----------
@@ -621,9 +681,6 @@ must have the same length and the conversion is done element-wise.
   + Both *T1* and *T2* are ``iref``.
   + Both *T1* and *T2* are ``func``.
 
-All conversions are optional. It is implementation-defined which conversion is
-available for which type.
-
 Semantics:
 
 TRUNC
@@ -634,17 +691,26 @@ ZEXT
 SEXT 
     Copy the highest order bit of *opnd* until it reaches the length of *T2*.
 FPTRUNC
-    Convert *opnd* to a smaller floating point type.
+    Convert *opnd* to a smaller floating point type, rounding to nearest and
+    round ties to even according to IEEE754.
 FPEXT
-    Convert *opnd* to a larger floating point type.
+    Convert *opnd* to a larger floating point type. Always exact.
 FPTOUI
-    Convert *opnd* to an unsigned integer, rounding towards zero.
+    Convert *opnd* to an unsigned integer, rounding towards zero. NaN is
+    converted to 0. If the value of *opnd* is greater than or less than the
+    maximum or minimum representable value of the result type, the result shall
+    be the maximum or minimum representable value of that type.
 FPTOSI
-    Convert *opnd* to a signed integer, rounding towards zero.
+    Convert *opnd* to a signed integer, rounding towards zero. NaN is
+    converted to 0. If the value of *opnd* is greater than or less than the
+    maximum or minimum representable value of the result type, the result shall
+    be the maximum or minimum representable value of that type.
 UITOFP
-    Interpret *opnd* as unsigned and convert *opnd* to a floating point type.
+    Interpret *opnd* as unsigned and convert *opnd* to a floating point type,
+    rounding to nearest and round ties to even according to IEEE754.
 SITOFP
-    Interpret *opnd* as signed and convert *opnd* to a floating point type.
+    Interpret *opnd* as signed and convert *opnd* to a floating point type,
+    rounding to nearest and round ties to even according to IEEE754.
 BITCAST
     The result has the same bit-wise representation as *opnd*.
 REFCAST
@@ -674,8 +740,8 @@ REFCAST
 
     Example::
 
-        .const @a  <int<32>> = 42
-        .const @a2 <int<32>> = -42
+        .const @a  <@i32> = 42
+        .const @a2 <@i32> = -42
         %b  = TRUNC <int<32> int<16>> @a    // is int<16>
         %c  = ZEXT <int<32> int<64>> @a     // is int<64>
         %c2 = SEXT <int<32> int<64>> @a2    // is int<64>
