@@ -102,7 +102,7 @@ flows. The result of signed overflow by ``SDIV`` is the left-hand-side.
 
 For shifting instructions ``SHL``, ``LSHR`` and ``ASHR`` for integer type
 ``int<n>``, only the lowest ``m`` bits of the right-hand-side are used, where
-``m`` is the smallest integer that 2^m >= n.
+``m`` is the smallest integer that ``2^m`` >= ``n``.
 
 Conversions are required between any two implemented types suitable for the
 respective conversion instructions.
