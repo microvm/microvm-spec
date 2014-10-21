@@ -153,10 +153,13 @@ Any instruction that may have exception clause may **continue normally** or
 explicitly defined otherwise.
 
 + When continuing normally,
+
   - if the exception clause is absent, then the execution continues with the
     next instruction after the current instruction;
   - if the exception clause is present, then branch to the normal destination.
+
 + When continuing exceptionally,
+
   - if the exception clause is absent, it has undefined behaviour unless
     explicitly defined by the concrete instruction;
   - if the exception clause is present, then branch to the exceptional
@@ -204,10 +207,10 @@ lv :sub:`rep`
 | nka  | v1  | v2  | ... |
 +------+-----+-----+-----+
 
-The keep-alive clause keeps some local SSA variables alive even if they are
-considered "dead" by normal liveness analysis. They are useful during on-stack
-replacement as they give the Client sufficient information about the current
-stack frame.
+The keep-alive clause keeps some local SSA variables alive. During stack
+introspection, exactly the local variables in the keep-alive clause of the
+current instruction in any stack frames can be introspected. This clause is
+intended to assist on-stack replacement.
 
 A variable in the keep-alive clause is considered a "use" of it. It must obey
 the SSA requirement that the definition of a local variable dominates all its
@@ -742,25 +745,35 @@ REFCAST
 
         .const @a  <@i32> = 42
         .const @a2 <@i32> = -42
-        %b  = TRUNC <int<32> int<16>> @a    // is int<16>
-        %c  = ZEXT <int<32> int<64>> @a     // is int<64>
-        %c2 = SEXT <int<32> int<64>> @a2    // is int<64>
-        %d  = UITOFP <int<32> double> @a    // is double
-        %d2 = SITOFP <int<32> double> @a2   // is double
+        %b  = TRUNC  <@i32 @i16> @a         // is @i16
+        %c  = ZEXT   <@i32 @i64> @a         // is @i64
+        %c2 = SEXT   <@i32 @i64> @a2        // is @i64
+        %d  = UITOFP <@i32 @double> @a      // is @double
+        %d2 = SITOFP <@i32 @double> @a2     // is @double
 
-        .const @x  <double> = 42.0d
-        %y = FPTRUNC <double float> @x      // is float
-        %z = FPEXT <float double> %y        // is double
-        %w = FPTOSI <double int<64>> @x     // is int<64>
+        .const @x  <@double> = 42.0d
+        %y = FPTRUNC    <@double @float>  @x    // is @float
+        %z = FPEXT      <@float  @double> %y    // is @double
+        %w = FPTOSI     <@double @i64>    @x    // is @i64
 
-        %f = NEW <@Foo>                         // is ref<@Foo>
-        %g = REFCAST <ref<@Foo> ref<@Bar>> %f   // is ref<@Bar>
+        .typedef @Foo = ...
+        .typedef @Bar = ...
+        .typedef @refFoo = ref<@Foo>
+        .typedef @refBar = ref<@Bar>
+        .typedef @irefFoo = iref<@Foo>
+        .typedef @irefBar = iref<@Bar>
 
-        %h = ALLOCA <@Foo>                      // is ref<@Foo>
-        %i = REFCAST <iref<@Foo> iref<@Bar>> %h // is ref<@Bar>
+        %f = NEW <@Foo>                     // is ref<@Foo>
+        %g = REFCAST <@refFoo @refBar> %f   // is ref<@Bar>
 
-        .funcsig @vv = void ()
-        .funcsig @main_sig = int<32> (int<32> iref<iref<int<8>>>)
+        %h = ALLOCA <@Foo>                  // is iref<@Foo>
+        %i = REFCAST <@irefFoo @irefBar> %h // is iref<@Bar>
+
+        .typedef @ii8  = iref<@i8>          // iref<int<8>>
+        .typedef @iii8 = iref<@ii8>         // iref<iref<int<8>>>
+
+        .funcsig @vv = @void ()
+        .funcsig @main_sig = @i32 (@i32 @iii8)
         .funcdecl @j <@main_sig>
         %k = REFCAST <@main_sig @vv> @j     // is func<@vv>
 
@@ -809,14 +822,15 @@ the corresponding element of *iftrue* if the corresponding element of *cond* is
 
     Example::
 
-        .typedef @i1 = int<1>
-        .typedef @i64 = int<64>
-
         .const @a <@i64> = 42
-        %a_mod_2    = SREM <@64> @a 2
-        %a_is_even  = EQ <@64> %a_mod_2 0
-        %b = SELECT <@i1 @i64> %a_is_even 100 200   // %b is 100 if %a is even
-                                                    // 200 otherwise
+        .const @I64_2 <@i64> = 2
+        .const @I64_100 <@i64> = 100
+        .const @I64_200 <@i64> = 200
+
+        %a_mod_2    = SREM <@64> @a @I64_2
+        %a_is_even  = EQ <@64> %a_mod_2 @I64_0
+        %b = SELECT <@i1 @i64> %a_is_even @I64_100 @I64_200     // %b is 100 if %a is even
+                                                                // 200 otherwise
 
 Intra-function Control Flow
 ===========================
@@ -878,10 +892,10 @@ If *cond* is 1, jump to *iftrue*, otherwise jump to *iffalse*.
 
     Example::
 
-        .const @a <int<64>> = ...
+        .const @a <@i64> = ...
 
         %entry:
-            %b = EQ <int<64>> @a 42
+            %b = EQ <@i64> @a @I64_1
             BRANCH2 %b %equal %notequal
 
         %equal:
@@ -932,13 +946,16 @@ If the value of *opnd* equals one of the *casex*, then jump to the corresponding
 
     Example::
 
-        .const @a <int<64>> = ...
+        .const @a <@i64> = ...
+        .const @ONE <@i64> = 1
+        .const @TWO <@i64> = 2
+        .const @THREE <@i64> = 3
 
         %entry:
-            SWITCH <int<64>> @a %defbranch {
-                1: %one;
-                2: %two;
-                3: %three;
+            SWITCH <@i64> @a %defbranch {
+                @ONE: %one;
+                @TWO: %two;
+                @THREE: %three;
                 }
 
         %defbranch:
@@ -994,21 +1011,21 @@ Multiple ``PHI`` instructions are allowed.
 
         %bb1:
             ...
-            %x1 = ADD <int<64>> ... ...
+            %x1 = ADD <@i64> ... ...
             BRANCH %bbfoo
 
         %bb2:
             ...
-            %x2 = SUB <int<64>> ... ...
+            %x2 = SUB <@i64> ... ...
             BRANCH %bbfoo
 
         %bb3:
             ...
-            %x3 = MUL <int<64>> ... ...
+            %x3 = MUL <@i64> ... ...
             BRANCH %bbfoo
 
         %bbfoo:
-            %x = PHI <int<64>> {
+            %x = PHI <@i64> {
                 %bb1: %x1;
                 %bb2: %x2;
                 %bb3: %x3;
@@ -1021,41 +1038,32 @@ Inter-function Control Flow
 Function calling
 ----------------
 
-- ``CALL < sig > func ( arg1 arg2 ... )``
-- ``CALL < sig > func ( arg1 arg2 ... ) KEEPALIVE ( v1 v2 ... )``
-- ``INVOKE < sig > func ( arg1 arg2 ... ) nor exc``
-- ``INVOKE < sig > func ( arg1 arg2 ... ) nor exc KEEPALIVE ( v1 v2 ... )``
-- ``TAILCALL < sig > func ( arg1 arg2 ... )``
+``CALL`` ``<`` *sig* ``>`` *func* ``(`` *arg* :sub:`rep`  ``)`` *excClause* *keepAliveClause*
 
-    ``sig``
-        *function signature*: The signature of the callee.
-    ``func``
-        *value* of ``func``: The callee.
-    ``argx``
-        *value* according to ``sig``: Parameter.
-    ``nor``, ``exc``
-        *label*: The normal destination and exceptional destination
-    ``vx``
-        *value* of any type: Registers to be retained on the stack frame.
-    return value
-        The return type of ``sig``: The return value of the callee. The
-        ``TAILCALL`` instruction itself does not have a value.
+``TAILCALL`` ``<`` *sig* ``>`` *func* ``(`` *arg* :sub:`rep`  ``)``
+
+sig
+    *function signature*: The signature of the callee.
+func
+    *variable* of ``func`` type: The callee.
+arg :sub:`rep`
+    list of *variables* of types specified by *sig*: Argument list.
+excClause
+    *exception clause*: Specifies the basic block to handle µVM exceptions and
+    stack overflow.
+keepAliveClause
+    *keepalive clause*: Keep variables alive for OSR.
+return value
+    The return type of *sig*: The return value of the callee. The ``TAILCALL``
+    instruction itself does not receive the return value.
 
 CALL:
 
-+------+-----+------+-------+------+------+-----+------+-----+-----+-----+
-| opct | idt | idt  | lent  | idt  | idt  | ... | lent | idt | idt | ... |
-+======+=====+======+=======+======+======+=====+======+=====+=====+=====+
-| 0x60 | sig | func | nargs | arg1 | arg2 | ... | nka  | v1  | v2  | ... |
-+------+-----+------+-------+------+------+-----+------+-----+-----+-----+
-
-INVOKE:
-
-+------+-----+------+-----+-----+-------+------+------+-----+------+-----+-----+-----+
-| opct | idt | idt  | idt | idt | lent  | idt  | idt  | ... | lent | idt | idt | ... |
-+======+=====+======+=====+=====+=======+======+======+=====+======+=====+=====+=====+
-| 0x61 | sig | func | nor | exc | nargs | arg1 | arg2 | ... | nka  | v1  | v2  | ... |
-+------+-----+------+-----+-----+-------+------+------+-----+------+-----+-----+-----+
++------+-----+------+-------+------+------+-----+-----------+-----------------+
+| opct | idt | idt  | lent  | idt  | idt  | ... | excClause | keepAliveClause |
++======+=====+======+=======+======+======+=====+===========+=================+
+| 0x60 | sig | func | nargs | arg1 | arg2 | ... | excClause | keepAliveClause |
++------+-----+------+-------+------+------+-----+-----------+-----------------+
 
 TAILCALL:
 
@@ -1065,70 +1073,83 @@ TAILCALL:
 | 0x62 | sig | func | nargs | arg1 | arg2 | ... |
 +------+-----+------+-------+------+------+-----+
 
-``CALL`` and ``INVOKE`` creates a new stack frame for the
-callee, passes the arguments and starts executing from the callee's entry block.
-The value of ``CALL`` and ``INVOKE`` is the return value of the
-callee.
+The ``CALL`` instruction creates a new stack frame for the callee, passes the
+arguments and starts executing from the entry block of the callee.
 
-After the callee normally returned, ``CALL`` continues executing the
-next instruction after this ``CALL``. If the callee throws an exception,
-it is rethrown to the caller of the current function.
+A ``CALL`` instruction *continues normally* when the callee returns. In this
+case the value of the ``CALL`` instruction is the return value of the callee.
 
-``INVOKE`` expects exception to be thrown from the callee. If the callee
-returns normally, then branch to the basic block identified by label ``nor``. If
-an exception is thrown from the callee, then branch to basic block ``exc`` where
-a ``LANDINGPAD`` instruction will receive the exception thrown.
+A ``CALL`` instruction *continues exceptionally* when an exception is thrown
+from the callee. In this case the value of the ``CALL`` instruction is not
+defined. When the exception clause is present, the exception is received by the
+``LANDINGPAD`` instruction in the exceptional destination. When the exception
+clause is absent, the exception is re-thrown out of the function activation
+which the ``CALL`` instruction is in.
 
-``TAILCALL`` is semantically similar to calling a function and
-immediately return the returned value. The ``TAILCALL`` instruction
-replaces the caller's stack frame with that for the callee. So
-``TAILCALL`` requires that the callee must have the same return type as
-the caller. The caller of the current function becomes the caller of the
-function ``TAILCALL`` calls. Normal or abrupt returning are handled by
-the new pair of caller of callee.
+A ``CALL`` instruction *continues exceptionally* when the function call causes a
+stack overflow. In this case the value of the ``CALL`` instruction is not
+defined. When the exception clause is present, the value of the ``LANDINGPAD``
+instruction in the exceptional destination is ``NULL``. When the exception
+clause is absent, it has undefined behaviour.
 
-To facilitate stack introspection and on-stack replacement (OSR), some local SSA
-variables (parameters and instructions) can be explicitly kept alive at the call
-site. Exactly these variables appeared in the KEEPALIVE list (``v1``, ``v2``,
-...) can be introspected from the client or via stack introspection instructions
-which may be introduced in the future.
+The ``CALL`` instruction is an OSR point.
+
+The ``TAILCALL`` instruction replaces the caller's stack frame with a new stack
+frame for the callee. The ``TAILCALL`` requires that the callee must have the
+same return type as the caller. The caller of the current function becomes the
+caller of the function ``TAILCALL`` calls. The ``TAILCALL`` instruction cannot
+have any exception clause and is not an OSR point.
+
+    NOTE: ``TAILCALL`` is semantically similar to calling a function and
+    immediately return the returned value, but reuses the current frame.
 
 For LLVM users:
 
+- Same as any instructions with the exception clause, ``CALL`` instruction is
+  conditionally a terminator. When the exception clause is present, it is like
+  the ``invoke`` instruction in LLVM and, when absent, it is like the ``call``
+  instruction.
 - The meaning of ``TAILCALL`` is similar to LLVM's ``musttail``: in µVM,
   a ``TAILCALL`` always replaces the current stack frame.
 - Calling conventions cannot be specified in µVM: µVM always uses its internal
-  calling conventions.  
+  calling conventions. The ``CCALL`` instruction is for foreign function calls.
 - Arguments will not be automatically zero or sign-extended or truncated for the
-  code. Conversions must be explicitly done before calling.  
-- The ``func`` type in µVM is a dedicated function identifier, not a pointer.  
+  programmer. Conversions must be explicitly done before calling.  
+- The ``func`` type in µVM is a dedicated function reference, not a pointer.  
 - All parameters are passed by value and parameters are SSA Values. To pass
   on-stack data or arrays, use ``alloca`` and pass ``iref``.  
-- Local SSA Variable retention is unique to µVM.
+- The keep-alive clause is unique to µVM for OSR.
 
 Example::
 
-    .funcdecl @sum <double (double double)>
+    .funcsig @sig = @double (@double @double)
 
-    .funcdef @square_sum <double (double double)> (%x %y) {
+    .funcdecl @sum <@sig>
+
+    .funcdef @square_sum VERSION @square_sum_v1 <@sig> (%x %y) {
         %entry:
-            %x2 = MUL <double> %x %x
-            %y2 = MUL <double> %y %y
+            %x2 = MUL <@double> %x %x
+            %y2 = MUL <@double> %y %y
 
             // return the result of sum(x2,y2)
-            TAILCALL <double (double double)> @sum (%x2 %y2)    
+            TAILCALL <@sig> @sum (%x2 %y2)    
     }
 
-    .funcsig @dddsig double (double double)
+    .funcsig @void_no_params = @void ()
 
-    .funcdef @main <void ()> () {
+    .const @D_3 = 3.0d
+    .const @D_4 = 4.0d
+    .const @D_5 = 5.0d
+    .const @D_6 = 6.0d
+
+    .funcdef @main VERSION @main_v1 <@void_no_params> () {
         %entry:
-            %a = CALL <@dddsig> @square_sum (3.0d, 4.0d)
-            %b = INVOKE <@dddsig> @square_sum (%a, 5.0d) %nor %exc
+            %a = CALL <@sig> @square_sum (@D_3 @D_4)
+            %b = CALL <@sig> @square_sum (%a   @D_5) EXC(%nor %exc)
 
         %nor:
-            %c = CALL <@dddsig> @square_sum (5.0d, 6.0d) KEEPALIVE (%a)
-            %d = INVOKE <@dddsig> @square_sum (%c, %c) %nor2 %exc KEEPALIVE (%a %c)
+            %c = CALL <@sig> @square_sum (@D_5 @D_6) KEEPALIVE(%a)
+            %d = CALL <@sig> @square_sum (%c   %c)   EXC(%nor2 %exc) KEEPALIVE(%a %c)
 
         %nor2:
             // continue here
@@ -1141,14 +1162,14 @@ Example::
 Normal Returning from Functions
 -------------------------------
 
-- ``RET < T > rv``
+``RET`` ``<`` *T* ``>`` *rv*
 
-    ``T``
-        *type*: The return type.
-    ``rv``
-        *value* of ``T``: The return value.
+``RETVOID``
 
-- ``RETVOID``
+T
+    *type*: The return type.
+rv
+    *variable* of type *T*: The return value.
 
 RET:
 
@@ -1166,30 +1187,35 @@ RETVOID:
 | 0x64 |
 +------+
 
-``RET`` normally returns from the current function with ``rv`` as the
-return value. ``RETVOID`` normally returns from the current function
+The ``RET`` instruction returns from the current function with *rv* as the
+return value. The ``RETVOID`` instruction returns from the current function
 whose return type is void.
 
 For LLVM users: Equivalent to LLVM's ``ret`` and ``ret void``.
 
 Example::
 
-    .funcdef @sum <double (double double)> (%x %y) {
-        %s = ADD <double> %x %y
-        RET <double> %s
+    .funcsig @sig1 = @double (@double @double)
+    .funcsig @sig2 = @void ()
+
+    .funcdef @sum VERSION @sum_v1 <@sig1> (%x %y) {
+        %entry:
+            %s = ADD <@double> %x %y
+            RET <@double> %s
     }
 
-    .funcdef @main <void ()> () {
-        RETVOID
+    .funcdef @main VERSION @main_v1 <@sig2> () {
+        %entry:
+            RETVOID
     }
 
 Abrupt Returning
 ----------------
 
-- ``THROW exc``
+``THROW`` *exc*
 
-    ``exc``
-        *value* of ``ref`` to any object: The exception object.
+exc
+    *variable* of type ``ref`` to any type: The exception object.
 
 +------+-----+
 | opct | idt |
@@ -1197,40 +1223,41 @@ Abrupt Returning
 | 0x65 | exc |
 +------+-----+
 
-``THROW`` abruptly returns from the current function and throws
-exception ``exc``. Exceptions in µVM are object references to any type. This
-exception is caught by the nearest caller which uses ``INVOKE`` and the
-``exc`` value is captured by the ``LANDINGPAD`` instruction of its
-exceptional destination.
+The ``THROW`` instruction throws the exception ``exc`` from the current
+function. Exceptions in µVM are object references to any type.
 
 For LLVM users: There is no equivalent in LLVM. The ``resume`` instruction in
 LLVM continues the propagation of a in-flight exception. This can also be done
-by µVM's ``THROW`` instruction. µVM programs can create a new exception
-object by ``NEW`` and throw it, where LLVM must depend on
-platform-specific libraries to allocate new exceptions.
+by µVM's ``THROW`` instruction. µVM programs can create a new exception object
+by ``NEW`` and throw it, where LLVM must depend on platform-specific libraries
+to allocate new exceptions.
 
 Example::
 
-    .funcdef @safe_divide <int<64> (int<64> int<64>)> (%x %y) {
-        %y0 = EQ <int<64>> %y 0
-        BRANCH %y0 %divbyzero %okay
+    .funcsig @sig = @i64 (@i64 @i64)
+    .typedef @SomeExceptionType = ...
 
-    %divbyzero:
-        %exc = NEW <@SomeExceptionType>    // user-defined exception type
-        // initialise %exc
-        THROW %exc
+    .funcdef @safe_divide VERSION @safe_divide_v1 <@sig> (%x %y) {
+        %entry:
+            %y0 = EQ <@i64> %y @I64_0
+            BRANCH %y0 %divbyzero %okay
 
-    %okay:
-        // continue 
+        %divbyzero:
+            %exc = NEW <@SomeExceptionType>    // user-defined exception type
+            // initialise %exc
+            THROW %exc
+
+        %okay:
+            // continue 
     }
 
 Receiving the Exception
 -----------------------
 
-- ``LANDINGPAD``
+``LANDINGPAD``
 
-    return value
-        Type ``ref<void>``: The exception.
+return value
+    Type ``ref<void>``: The exception.
 
 +------+
 | opct |
@@ -1238,18 +1265,19 @@ Receiving the Exception
 | 0x66 |
 +------+
 
-Used in the beginning of the exceptional destination basic block of an
-``INVOKE`` instruction to receive the thrown exception.
+The ``LANDINGPAD`` receives the thrown exception when used in an instruction
+that can catch exceptions from a callee. It is a *starter instruction* and must
+appear in the beginning of a basic block which is used as an exceptional
+destination.
 
-The value has type ``ref<void>`` and can be cast to a reference of other
-concrete types.
+The return value of this instruction has type ``ref<void>``.
 
 For LLVM users: Unlike LLVM, exceptions is handled internally in µVM. The type
 of exceptions in µVM is always an object reference. This is general enough to
 handle all cases. Unlike C++ which uses RTTI to identify the exception type, µVM
 client must implement its own RTTI, probably in the Java style.
 
-Example: See ``INVOKE``
+Example: See ``CALL``
 
 Aggregate Type Operations
 =========================
