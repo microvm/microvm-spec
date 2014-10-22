@@ -320,6 +320,12 @@ A **constant constructor** can be the following:
 - A **null constructor** create a null value of *general reference types* except
   ``weakref`` (defined in `<type-system>`__). It is the literal ``NULL``. 
 
+- A **vector constructor** create a vector constant. It is:
+
+  + the literal ``VEC`` followed by an open brace ``{``, followed by
+  + a sequence of global names of other constants separated by spaces, and
+  + a closing brace ``}``.
+
 ..
 
     NOTE: The Client must ensure the number (integer or floating point) can be
@@ -402,6 +408,9 @@ A **constant constructor** can be the following:
 
         .typedef @stack = stack
         .const @null_stack <@stack> = NULL
+
+        .typedef @4xfloat = vector <@float 4>
+        .const @vec1 <@4xfloat> = VEC { @float1 @float2 @float3 @float4 }
 
 Global Cell Definition
 ======================

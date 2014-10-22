@@ -64,6 +64,12 @@ at different times.
     (instructions) not because they are assigned in another place, but because
     they themselves are re-evaluated.
 
+..
+
+    For LLVM users: The concept of *SSA variable* or *variable* is the
+    counterpart of the concept of *SSA value* or *value* in LLVM. The µVM uses
+    the traditional terminology that "a variable holds a value". 
+
 * SSA variable
 
   * Global SSA variable
@@ -261,7 +267,7 @@ many IDs follows it.
 Basic Operations
 ================
 
-Binary Operations
+Binar Operations
 -----------------
 
 *binOp* ``<`` *T* ``>`` *op1* *op2* *excClause*
@@ -745,16 +751,16 @@ REFCAST
 
         .const @a  <@i32> = 42
         .const @a2 <@i32> = -42
-        %b  = TRUNC  <@i32 @i16> @a         // is @i16
-        %c  = ZEXT   <@i32 @i64> @a         // is @i64
-        %c2 = SEXT   <@i32 @i64> @a2        // is @i64
-        %d  = UITOFP <@i32 @double> @a      // is @double
-        %d2 = SITOFP <@i32 @double> @a2     // is @double
+        %b  = TRUNC  <@i32 @i16> @a         // is a @i16
+        %c  = ZEXT   <@i32 @i64> @a         // is a @i64
+        %c2 = SEXT   <@i32 @i64> @a2        // is a @i64
+        %d  = UITOFP <@i32 @double> @a      // is a @double
+        %d2 = SITOFP <@i32 @double> @a2     // is a @double
 
         .const @x  <@double> = 42.0d
-        %y = FPTRUNC    <@double @float>  @x    // is @float
-        %z = FPEXT      <@float  @double> %y    // is @double
-        %w = FPTOSI     <@double @i64>    @x    // is @i64
+        %y = FPTRUNC    <@double @float>  @x    // is a @float
+        %z = FPEXT      <@float  @double> %y    // is a @double
+        %w = FPTOSI     <@double @i64>    @x    // is a @i64
 
         .typedef @Foo = ...
         .typedef @Bar = ...
@@ -763,11 +769,11 @@ REFCAST
         .typedef @irefFoo = iref<@Foo>
         .typedef @irefBar = iref<@Bar>
 
-        %f = NEW <@Foo>                     // is ref<@Foo>
-        %g = REFCAST <@refFoo @refBar> %f   // is ref<@Bar>
+        %f = NEW <@Foo>                     // is a ref<@Foo>
+        %g = REFCAST <@refFoo @refBar> %f   // is a ref<@Bar>
 
-        %h = ALLOCA <@Foo>                  // is iref<@Foo>
-        %i = REFCAST <@irefFoo @irefBar> %h // is iref<@Bar>
+        %h = ALLOCA <@Foo>                  // is a iref<@Foo>
+        %i = REFCAST <@irefFoo @irefBar> %h // is a iref<@Bar>
 
         .typedef @ii8  = iref<@i8>          // iref<int<8>>
         .typedef @iii8 = iref<@ii8>         // iref<iref<int<8>>>
@@ -775,10 +781,10 @@ REFCAST
         .funcsig @vv = @void ()
         .funcsig @main_sig = @i32 (@i32 @iii8)
         .funcdecl @j <@main_sig>
-        %k = REFCAST <@main_sig @vv> @j     // is func<@vv>
+        %k = REFCAST <@main_sig @vv> @j     // is a func<@vv>
 
-Conditional Move
-----------------
+``SELECT`` Instruction
+----------------------
 
 ``SELECT`` ``<`` *S* *T* ``>`` *cond* *iftrue* *iffalse*
 
@@ -837,8 +843,8 @@ Intra-function Control Flow
 
     NOTE: The following instructions are for jumping within a function.
 
-One-way (unconditional) Branching
----------------------------------
+``BRANCH`` Instruction
+----------------------
 
 ``BRANCH`` *dest*
 
@@ -865,8 +871,8 @@ This instruction jumps to the beginning of a basic block *dest*.
         %head:
             // Continue executing here.
 
-Two-way Branching
------------------
+``BRANCH2`` Instruction
+-----------------------
 
 ``BRANCH2`` *cond* *iftrue* *iffalse*
 
@@ -904,8 +910,8 @@ If *cond* is 1, jump to *iftrue*, otherwise jump to *iffalse*.
         %notequal:
             // if %b is 0, jump here
 
-Multi-way Branching
--------------------
+``SWITCH`` Instruction
+----------------------
 
 ``SWITCH`` ``<`` *T* ``>`` *opnd* *default* ``{`` *(* *casex* ``:`` *destx* ``;`` *)* :sub:`rep` ``}``
 
@@ -970,8 +976,8 @@ If the value of *opnd* equals one of the *casex*, then jump to the corresponding
         %three:
             ...
 
-Phi-node
---------
+``PHI`` Instruction
+-------------------
 
 ``PHI`` ``<`` *T* ``>`` ``{`` *(* *bbx* ``:`` *valx* ``;`` *)* :sub:`rep1` ``}``
 
@@ -1035,8 +1041,8 @@ Multiple ``PHI`` instructions are allowed.
 Inter-function Control Flow
 ===========================
 
-Function calling
-----------------
+``CALL`` and ``TAILCALL`` Instruction
+-------------------------------------
 
 ``CALL`` ``<`` *sig* ``>`` *func* ``(`` *arg* :sub:`rep`  ``)`` *excClause* *keepAliveClause*
 
@@ -1159,8 +1165,8 @@ Example::
             // handle the exception
     }
 
-Normal Returning from Functions
--------------------------------
+``RET`` and ``RETVOID`` Instruction
+-----------------------------------
 
 ``RET`` ``<`` *T* ``>`` *rv*
 
@@ -1209,8 +1215,8 @@ Example::
             RETVOID
     }
 
-Abrupt Returning
-----------------
+``THROW`` Instruction
+---------------------
 
 ``THROW`` *exc*
 
@@ -1235,7 +1241,7 @@ to allocate new exceptions.
 Example::
 
     .funcsig @sig = @i64 (@i64 @i64)
-    .typedef @SomeExceptionType = ...
+    .typedef @SomeExceptionType = ...    // user-defined exception type
 
     .funcdef @safe_divide VERSION @safe_divide_v1 <@sig> (%x %y) {
         %entry:
@@ -1243,7 +1249,7 @@ Example::
             BRANCH %y0 %divbyzero %okay
 
         %divbyzero:
-            %exc = NEW <@SomeExceptionType>    // user-defined exception type
+            %exc = NEW <@SomeExceptionType>
             // initialise %exc
             THROW %exc
 
@@ -1251,8 +1257,8 @@ Example::
             // continue 
     }
 
-Receiving the Exception
------------------------
+``LANDINGPAD`` Instruction
+--------------------------
 
 ``LANDINGPAD``
 
@@ -1282,21 +1288,26 @@ Example: See ``CALL``
 Aggregate Type Operations
 =========================
 
-These instructions operate on the ``struct`` type as SSA Values.
+These instructions operate on the ``struct`` and the ``vector`` types as SSA
+variables.
 
-Extract Value
--------------
+Struct Operations
+-----------------
 
-- ``EXTRACTVALUE < T index > opnd``
+``EXTRACTVALUE`` Instruction
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    ``T``
-        *type*, subtype of struct: The type of the operand.
-    ``index``
-        *intImmediate*: The index of the field to extract.
-    ``opnd``
-        *value* of ``T``: The operand.
-    return value
-        Type is the index-th field of struct type ``T``: The field of opnd.
+``EXTRACTVALUE`` ``<`` *T* *index* ``>`` *opnd*
+
+T
+    *type*, must be a ``struct``: The type of the operand.
+index
+    *integer literal* The index of the field to extract.
+opnd
+    *variable* of type *T*: The struct to extract value from.
+return value
+    Type is the index-th field of the struct type *T*: The value of the
+    *index*-th field of *opnd*.
 
 +------+-----+-------+------+
 | opct | idt | lent  | idt  |
@@ -1304,46 +1315,32 @@ Extract Value
 | 0x70 | T   | index | opnd |
 +------+-----+-------+------+
 
-``EXTRACTVALUE`` extracts the index-th field from an SSA Value ``opnd``
-which has type ``struct``.
+The ``EXTRACTVALUE`` instruction extracts the index-th field from the value of
+an SSA variable *opnd* which has type ``struct``.
 
 For LLVM users: It is the counterpart of the ``extractvalue`` instruction in
 LLVM. But µVM's ``EXTRACTVALUE`` does not work on arrays or nested
 ``struct``.  Use ``EXTRACTVALUE`` multiple times to extract the
 field in nested structs.
 
-Example::
+Example: see the example of ``INSERTVALUE``
 
-    .typedef @Foo = struct <int<32> double float>
-    .const @s <@Foo> = {42 84.0d 3.14f}
+``INSERTVALUE`` Instruction
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    %a = EXTRACTVALUE <@Foo 1> @s
-    // %a == 84.0d and %a is double
+``INSERTVALUE`` ``<`` *T* *index* ``>`` *opnd* *newval*
 
-    .typedef @Bar = struct <double struct <double double> double>
-    .const @t <@Foo> = {1.0d {2.1d 2.2d} 3.0d}
-
-    %b = EXTRACTVALUE <@Bar 1> @t
-    // %b == {2.1d 2.2d} and %b is struct <double double>
-
-    %c = EXTRACTVALUE <struct <double double> 0> %b
-    // %c == 2.1d and %c is double
-
-Insert Value
-------------
-
-- ``INSERTVALUE < T index > opnd newval``
-
-    ``T``
-        *type*, subtype of struct: The type of the operand.
-    ``index``
-        *intImmediate*: The index of the field to insert.
-    ``opnd``
-        *value* of ``T``: The operand.
-    ``newval``
-        *value* of the ``index-th`` field of ``T``: The new value for the field.
-    return value
-        Type ``T``: A new struct with the ``index-th`` field different.
+T
+    *type*, must be a ``struct``: The type of the operand.
+index
+    *integer literal* The index of the field to insert.
+opnd
+    *variable* of type *T*: The struct to insert value into.
+newval
+    *variable* of the type of the *index*-th field of *T*: The new value for the
+    field specified by *index*.
+return value
+    Type is *T*: A new struct with the *index*-th field being *newval*.
 
 +------+-----+-------+------+--------+
 | opct | idt | lent  | idt  | idt    |
@@ -1351,8 +1348,9 @@ Insert Value
 | 0x71 | T   | index | opnd | newval |
 +------+-----+-------+------+--------+
 
-``INSERTVALUE`` creates a new SSA Value which is the same as ``opnd``
-except the field indicated by ``index`` which is changed to ``newval``.
+The ``INSERTVALUE`` instruction constructs a struct value which has the same
+field values as *opnd* except the field specified by *index* which has the value
+*newval*.
 
 For LLVM users: It is the counterpart of the ``insertvalue`` instruction in
 LLVM. But µVM's ``INSERTVALUE`` does not work on arrays or nested
@@ -1361,23 +1359,183 @@ LLVM. But µVM's ``INSERTVALUE`` does not work on arrays or nested
 
 Example::
 
-    .typedef @Foo = struct <int<32> double float>
-    .const @s <@Foo> = {42 84.0d 3.14f}
+    .typedef @Foo = struct <@i32 @double @float>
+    .const @A <@i32>    = 42
+    .const @B <@double> = 84.0d
+    .const @C <@float>  = 3.14f
 
-    %a = INSERTVALUE <@Foo 1> @s, 126.0d
-    // %a == {42 126.0d 3.14f} and %a is @Foo
+    .const @B2 <@double>  = 126.0d
 
-    .typedef @Bar = struct <double struct <double double> double>
-    .const @t <@Bar> = {1.0d {2.1d 2.2d} 3.0d}
+    .const @S <@Foo>    = {@A @B @C}    // {42 84.0d 3.14f}
 
-    %b = EXTRACTVALUE <@Bar 1> @t
-    // %b == {2.1d 2.2d} and %b is struct <double double>
+    %a  = EXTRACTVALUE <@Foo 1> @S      // %a  == 84.0d and is a double
+    %s2 = INSERTVALUE  <@Foo 1> @S @B2  // %s2 == {42 126.0d 3.14f} and is a @Foo
 
-    %c = INSERTVALUE <struct <double double> 0> %b 999.9d
-    // %c == {999.9d 2.2d} and %c is struct <double double>
+    .typedef @Baz = struct <@double @double>
+    .typedef @Bar = struct <@double @Baz @double>
 
-    %d = INSERTVALUE <@Bar 1> @t %c
-    // %d == {1.0d {999.9d 2.2d} 3.0d} and %d is @Bar
+    .const @D <@double> = 1.0d 
+    .const @E <@double> = 2.1d 
+    .const @F <@double> = 2.2d 
+    .const @G <@double> = 3.0d 
+
+    .const @H <@double> = 999.0d
+
+    .const @U <@Baz> = {@E @F}          // {2.1d 2.2d}
+    .const @T <@Bar> = {@D @U @G}       // {1.0d {2.1d 2.2d} 3.0d}
+
+    %b = EXTRACTVALUE <@Bar 1> @T       // %b == {2.1d 2.2d} and is a @Baz
+    %c = EXTRACTVALUE <@Baz 0> %b       // %c == 2.1d and is a double
+
+    %b2 = INSERTVALUE <@Baz 0> %b @H    // %b2 == {999.0d 2.2d} and is a @Baz
+    %t2 = INSERTVALUE <@Bar 1> @T %c    // %t2 == {1.0d {999.9d 2.2d} 3.0d} and is a @Bar
+
+Vector Operations
+-----------------
+
+``EXTRACTELEMENT`` Instruction
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``EXTRACTELEMENT`` ``<`` *T1* *T2* ``>`` *vec* *index*
+
+T1
+    *type*, must be a ``vector``: The type of *vec*.
+T2
+    *type*, must be an ``int``: The type of *index*.
+val
+    *variable* of type *T1*: The vector to extract from.
+index
+    *variable* of type *T2*: The index of the element to extract.
+return value
+    Type is the element type of *T1*: The extracted element.
+
++------+-----+-----+-----+-------+
+| opct | idt | idt | idt | idt   |
++======+=====+=====+=====+=======+
+| 0x72 | T1  | T2  | vec | index |
++------+-----+-----+-----+-------+
+
+The ``EXTRACTELEMENT`` instruction extracts the element at *index* from a vector
+value *vec* of vector type *T1*.
+
+The *index* may have any integer type and is treated as unsigned. If index
+exceeds the length of the vector, it has undefined behaviour.
+
+For LLVM users: This is the counterpart of the ``extractelement`` instruction of
+LLVM.
+
+Example: See the example in ``SHUFFLEVECTOR``.
+
+``INSERTELEMENT`` Instruction
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+             
+``INSERTELEMENT`` ``<`` *T1* *T2* ``>`` *vec* *index* *newval*
+
+T1
+    *type*, must be a ``vector``: The type of *vec*.
+T2
+    *type*, must be an ``int``: The type of *index*.
+vec
+    *variable* of type *T1*: The vector to insert into.
+index
+    *variable* of type *T2*: The index of the element to insert.
+newval
+    *variable* of the element type of *T1*: The new value for that element.
+return value
+    Type is *T1*: A new vector with the *index*-th element being *newval*.
+
++------+-----+-----+-----+-------+--------+
+| opct | idt | idt | idt | idt   | idt    |
++======+=====+=====+=====+=======+========+
+| 0x73 | T1  | T2  | vec | index | newval |
++------+-----+-----+-----+-------+--------+
+
+The ``INSERTELEMENT`` instruction creates a new vector value which has the same
+element values as *vec* except the element at *index* which has the value of
+*newval*.
+
+The *index* may have any integer type and is treated as unsigned. If index
+exceeds the length of the vector, it has undefined behaviour.
+
+For LLVM users: This is the counterpart of the ``insertelement`` instruction of
+LLVM.
+
+Example: See the example in ``SHUFFLEVECTOR``.
+
+``SHUFFLEVECTOR`` Instruction
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``SHUFFLEVECTOR`` ``<`` *T1* *T2* ``>`` *vec1* *vec2* *mask*
+
+T1
+    *type*, must be a ``vector``: The type of *vec1* and *vec2*.
+T2
+    *type*, must be a ``vector`` of any ``int`` type: The type of *mask*.
+vec1, vec2
+    *variables* of type *T1*: The two vectors to select values from.
+mask
+    *variable* of type *T2*: The mask that determines the elements to select
+    from *vec1* and *vec2*.
+return value
+    Type is a vector type of the element type of *T1* and the size of *T2*: The
+    new vector with elements selected from *T1* and *T2* according to *mask*.
+
++------+-----+-----+------+------+------+
+| opct | idt | idt | idt  | idt  | idt  |
++======+=====+=====+======+======+======+
+| 0x74 | T1  | T2  | vec1 | vec2 | mask |
++------+-----+-----+------+------+------+
+
+The ``SHUFFLEVECTOR`` instruction constructs a permutation of elements from two
+vectors *vec1* and *vec2*. The result is a vector with the same element type as
+*T1* and the same length as *T2*.
+
+The elements of *vec1* and *vec2* are numbered from left to right. Specifically,
+the i-th element in *vec1* is numbered i and the j-th element in *vec2* is
+numbered n+j where n is the length of *T1*. Then the element in the result
+vector is the element of the correspondent number in the *mask* vector.
+Specifically, the k-th element of the result vector is the element numbered l
+where l equals the value of the k-th element of *mask*.
+
+The element type of *mask* can be any integer type and is treated as unsigned.
+If any element in *mask* is not within the range between 0 and 2*n-1,
+inclusively, where n is the length of *T1*, then it has undefined behaviour.
+
+For LLVM users: This is the counterpart of the ``shufflevector`` instruction in
+LLVM.
+
+Example::
+
+    .const @S0 <@float> = 3.1f
+    .const @S1 <@float> = 4.1f
+    .const @S2 <@float> = 5.9f
+    .const @S3 <@float> = 2.6f
+    .const @S4 <@float> = 5.3f
+    .const @S5 <@float> = 5.8f
+    .const @S6 <@float> = 9.7f
+    .const @S7 <@float> = 9.3f
+
+    .const @V0 <@4xfloat> = VEC { @S0 @S1 @S2 @S3 }     // { 3.1f 4.1f 5.9f 2.6f }
+    .const @V1 <@4xfloat> = VEC { @S4 @S5 @S6 @S7 }     // { 5.3f 5.8f 9.7f 9.3f }
+
+    .const @I32_2 = 2
+    .const @I32_3 = 3
+    .const @I32_4 = 4
+    .const @I32_5 = 5
+    .const @I32_6 = 6
+    .const @I32_7 = 7
+
+    .const @M0 <@4xi32> = VEC { @I32_1 @I32_0 @I32_2 @I32_1 }
+
+    .typedef @8xi32     = vector <@i32 8>
+    .typedef @8xfloat   = vector <@float 8>
+
+    .const @M1 <@8xi32> = VEC { @I32_7 @I32_5 @I32_6 @I32_4 @I32_2 @I32_1 @I32_3 @I32_0 }
+
+    %a = EXTRACTELEMENT <@4xfloat @i64> @V0 @I64_2      // 5.9f
+    %b = INSERTELEMENT  <@4xfloat @i64> @V0 @I64_3 @S7  // { 3.1f 4.1f 5.9f 9.3f }
+    %c1 = SHUFFLEVECTOR <@4xfloat @4xi32> @V0 @V1 @M0   // { 4.1f 3.1f 5.9f 4.1f }
+    %c2 = SHUFFLEVECTOR <@4xfloat @8xi32> @V0 @V1 @M1   // { 9.3f 5.8f 9.7f 5.3f 5.9f 4.1f 2.6f 3.1f }
 
 Memory Operations
 =================
