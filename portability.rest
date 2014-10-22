@@ -125,6 +125,10 @@ Calling a function whose value is ``NULL`` is undefined behaviour.
 Stack overflow when calling a function results in taking the exceptional control
 flow and the ``LANDINGPAD`` instruction receives ``NULL``.
 
+``EXTRACTELEMENT`` and ``INSERTELEMENT`` is required for all implemented vector
+types and integer types. ``SHUFFLEELEMENT`` is required if the source vector
+type, the mask vector type and the result vector type are all implemented.
+
 All memory allocation instructions ``NEW``, ``NEWHYBRID``, ``ALLOCA`` and
 ``ALLOCAHYBRID`` are allowed to result in error, in which case the exceptional
 control flow is taken.
@@ -136,16 +140,22 @@ the index or offset type. The index and the offset are treated as signed. When
 these two instructions result in a reference beyond the size of the actual array
 in the memory, they have undefined behaviours.
 
+``GETVARPARTIREF`` has undefined behaviour if the hybrid has zero elements in
+its variable part.
+
 All memory addressing instructions ``GETIREF``, ``GETFIELDIREF``,
-``GETELEMIREF``, ``SHIFTIREF``, ``GETFIXEDPARTIREF`` and ``GETVARPARTIREF`` give undefined behaviour when applied to ``NULL`` references.
+``GETELEMIREF``, ``SHIFTIREF``, ``GETFIXEDPARTIREF`` and ``GETVARPARTIREF`` give
+undefined behaviour when applied to ``NULL`` references.
 
 All memory access instructions ``LOAD``, ``STORE``, ``CMPXCHG`` and
-``ATOMICRMW`` that access the ``NULL`` references either have undefined
-behaviour or take the exceptional control flow depending on the implementation.
-The decision may differ in every execution.
+``ATOMICRMW`` that access the ``NULL`` references take the exceptional control
+flow. If they access an invalid memory location (this include the case when the
+stack frame that contains a stack cell created by ``ALLOCA`` is popped and a
+reference to it becomes a dangling reference), then they have undefined
+behaviours.
 
-Accessing a memory location which represents a different type from the type
-expected by the instruction is an undefined behaviour.
+Accessing a memory location which represents a type different from the type
+expected by the instruction gives undefined behaviour.
 
 The following types are required for both non-atomic and atomic ``LOAD`` and
 ``STORE`` for all implemented ``T`` and ``Sig``: ``int<8>``, ``int<16>``,
@@ -153,12 +163,21 @@ The following types are required for both non-atomic and atomic ``LOAD`` and
 ``weakref<T>``, ``func<Sig>``, ``thread`` and ``stack``. Other types and
 atomicity combinations are optional for ``LOAD`` and ``STORE``.
 
-``int<32>`` and ``int<64>`` are required for ``CMPXCHG`` and all ``ATOMICRMW``
-operations. Other types are optional for ``CMPXCHG`` and any subset of
-``ATOMICRMW`` operations.
+``int<32>``, ``int<64>``, ``ref``, ``iref``, ``weakref``, ``func``, ``stack``
+and ``thread`` are required for ``CMPXCHG`` and the ``XCHG`` operation of the
+``ATOMICRMW`` instruction. 
 
-    NOTE: One atomic µVM instruction does not necessarily correspond to exactly
-    one machine instruction.
+``int<32>`` and ``int<64>`` are required for all ``ATOMICRMW`` operations.
+
+If ``tagref64`` is implemented, it is required for the ``XCHG`` operation of the
+``ATOMICRMW`` instruction.
+
+Other types are optional for ``CMPXCHG`` and any subset of ``ATOMICRMW``
+operations.
+
+One atomic µVM instruction does not necessarily correspond to exactly one
+machine instruction. So some atomic read-modify-write operations can be
+implemented using ``CMPXCHG`` or load-link store-conditional constructs.
 
 ``CCALL`` is optional.
 

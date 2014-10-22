@@ -877,7 +877,7 @@ This instruction jumps to the beginning of a basic block *dest*.
 ``BRANCH2`` *cond* *iftrue* *iffalse*
 
 cond
-    *variable* of ``int<1>``: The condition
+    *variable* of type ``int<1>``: The condition
 iftrue, iffalse
     *basic block*: The destinations to jump to when *cond* is 1 or 0,
     respectively
@@ -1051,7 +1051,7 @@ Inter-function Control Flow
 sig
     *function signature*: The signature of the callee.
 func
-    *variable* of ``func`` type: The callee.
+    *variable* of type ``func`` type: The callee.
 arg :sub:`rep`
     list of *variables* of types specified by *sig*: Argument list.
 excClause
@@ -1329,8 +1329,8 @@ an SSA variable *opnd* which has type ``struct``.
 
     For LLVM users: It is the counterpart of the ``extractvalue`` instruction in
     LLVM. But µVM's ``EXTRACTVALUE`` does not work on arrays or nested
-    ``struct``.  Use ``EXTRACTVALUE`` multiple times to extract the
-    field in nested structs.
+    ``struct``.  Use ``EXTRACTVALUE`` multiple times to extract the field in
+    nested structs.
 
 ..
 
@@ -1472,8 +1472,8 @@ element values as *vec* except the element at *index* which has the value of
 The *index* may have any integer type and is treated as unsigned. If index
 exceeds the length of the vector, it has undefined behaviour.
 
-    For LLVM users: This is the counterpart of the ``insertelement`` instruction of
-    LLVM.
+    For LLVM users: This is the counterpart of the ``insertelement`` instruction
+    of LLVM.
 
 ..
 
@@ -1629,6 +1629,9 @@ If the allocation failed, this instruction *continues exceptionally*.
 
     Example: See the example in ``ALLOCAHYBRID``.
 
+``ALLOCA`` Instruction
+~~~~~~~~~~~~~~~~~~~~~~
+
 ``ALLOCA`` ``<`` *T* ``>`` *excClause*
 
 T
@@ -1658,6 +1661,9 @@ If the allocation failed, this instruction *continues exceptionally*.
 
     Example: See the example in ``ALLOCAHYBRID``.
 
+``ALLOCAHYBRID`` Instruction
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 ``ALLOCAHYBRID`` ``<`` *T1* *T2* ``>`` *length* *excClause*
 
 T1
@@ -1665,11 +1671,11 @@ T1
 T2
     *type*, must be ``int``: The type of *length*.
 length
-    *variable* of type *T2*: the length of the variable part of the hybrid.
+    *variable* of type *T2*: The length of the variable part of the hybrid.
 excClause
     *exception clause*: Specifies the basic block to handle allocation failure.
 return value
-    Type is ``iref<T1>``: an internal reference to the newly allocated stack
+    Type is ``iref<T1>``: An internal reference to the newly allocated stack
     cell.
 
 +------+-----+-----+--------+-----------+
@@ -1682,7 +1688,7 @@ The ``ALLOCAHYBRID`` instruction allocates a stack cell of a ``hybrid`` type
 *T1* on the stack. Return an internal reference to it.
 
 *length* is the length of the variable part of the hybrid. *T2* can be any
-integer type and is treated as unsigned.
+integer type and is treated as signed.
 
 If the allocation failed, this instruction *continues exceptionally*.
 
@@ -1694,7 +1700,7 @@ If the allocation failed, this instruction *continues exceptionally*.
 
     Example::
 
-        .typedef @Foo = struct <@i64 @double @double>
+        .typedef @Foo = struct <@i64 @float @double>
         .typedef @Bar = hybrid <@Foo @i8>
 
         .const @I64_42 <@i64> = 42
@@ -1713,14 +1719,18 @@ Memory Addressing
 This family of instructions manipulates references, but does not actually read
 or write memory.
 
-- ``GETIREF < T > opnd``
+``GETIREF`` Instruction
+~~~~~~~~~~~~~~~~~~~~~~~
 
-    ``T``
-        *type*: The type the operand refers to.
-    ``opnd``
-        *value* of ``ref<T>``: The operand.
-    return value
-        Type ``iref<T>``: The internal reference to the same heap object.
+``GETIREF`` ``<`` *T* ``>`` *opnd*
+
+T
+    *type*: The referent type of *opnd*.
+opnd
+    *variable* of type ``ref<T>``: The object reference to derive internal
+    reference.
+return value
+    Type is ``iref<T>``: An internal reference to the memory location of *opnd*.
 
 +------+-----+--------+
 | opct | idt | idt    |
@@ -1728,27 +1738,30 @@ or write memory.
 | 0x14 | T   | opnd   |
 +------+-----+--------+
 
-This instruction converts an object reference to an internal reference. This is
-the first step to access a field of a heap object from an object reference.
+The ``GETIREF`` instruction converts the object reference *opnd* to an internal
+reference. The resulting internal reference refers to the memory location of the
+heap object *opnd*.
 
-For LLVM users: No equivalence.
+    For LLVM users: There is no equivalent instructions in LLVM.
 
-Example::
+..
 
-    %a = NEW <double>                           // ref<double>
-    %b = GETIREF <double> %a                    // iref<double>
+    Example: See the example in ``GETVARPARTIREF``.
 
-- ``GETFIELDIREF < T index > opnd``
+``GETFIELDIREF`` Instruction
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    ``T``
-        *type*, must be ``struct``: The type the operand refers to.
-    ``index``
-        *intImmediate*: The index of the field.
-    ``opnd``
-        *value* of ``iref<T>``: The operand.
-    return value
-        Type ``iref<U>`` where ``T = struct<... U ...>``: The internal reference
-        to the ``index-th`` field in the referenced struct.
+``GETFIELDIREF`` ``<`` *T* *index* ``>`` opnd
+
+T
+    *type*, must be ``struct``: The referent type of *opnd*.
+index
+    *integer literal*: The index of the field.
+opnd
+    *variable* of type ``iref<T>``: The reference to derive reference from.
+return value
+    Type is ``iref<U>`` where *U* is the type of *index*-th field of *T*: An
+    internal reference to the *index*-th field in the referenced struct.
 
 +------+-----+--------+--------+
 | opct | idt | lent   | idt    |
@@ -1756,103 +1769,119 @@ Example::
 | 0x15 | T   | index  | opnd   |
 +------+-----+--------+--------+
 
-``GETFIELDIREF`` gets the internal reference to a field of a
-``struct``, given the internal reference to the ``struct``
-itself and the index of the field.
+The ``GETFIELDIREF`` instruction gets an internal reference to the *index*-th
+field of the struct referenced by *opnd*.
 
-For LLVM users: It is similar to the ``getelementptr`` addressing into a struct.
+    For LLVM users: It is similar to the ``getelementptr`` instruction
+    addressing into a struct.
 
-Example::
+..
 
-    .typedef @Foo = struct<double float int<32>>
-    %a = ALLOCA <@Foo>
-    %b = GETFIELDIREF <@Foo 1> %a               // iref<float>
+    Example: See the example in ``GETVARPARTIREF``.
 
-- ``GETELEMIREF < T > opnd index``
+``GETELEMIREF`` Instruction
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    ``T``
-        *type*, must be ``array``: The type the operand refers to.
-    ``opnd``
-        *value* of ``iref<T>``: The operand.
-    ``index``
-        *value* of ``int<WORD_LENGTH>`` The index of the element.
-    return value
-        Type ``iref<U>`` where ``T = array<U>``: The internal reference to the
-        ``index-th`` element in the referenced array.
+``GETELEMIREF`` ``<`` *T1* *T2* ``>`` *opnd* *index*
 
-+------+-----+--------+--------+
-| opct | idt | idt    | idt    |
-+======+=====+========+========+
-| 0x16 | T   | opnd   | index  |
-+------+-----+--------+--------+
+T1
+    *type*, must be ``array``: The referent type of *opnd*.
+T2
+    *type*, must be ``int``: The type of *index*.
+opnd
+    *variable* of type ``iref<T1>``: The reference to derive reference from.
+index
+    *variable* of type *T2*: The index of the element.
+return value
+    Type is ``iref<U>`` where *U* is the element type of *T1*: An internal
+    reference to the *index*-th element of the referenced array.
 
-``GETELEMIREF`` gets the internal reference to an element of an
-``array``, given the internal reference to the ``array`` itself
-and the index of the element.
++------+-----+-----+--------+--------+
+| opct | idt | idt | idt    | idt    |
++======+=====+=====+========+========+
+| 0x16 | T1  | T2  | opnd   | index  |
++------+-----+-----+--------+--------+
 
-This does not work on the variable part of a ``hybrid``. Use
-``SHIFTIREF``, instead.
+The ``GETELEMIREF`` instruction gets an internal reference to the *index*-th
+element of the array referenced by *opnd*.
 
-For LLVM users: It is similar to the ``getelementptr`` indexing into an array.
+*T2* can be any integer type and is treated as signed. If the resulting memory
+location is outside the range of the array referenced by *opnd*, it has
+undefined behaviour.
 
-Example::
+    NOTE: This does not work on the variable part of a ``hybrid``. Use
+    ``SHIFTIREF``, instead.
 
-    .typedef @Foo = array<float 100>
-    .const @ind <int<64>> = 50                  // assume 64-bit architecture
-    %a = ALLOCA <@Foo>
-    %b = GETELEMIREF <@Foo> %a @ind             // iref<float>
+..
 
-- ``SHIFTIREF < T > opnd offset``
+    For LLVM users: It is similar to the ``getelementptr`` indexing into an
+    array.
 
-    ``T``
-        *type*, must be ``array``: The type the operand refers to.
-    ``opnd``
-        *value* of ``iref<T>``: The operand.
-    ``offset``
-        *value* of ``int<WORD_LENGTH>`` The offset to move.
-    return value
-        Type ``iref<T>``: The internal reference of ``opnd`` moved forward for
-        ``offset`` instances of the referenced data.
+..
 
-+------+-----+--------+--------+
-| opct | idt | idt    | idt    |
-+======+=====+========+========+
-| 0x17 | T   | opnd   | offset |
-+------+-----+--------+--------+
+    Example: See the example in ``GETVARPARTIREF``.
 
-``SHIFTIREF`` moves an internal reference forward by ``offset``
-instances of the referenced data. It is an alternative way to
-``GETELEMIREF`` to address elements in an array. It also works on the
-variable part of a ``hybrid``.
+``SHIFTIREF`` Instruction
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``offset`` can be negative, in which case it moves the reference backwards.
+``SHIFTIREF`` ``<`` *T1* *T2* ``>`` *opnd* *offset*
 
-For LLVM users: It is similar to the ``getelementptr`` with its first index
-being non-zero. It is also like the pointer arithmetic in C which adds an
-integer to a pointer.
+T1
+    *type*: The referent type of *opnd*.
+T2
+    *type*, must be ``int``: The type of *offset*.
+opnd
+    *variable* of type ``iref<T1>``: The reference to derive reference from.
+offset
+    *variable* of type *T2*: The offset to move the *opnd*.
+return value
+    Type is ``iref<T1>``: An internal reference that is *opnd* moved forward by
+    *offset* elements.
 
-Example::
++------+-----+-----+--------+--------+
+| opct | idt | idt | idt    | idt    |
++======+=====+=====+========+========+
+| 0x17 | T1  | T2  | opnd   | offset |
++------+-----+-----+--------+--------+
 
-    .typedef @Foo = array<float 100>
-    .const @ind <int<64>> = 50                  // assume 64-bit architecture
-    %a = ALLOCA <@Foo>
-    %b = GETELEMIREF <@Foo> %a 0                // iref<float>
-    %c = SHIFTIREF <float> %b @ind              // iref<float>
+The ``SHIFTIREF`` instruction assumes the *opnd* already refers to an element of
+a *general memory array* (see `<uvm-memory>`__). It moves *opnd* internal
+reference forward by *offset* elements. If *offset* is negative, it moves the
+reference backwards by the absolute value of *offset*.
 
-- ``GETFIXEDPARTIREF < T > opnd``
-- ``GETVARPARTIREF < T > opnd``
+*T2* can be any integer type and is treated as signed. If the resulting memory
+location is outside the range of the array where *opnd* is in, it has undefined
+behaviour.
 
-    ``T``
-        *type*, must be ``hybrid``: The type the operand refers to.
-    ``opnd``
-        *value* of ``iref<T>``: The operand.
-    return value
-        If ``T = hybrid<F V>``, then:
+    TODO: Define "general memory array" so that references can move among the
+    elements of nested arrays and vectors and also the variable part of a
+    ``hybrid``.
 
-        - ``GETFIXEDPARTIREF``: Type ``iref<F>``: The internal reference
-          of the fixed part of ``T``.
-        - ``GETVARPARTIREF``: Type ``iref<V>``: The internal reference
-          of the first element in the variable part of ``T``.
+..
+
+    For LLVM users: It is similar to the ``getelementptr`` with its first index
+    being *offset*. It is also like the pointer arithmetic in C which adds an
+    integer to a pointer.
+
+..
+
+    Example: See the example in ``GETVARPARTIREF``.
+
+``GETFIXEDPARTIREF`` and ``GETVARPARTIREF`` Instruction
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``GETFIXEDPARTIREF`` ``<`` *T* ``>`` *opnd*
+``GETVARPARTIREF`` ``<`` *T* ``>`` *opnd*
+
+T
+    *type*, must be ``hybrid``: The referent type of *opnd*.
+opnd
+    *variable* of type ``iref<T>``: The reference to derive reference from.
+return value
+    - ``GETFIXEDPARTIREF``: Type is ``iref<F>`` where *F* is the type of the fixed
+      part of *T*: An internal reference to the fixed part of *T*.
+    - ``GETVARPARTIREF``: Type is ``iref<V>`` where *V* is the type of the first
+      (0-th) element of the variable part of *T*.
 
 GETFIXEDPARTIREF:
 
@@ -1870,258 +1899,381 @@ GETVARPARTIREF:
 | 0x19 | T   | opnd |
 +------+-----+------+
 
-``GETFIXEDPARTIREF`` and ``GETVARPARTIREF`` get the internal
-reference to the fixed part and an internal reference to the first element in
-the variable part of the given hybrid, respectively.
+The ``GETFIXEDPARTIREF`` instruction gets an internal reference to the fixed
+part of the hybrid referenced by *opnd*.
 
-To access further elements in the variable part, use the ``SHIFTIREF``
-instruction to move forward.
+The ``GETVARPARTIREF`` instruction gets an internal reference to the first
+(0-th) element in the variable part of the hybrid referenced by *opnd*.
 
-For LLVM users: No equivalent.
+If the variable part of *opnd* has zero elements, the ``GETVARPARTIREF`` has
+undefined behaviour.
 
-Example::
+    NOTE: To access further elements in the variable part, use the ``SHIFTIREF``
+    instruction to move forward.
 
-    .typedef @Foo = hybrid<double int<8>>
-    .const @ind <int<64>> = 50                  // assume 64-bit architecture
-    %a = ALLOCAHYBRID <@Foo> 100
-    %f = GETFIXEDPARTIREF <@Foo> %a             // iref<double>
-    %v = GETVARPARTIREF <@Foo> %a               // iref<int<8>>
-    %v50 = SHIFTIREF <int<8>> %v @ind           // iref<int<8>>
+..
 
-Memory Reading and Writing
---------------------------
+    For LLVM users: The closest counterpart is the ``getelementptr`` instruction
+    that gets a member or the flexible array member of a struct.
 
-This family of instructions actually read or write into the memory.
+..
 
-Note about ``weakref``: Loading from ``iref<weakref<T>>`` produces a
-strong ``ref<T>``. Storing a ``ref<T>`` into an ``iref<weakref<T>>`` makes the
-reference in the memory weak. CmpXchg does both loading and storing as this.
+    Example::
 
-All instructions in this family can take an optional **atomic ordering** as
-shown in the table below. These specify the requirement for atomicity and memory
-ordering.
+        .typedef @Foo = struct <@i64 @float @double>
+
+        %foo_r = NEW <@Foo>                     // ref<@Foo>
+        %foo_i = GETIREF <@Foo> %foo_r          // iref<@Foo>
+        %foo_1 = GETFIELDIREF <@Foo 1>          // iref<@float>
+
+        .typedef @Bar = array <@i32 10>
+        .const @I64_5       <@i64> = 5
+        .const @I64_NEG_2   <@i64> = -2
+
+        %bar_r = NEW <@Bar>                                 // ref<@Bar>
+        %bar_i = GETIREF <@Bar> %bar_r                      // iref<@Bar>
+        %bar_5 = GETELEMIREF <@Bar @i64> %bar_i @I64_5      // iref<@i32> the 5-th element
+        %bar_6 = SHIFTIREF   <@Bar @i64> %bar_5 @I64_1      // iref<@i32> the 6-th element
+        %bar_4 = SHIFTIREF   <@Bar @i64> %bar_6 @I64_NEG_2  // iref<@i32> the 4-th element
+
+        .typedef @Baz = hybrid <@Foo @i8>
+
+        .const @I64_42 <@i64> = 42
+
+        %baz_i = ALLOCAHYBRID <@Bar @i64> @I64_42           // iref<@Baz>
+        %baz_f = GETFIXEDPARTIREF <@Bar> %baz_i             // iref<@Foo>
+        %baz_v = GETVARPARTIREF   <@Bar> %baz_i             // iref<@i8> the 0-th element
+        %baz_v5 = SHIFTIREF <@Bar @i64> %baz_i @I64_5       // iref<@i8> the 5-th element
+
+Memory Accessing
+----------------
+
+This family of instructions actually load from or store into the memory.
+
+Note about *marked storage type* (currently only ``weakref``): When values of
+such types are loaded from the memory to an SSA variable, the variable has its
+*unmarked type*. Variables of unmarked types can be used to store to memory
+locations of the *marked storage type*. Specifically, ``LOAD`` from
+``iref<weakref<T>>`` gets a ``ref<T>``. ``ref<T>`` can be stored into a memory
+location referenced by an ``iref<weakref<T>>`` internal reference.
+
+Memory Order
+~~~~~~~~~~~~
+
+A **memory order** is a flag in the following table. Their semantics are
+described in `<memory-model>`__. Different instructions have different
+requirements for their *memory orders*. See `<memory-model>`__.
 
 =========== ======  =======================
 Keyword     Binary  Semantic
 =========== ======  =======================
 NOT_ATOMIC  0x00    not atomic
-UNORDERED   0x01    unordered
-MONOTONIC   0x02    monotonic
+RELAXED     0x01    relaxed
+CONSUME     0x02    consume
 ACQUIRE     0x03    acquire
 RELEASE     0x04    release
 ACQ_REL     0x05    acquire+release
 SEQ_CST     0x06    sequentially consistent
 =========== ======  =======================
 
-See `<memory-model>`__ for more details.
+``LOAD`` Instruction
+~~~~~~~~~~~~~~~~~~~~
 
-- ``LOAD < T > loc``
-- ``LOAD atomicOrd < T > loc``
+``LOAD`` *ord* :sub:`opt` ``<`` *T* ``>`` *loc*
 
-    ``atomicOrd``
-        *atomic ordering*: requirement for atomicity and memory ordering.
-    ``T``
-        *type*: The type ``loc`` refers to.
-    ``loc``
-        *value* of ``iref<T>``: The reference to load from.
-    return value
-        Type ``T``: The data loaded from the memory. If ``T`` is ``weakref<U>``,
-        then the return type is ``ref<U>`` instead of ``weakref<U>``.
+ord :sub:`opt`
+    *memory order*: The memory order. Default: ``NOT_ATOMIC``
+T
+    *type*: The referent type of *loc*.
+loc
+    *variable* of type ``iref<T>``: The memory location to load from.
+return value
+    Type is the unmarked type of *T*: The value loaded from *loc*
 
-+------+------------+-----+------+
-| opct | opct       | idt | idt  |
-+======+============+=====+======+
-| 0x1A | atomicOrd  | T   | loc  |
-+------+------------+-----+------+
++------+------+-----+------+
+| opct | opct | idt | idt  |
++======+======+=====+======+
+| 0x1A | ord  | T   | loc  |
++------+------+-----+------+
 
-Load from the memory location referred by ``loc``.
+The ``LOAD`` instruction loads from the memory location *loc*.
 
-if ``atomicOrd`` is omitted in the text form, it defaults to ``NOT_ATOMIC``.
+*ord* is the memory order. In the text form, the *ord* can be omitted and
+defaults to ``NOT_ATOMIC``. The instruction is atomic if *ord* is not
+``NOT_ATOMIC``.
 
-For LLVM users: This is similar to the ``load`` instruction. ``volatile`` is
-absent in µVM because µVM never remove reachable memory load/store instructions.
+    For LLVM users: This is the counterpart of the ``load`` instruction.
+    ``volatile`` is absent in µVM because memory accesses are part of the
+    behaviours.
 
-Example::
+..
 
-    .typedef @Foo = struct<int<64> double float>
-    %r = NEW <@Foo>                         // ref<@Foo>
-    %i = GETIREF <@Foo> %r                  // iref<@Foo>
-    %i1 = GETFIELDIREF <@Foo 1> %i          // iref<double>
-    %d = LOAD <double> %i1                  // double
+    Example::
 
-    // Note: all allocations initialise the memory to zero.
+        .typedef @Foo = struct<@i64 @double @float>
+        %r  = NEW <@Foo>                         // ref<@Foo>
+        %i  = GETIREF <@Foo> %r                  // iref<@Foo>
+        %i1 = GETFIELDIREF <@Foo 1> %i           // iref<double>
+        %d  = LOAD <@double> %i1                 // double
 
-- ``STORE < T > loc newval``
-- ``STORE atomicOrd < T > loc newval``
+        // Note: all allocations initialise the memory to zero.
 
-    ``atomicOrd``
-        *atomic ordering*: requirement for atomicity and memory ordering.
-    ``T``
-        *type*: The type ``loc`` refers to.
-    ``loc``
-        *value* of ``iref<T>``: The reference to store into.
-    ``newval``
-        *value* of ``T``: The new value to store.  If ``T`` is ``weakref<U>``,
-        then ``newval`` has type ``ref<U>`` instead of ``weakref<U>``.
+``STORE`` Instruction
+~~~~~~~~~~~~~~~~~~~~~
 
-+------+------------+-----+------+--------+
-| opct | opct       | idt | idt  | idt    |
-+======+============+=====+======+========+
-| 0x1B | atomicOrd  | T   | loc  | newval |
-+------+------------+-----+------+--------+
+``STORE`` *ord* :sub:`opt` ``<`` *T* ``>`` *loc* *newval*
 
-Store ``newval`` into the memory location referred by ``loc``.
+ord :sub:`opt`
+    *memory order*: The memory order. Default: ``NOT_ATOMIC``
+T
+    *type*: The referent type of *loc*.
+loc
+    *variable* of type ``iref<T>``: The memory location to store into.
+newval
+    *variable* of the unmarked type of *T*: The new value to store.
 
-if ``atomicOrd`` is omitted in the text form, it defaults to ``NOT_ATOMIC``.
++------+------+-----+------+--------+
+| opct | opct | idt | idt  | idt    |
++======+======+=====+======+========+
+| 0x1B | ord  | T   | loc  | newval |
++------+------+-----+------+--------+
 
-For LLVM users: This is similar to the ``store`` instruction. ``volatile`` is
-also not supported.
+The ``STORE`` instruction stores *newval* into the memory location *loc*.
 
-Example::
+*ord* is the memory order. In the text form, the *ord* can be omitted and
+defaults to ``NOT_ATOMIC``. The instruction is atomic if *ord* is not
+``NOT_ATOMIC``.
 
-    .typedef @Foo = struct<int<64> double float>
-    %r = NEW <@Foo>                         // ref<@Foo>
-    %i = GETIREF <@Foo> %r                  // iref<@Foo>
-    %i1 = GETFIELDIREF <@Foo 1> %i          // iref<double>
-    STORE <double> %i1 3.14159d
+    For LLVM users: This is the counterpart of the ``store`` instruction.
+    ``volatile`` is absent.
 
-- ``CMPXCHG succOrd failOrd < T > loc expected desired``
+..
 
-    ``succOrd``, ``failOrd``
-        *atomic ordering*: memory ordering when this operation is successful
-        and when failed, respectively.
-    ``T``
-        *type*: The type ``loc`` refers to.
-    ``loc``
-        *value* of ``iref<T>``: The reference to the location to load and store.
-    ``expected``
-        *value* of ``T``: The expected value in the memory.
-    ``desired``
-        *value* of ``T``: The new value to store into the memory.
-    return value:
-        Type ``T``: The original value in the memory.
-    NOTE:
-        If ``T`` is ``weakref<U>``, then ``expected``, ``desired`` and the
-        return value have type ``ref<U>`` instead of ``weakref<U>``.
+    Example::
 
-+------+---------+---------+-----+------+----------+---------+
-| opct | opct    | opct    | idt | idt  | idt      | idt     |
-+======+=========+=========+=====+======+==========+=========+
-| 0x1C | succOrd | failOrd | T   | loc  | expected | desired |
-+------+---------+---------+-----+------+----------+---------+
+        .const @D_PI <@double> = 3.14159d
 
-Store ``desired`` into the memory location referred by ``loc`` if and only if
-the current value at ``loc`` equals ``expected``. The original value in the
-memory is returned.
+        .typedef @Foo = struct<@i64 @double @float>
+        %r  = NEW <@Foo>                         // ref<@Foo>
+        %i  = GETIREF <@Foo> %r                  // iref<@Foo>
+        %i1 = GETFIELDIREF <@Foo 1> %i           // iref<double>
+        STORE <@double> %i1 @D_PI
 
-``succOrd`` and ``failOrd`` must be at least ``MONOTONIC``.
+``CMPXCHG`` Instruction
+~~~~~~~~~~~~~~~~~~~~~~~
 
-For LLVM users: This is similar to the ``cmpxchg`` instruction. ``volatile`` is
-also not supported.
+``CMPXCHG`` ``WEAK`` :sub:`opt` *succOrd* *failOrd* ``<`` *T* ``>`` *loc*
+*expected* *desired*
 
-Example::
+``WEAK`` :sub:`opt`
+    If present, the ``CMPXCHG`` operation is weak.
+succOrd, failOrd
+    *memory order*: The memory order for success and failure, respectively.
+T
+    *type*, must be EQ-comparable: The referent type of *loc*.
+loc
+    *variable* of ``iref<T>``: The memory location to access.
+expected
+    *variable* of the unmarked type of *T*: The expected value in the memory.
+desired
+    *variable* of the unmarked type of *T*: The new value to store into the
+    memory.
+return value:
+    Type is ``struct<U int<1>>`` where *U* is the unmarked type of *T*: A pair
+    of the original value in the memory and whether this operation is
+    successful.
 
-    // assume %r is iref<int<64>>
++------+------+---------+---------+-----+------+----------+---------+
+| opct | opct | opct    | opct    | idt | idt  | idt      | idt     |
++======+======+=========+=========+=====+======+==========+=========+
+| 0x1C | weak | succOrd | failOrd | T   | loc  | expected | desired |
++------+------+---------+---------+-----+------+----------+---------+
 
-    %orig    = LOAD <int<64>> %r                // int<64>
-    %squared = MUL <int<64>> %orig %orig        // int<64>
-    %old     = CMPXCHG ACQ_REL MONOTONIC
-            <int<64>> %r %orig %squared         // int<64>
+``CMPXCHG`` loads the value from memory location *loc* and compare it with the
+*expected* value. If the comparison succeeds, then store the *desired* value to
+*loc*. If fails, no store operation will happen. The whole process happens
+atomically.
 
-    %success = EQ <int<64>> %orig %old
-    BRANCH2 %eq %cont %failed
+A ``CMPXCHG`` instruction can be **strong** or **weak**. In the text form, it is
+weak if the flag ``WEAK`` is present, otherwise it is strong. In the binary
+form, it is weak if the field *weak* is 1 and it is strong if *weak* is 0.
 
-Example 2::
+If the instruction is strong, The comparison succeeds **if and only if** the
+loaded value equals the *expected* value. If it is weak, the comparison succeeds
+**only if** the loaded value equals the *expected* value and it may spuriously
+fail, that is, it may fail even if the loaded value equals the *expected* value.
 
-    %entry:
-        // assume %r is iref<int<64>>
-        %orig    = LOAD <int<64>> %r                // int<64>
+The return value of this instruction is a struct of two fields: the unmarked
+type of *T* and a 1-bit integer. The first field is the value loaded from the
+memory. The second field is 1 if the comparison is successful, or 0 otherwise.
 
-    %loop:
-        %cmp     = PHI <int<64>> { %entry: %orig; %loop: %old; }
-        %squared = MUL <int<64>> %cmp %cmp          // int<64>
-        %old     = CMPXCHG ACQ_REL MONOTONIC
-                    <int<64>> %r %cmp %squared      // int<64>
-        %success = EQ <int<64>> %orig %old
-        BRANCH2 %success %done %loop
+The memory order of this instruction is *succOrd* if the comparison succeeds, or
+*failOrd* otherwise.
 
-    %done:
-        // continue here
+    For LLVM users: This is the counterpart of the ``cmpxchg`` instruction.
 
-- ``ATOMICRMW atomicOrd atomicRMWOp < T > loc opnd``
+..
 
-    ``atomicOrd``
-        *atomic ordering*: requirement for atomicity and memory ordering.
-    ``atomicRMWOp``
-        *AtomicRMW operator*: The operation to do.
-    ``T``
-        *type*: The type ``loc`` refers to.
-    ``loc``
-        *value* of ``iref<T>``: The reference to do operation.
-    ``opnd``
-        *value* of ``T``: The right-hand-side of the operation.  If ``T`` is
-        ``weakref<U>``, then ``opnd`` has type ``ref<U>`` instead of
-        ``weakref<U>``.
-    return value
-        Type ``T``: The original value in the memory.
+    Example::
 
-+------+------------+-------------+-----+------+------+
-| opct | opct       | opct        | idt | idt  | idt  |
-+======+============+=============+=====+======+======+
-| 0x1D | atomicOrd  | atomicRMWOp | T   | loc  | opnd |
-+------+------------+-------------+-----+------+------+
+        .global @foo <@i64>
+        .typedef @ResultType = struct<@i64 @i1>
+
+        %orig    = LOAD <@i64> @foo                 // @i64
+        %squared = MUL <@i64> %orig %orig           // @i64
+        %result  = CMPXCHG ACQ_REL RELAXED <@i64> @foo %orig %squared   // struct<@i64 @i1>
+
+        %old     = EXTRACTVALUE <@ResultType 0> %result     // @i64
+        %success = EXTRACTVALUE <@ResultType 1> %result     // @i1
+        BRANCH2 %success %cont %failed
+
+..
+
+    Example 2::
+
+        .global @foo <@i64>
+        .typedef @ResultType = struct<@i64 @i1>
+
+        %entry:
+            %orig    = LOAD <@i64> @foo             // @i64
+
+        %loop:
+            %cmp     = PHI <@i64> { %entry: %orig; %loop: %old; }
+            %squared = MUL <@i64> %cmp %cmp         // @i64
+            %result  = CMPXCHG WEAK ACQ_REL RELAXED <@i64> @foo %orig %squared  // struct<@i64 @i1>
+
+            %success = EXTRACTVALUE <@ResultType 1> %result     // @i1
+            BRANCH2 %success %done %loop
+
+        %done:
+            %old     = EXTRACTVALUE <@ResultType 0> %result     // @i64
+            // continue here
+
+``ATOMICRMW`` Instruction
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``ATOMICRMW`` *ord* *op* ``<`` *T* ``>`` *loc *opnd*
+
+ord
+    *memory order*: The memory order.
+op
+    *AtomicRMW operator*: The operator.
+T
+    *type*: The referent type of *loc*.
+loc
+    *variable* of ``iref<T>``: The memory location to access.
+newval
+    *variable* of the unmarked type of *T*: The right-hand-side of the
+    operation.  
+return value
+    Type is the unmarked type of *T*: The original value in the memory.
+
++------+------+------+-----+------+------+
+| opct | opct | opct | idt | idt  | idt  |
++======+======+======+=====+======+======+
+| 0x1D | ord  | op   | T   | loc  | opnd |
++------+------+------+-----+------+------+
 
 An **AtomicRMW operator** is one of the following:
 
-=========== ====== ======= =============
-Keyword     Binary  T      Semantic
-=========== ====== ======= =============
-XCHG        0x00   int/ref exchange
-ADD         0x01   int     add
-SUB         0x02   int     subtract
-AND         0x03   int     bitwise and
-NAND        0x04   int     bitwise nand
-OR          0x05   int     bitwise or
-XOR         0x06   int     bitwise xor
-MAX         0x07   int     signed max
-MIN         0x08   int     signed min
-UMAX        0x09   int     unsigned max
-UMIN        0x0A   int     unsigned min
-=========== ====== ======= =============
+=========== ====== === =============
+Keyword     Binary  T  Semantic
+=========== ====== === =============
+XCHG        0x00   any exchange
+ADD         0x01   int add
+SUB         0x02   int subtract
+AND         0x03   int bitwise and
+NAND        0x04   int bitwise nand
+OR          0x05   int bitwise or
+XOR         0x06   int bitwise xor
+MAX         0x07   int signed max
+MIN         0x08   int signed min
+UMAX        0x09   int unsigned max
+UMIN        0x0A   int unsigned min
+=========== ====== === =============
 
-Load from ``loc``, perform ``atomicRMWOp`` with the loaded value and ``opnd``
-and store the result back into the memory as one atomic operation. The original
-value in the memory is returned.
+The ``ATOMICRMW`` loads the value from memory location *loc*, perform an
+operation *op* with the loaded value as the left-hand-side operand and *opnd* as
+the right-hand-side operand and store the result back to the memory location
+*loc*. The whole process happen atomically.
 
-All operations work on integer types and only ``XCHG`` also work on
-``ref``, ``iref`` or ``weakref`` type.
+All operators other than ``XCHG`` are only applicable for integer types.
+``XCHG`` is allowed for any type. However, the µVM implementation may only
+implement some combinations of operators and operand types according to the
+requirements specified in `<portability>`__
 
-For LLVM users: This is similar to the ``atomicrmw`` instruction. ``volatile``
-is also not supported.
+The results of the operations are: (NOTE: the result of the operation is not the
+return value of this instruction)
 
-Example::
+XCHG
+    The value of *opnd*.
+ADD
+    The sum of the two operands.
+SUB
+    The difference of the two operands.
+AND
+    The bitwise AND of the two operands.
+NAND
+    The bitwise NOT of the bitwise AND of the two operands.
+OR
+    The bitwise inclusive OR of the two operands.
+XOR
+    The bitwise exclusive OR of the two operands.
+MAX
+    The maximum value of the two operands, considering both operand as signed.
+MIN
+    The minimum value of the two operands, considering both operand as signed.
+UMAX
+    The maximum value of the two operands, considering both operand as unsigned.
+UMIN
+    The minimum value of the two operands, considering both operand as unsigned.
 
-    // assume %r is iref<int<64>>
-    %old = ATOMICRMW ACQ_REL ADD <int<64>> %r 42
+..
+
+    NOTE: In the C syntax, the semantic of NAND is ``~(op1 & op2)``.
+
+..
+
+    For LLVM users: This is the counterpart of the ``atomicrmw`` instruction.
+    ``volatile`` is absent.
+
+..
+
+    Example::
+
+        .global @foo <@i64>
+
+        %old = ATOMICRMW SEQ_CST ADD <@i64> @foo 42
 
 Fence
 -----
 
-- ``FENCE atomicOrd``
+``FENCE`` *ord*
 
-    ``atomicOrd``
-        *atomic ordering*: requirement for atomicity and memory ordering.
+ord
+    *memory order*: The memory order.
 
-+------+------------+
-| opct | opct       |
-+======+============+
-| 0x1E | atomicOrd  |
-+------+------------+
++------+------+
+| opct | opct |
++======+======+
+| 0x1E | ord  |
++------+------+
 
-This is an explicit fence which prevents specific machine instructions to be
-reordered across this fence in the underlying processors.
+The ``FENCE`` is used to introduce happen-before edges between operations. Its
+semantic is specified in `<memory-model>`__.
 
-For LLVM users: This is the counterpart of the ``fence`` instruction.
+*ord* is the memory order of the fence.
+
+    For LLVM users: This is the counterpart of the ``fence`` instruction.
+
+..
+
+    Example::
+
+        FENCE ACQUIRE
+        FENCE RELEASE
+        FENCE ACQ_REL
+        FENCE SEQ_CST
 
 Trap Instructions
 =================
