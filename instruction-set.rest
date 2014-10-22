@@ -267,7 +267,7 @@ many IDs follows it.
 Basic Operations
 ================
 
-Binar Operations
+Binary Operations
 -----------------
 
 *binOp* ``<`` *T* ``>`` *op1* *op2* *excClause*
@@ -1109,61 +1109,66 @@ have any exception clause and is not an OSR point.
     NOTE: ``TAILCALL`` is semantically similar to calling a function and
     immediately return the returned value, but reuses the current frame.
 
-For LLVM users:
+..
 
-- Same as any instructions with the exception clause, ``CALL`` instruction is
-  conditionally a terminator. When the exception clause is present, it is like
-  the ``invoke`` instruction in LLVM and, when absent, it is like the ``call``
-  instruction.
-- The meaning of ``TAILCALL`` is similar to LLVM's ``musttail``: in µVM,
-  a ``TAILCALL`` always replaces the current stack frame.
-- Calling conventions cannot be specified in µVM: µVM always uses its internal
-  calling conventions. The ``CCALL`` instruction is for foreign function calls.
-- Arguments will not be automatically zero or sign-extended or truncated for the
-  programmer. Conversions must be explicitly done before calling.  
-- The ``func`` type in µVM is a dedicated function reference, not a pointer.  
-- All parameters are passed by value and parameters are SSA Values. To pass
-  on-stack data or arrays, use ``alloca`` and pass ``iref``.  
-- The keep-alive clause is unique to µVM for OSR.
+    For LLVM users:
 
-Example::
+    - Like any instructions with the exception clause, ``CALL`` instruction is
+      conditionally a terminator. When the exception clause is present, it is
+      like the ``invoke`` instruction in LLVM and, when absent, it is like the
+      ``call`` instruction.
+    - The meaning of ``TAILCALL`` is similar to LLVM's ``musttail``: in µVM, a
+      ``TAILCALL`` always replaces the current stack frame.
+    - Calling conventions cannot be specified in µVM: µVM always uses its
+      internal calling conventions. The ``CCALL`` instruction is for foreign
+      function calls.
+    - Arguments will not be automatically zero or sign-extended or truncated for
+      the programmer. Conversions must be explicitly done before calling.  
+    - The ``func`` type in µVM is a dedicated function reference, not a pointer.  
+    - All parameters are passed by value and parameters are SSA Values. To pass
+      on-stack data or arrays, use ``alloca`` and pass ``iref``.  
+    - The keep-alive clause is unique to µVM for OSR.
 
-    .funcsig @sig = @double (@double @double)
+..
 
-    .funcdecl @sum <@sig>
+    Example::
 
-    .funcdef @square_sum VERSION @square_sum_v1 <@sig> (%x %y) {
-        %entry:
-            %x2 = MUL <@double> %x %x
-            %y2 = MUL <@double> %y %y
+        .funcsig @sig = @double (@double @double)
 
-            // return the result of sum(x2,y2)
-            TAILCALL <@sig> @sum (%x2 %y2)    
-    }
+        .funcdecl @sum <@sig>
 
-    .funcsig @void_no_params = @void ()
+        .funcdef @square_sum VERSION @square_sum_v1 <@sig> (%x %y) {
+            %entry:
+                %x2 = MUL <@double> %x %x
+                %y2 = MUL <@double> %y %y
 
-    .const @D_3 = 3.0d
-    .const @D_4 = 4.0d
-    .const @D_5 = 5.0d
-    .const @D_6 = 6.0d
+                // return the result of sum(x2,y2)
+                TAILCALL <@sig> @sum (%x2 %y2)    
+        }
 
-    .funcdef @main VERSION @main_v1 <@void_no_params> () {
-        %entry:
-            %a = CALL <@sig> @square_sum (@D_3 @D_4)
-            %b = CALL <@sig> @square_sum (%a   @D_5) EXC(%nor %exc)
+        .funcsig @void_no_params = @void ()
 
-        %nor:
-            %c = CALL <@sig> @square_sum (@D_5 @D_6) KEEPALIVE(%a)
-            %d = CALL <@sig> @square_sum (%c   %c)   EXC(%nor2 %exc) KEEPALIVE(%a %c)
+        .const @D_3 <@double> = 3.0d
+        .const @D_4 <@double> = 4.0d
+        .const @D_5 <@double> = 5.0d
+        .const @D_6 <@double> = 6.0d
 
-        %nor2:
-            // continue here
-        
-        %exc:
-            %the_exception = LANDINGPAD
-            // handle the exception
-    }
+        .funcdef @main VERSION @main_v1 <@void_no_params> () {
+            %entry:
+                %a = CALL <@sig> @square_sum (@D_3 @D_4)
+                %b = CALL <@sig> @square_sum (%a   @D_5) EXC(%nor %exc)
+
+            %nor:
+                %c = CALL <@sig> @square_sum (@D_5 @D_6) KEEPALIVE(%a)
+                %d = CALL <@sig> @square_sum (%c   %c)   EXC(%nor2 %exc) KEEPALIVE(%a %c)
+
+            %nor2:
+                // continue here
+            
+            %exc:
+                %the_exception = LANDINGPAD
+                // handle the exception
+        }
 
 ``RET`` and ``RETVOID`` Instruction
 -----------------------------------
@@ -1197,23 +1202,25 @@ The ``RET`` instruction returns from the current function with *rv* as the
 return value. The ``RETVOID`` instruction returns from the current function
 whose return type is void.
 
-For LLVM users: Equivalent to LLVM's ``ret`` and ``ret void``.
+    For LLVM users: Equivalent to LLVM's ``ret`` and ``ret void``.
 
-Example::
+..
 
-    .funcsig @sig1 = @double (@double @double)
-    .funcsig @sig2 = @void ()
+    Example::
 
-    .funcdef @sum VERSION @sum_v1 <@sig1> (%x %y) {
-        %entry:
-            %s = ADD <@double> %x %y
-            RET <@double> %s
-    }
+        .funcsig @sig1 = @double (@double @double)
+        .funcsig @sig2 = @void ()
 
-    .funcdef @main VERSION @main_v1 <@sig2> () {
-        %entry:
-            RETVOID
-    }
+        .funcdef @sum VERSION @sum_v1 <@sig1> (%x %y) {
+            %entry:
+                %s = ADD <@double> %x %y
+                RET <@double> %s
+        }
+
+        .funcdef @main VERSION @main_v1 <@sig2> () {
+            %entry:
+                RETVOID
+        }
 
 ``THROW`` Instruction
 ---------------------
@@ -1232,30 +1239,32 @@ exc
 The ``THROW`` instruction throws the exception ``exc`` from the current
 function. Exceptions in µVM are object references to any type.
 
-For LLVM users: There is no equivalent in LLVM. The ``resume`` instruction in
-LLVM continues the propagation of a in-flight exception. This can also be done
-by µVM's ``THROW`` instruction. µVM programs can create a new exception object
-by ``NEW`` and throw it, where LLVM must depend on platform-specific libraries
-to allocate new exceptions.
+    For LLVM users: There is no equivalent in LLVM. The ``resume`` instruction
+    in LLVM continues the propagation of a in-flight exception. This can also be
+    done by µVM's ``THROW`` instruction. µVM programs can create a new exception
+    object by ``NEW`` and throw it, where LLVM must depend on platform-specific
+    libraries to allocate new exceptions.
 
-Example::
+..
 
-    .funcsig @sig = @i64 (@i64 @i64)
-    .typedef @SomeExceptionType = ...    // user-defined exception type
+    Example::
 
-    .funcdef @safe_divide VERSION @safe_divide_v1 <@sig> (%x %y) {
-        %entry:
-            %y0 = EQ <@i64> %y @I64_0
-            BRANCH %y0 %divbyzero %okay
+        .funcsig @sig = @i64 (@i64 @i64)
+        .typedef @SomeExceptionType = ...    // user-defined exception type
 
-        %divbyzero:
-            %exc = NEW <@SomeExceptionType>
-            // initialise %exc
-            THROW %exc
+        .funcdef @safe_divide VERSION @safe_divide_v1 <@sig> (%x %y) {
+            %entry:
+                %y0 = EQ <@i64> %y @I64_0
+                BRANCH %y0 %divbyzero %okay
 
-        %okay:
-            // continue 
-    }
+            %divbyzero:
+                %exc = NEW <@SomeExceptionType>
+                // initialise %exc
+                THROW %exc
+
+            %okay:
+                // continue 
+        }
 
 ``LANDINGPAD`` Instruction
 --------------------------
@@ -1283,7 +1292,7 @@ of exceptions in µVM is always an object reference. This is general enough to
 handle all cases. Unlike C++ which uses RTTI to identify the exception type, µVM
 client must implement its own RTTI, probably in the Java style.
 
-Example: See ``CALL``
+    Example: See the example in ``CALL``.
 
 Aggregate Type Operations
 =========================
@@ -1318,12 +1327,14 @@ return value
 The ``EXTRACTVALUE`` instruction extracts the index-th field from the value of
 an SSA variable *opnd* which has type ``struct``.
 
-For LLVM users: It is the counterpart of the ``extractvalue`` instruction in
-LLVM. But µVM's ``EXTRACTVALUE`` does not work on arrays or nested
-``struct``.  Use ``EXTRACTVALUE`` multiple times to extract the
-field in nested structs.
+    For LLVM users: It is the counterpart of the ``extractvalue`` instruction in
+    LLVM. But µVM's ``EXTRACTVALUE`` does not work on arrays or nested
+    ``struct``.  Use ``EXTRACTVALUE`` multiple times to extract the
+    field in nested structs.
 
-Example: see the example of ``INSERTVALUE``
+..
+
+    Example: see the example of ``INSERTVALUE``
 
 ``INSERTVALUE`` Instruction
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1352,43 +1363,45 @@ The ``INSERTVALUE`` instruction constructs a struct value which has the same
 field values as *opnd* except the field specified by *index* which has the value
 *newval*.
 
-For LLVM users: It is the counterpart of the ``insertvalue`` instruction in
-LLVM. But µVM's ``INSERTVALUE`` does not work on arrays or nested
-``struct``.  Use a combination of ``EXTRACTVALUE`` and
-``INSERTVALUE`` to replace a field in a nested struct.
+    For LLVM users: It is the counterpart of the ``insertvalue`` instruction in
+    LLVM. But µVM's ``INSERTVALUE`` does not work on arrays or nested
+    ``struct``.  Use a combination of ``EXTRACTVALUE`` and ``INSERTVALUE`` to
+    replace a field in a nested struct.
 
-Example::
+..
 
-    .typedef @Foo = struct <@i32 @double @float>
-    .const @A <@i32>    = 42
-    .const @B <@double> = 84.0d
-    .const @C <@float>  = 3.14f
+    Example::
 
-    .const @B2 <@double>  = 126.0d
+        .typedef @Foo = struct <@i32 @double @float>
+        .const @A <@i32>    = 42
+        .const @B <@double> = 84.0d
+        .const @C <@float>  = 3.14f
 
-    .const @S <@Foo>    = {@A @B @C}    // {42 84.0d 3.14f}
+        .const @B2 <@double>  = 126.0d
 
-    %a  = EXTRACTVALUE <@Foo 1> @S      // %a  == 84.0d and is a double
-    %s2 = INSERTVALUE  <@Foo 1> @S @B2  // %s2 == {42 126.0d 3.14f} and is a @Foo
+        .const @S <@Foo>    = {@A @B @C}    // {42 84.0d 3.14f}
 
-    .typedef @Baz = struct <@double @double>
-    .typedef @Bar = struct <@double @Baz @double>
+        %a  = EXTRACTVALUE <@Foo 1> @S      // %a  == 84.0d and is a double
+        %s2 = INSERTVALUE  <@Foo 1> @S @B2  // %s2 == {42 126.0d 3.14f} and is a @Foo
 
-    .const @D <@double> = 1.0d 
-    .const @E <@double> = 2.1d 
-    .const @F <@double> = 2.2d 
-    .const @G <@double> = 3.0d 
+        .typedef @Baz = struct <@double @double>
+        .typedef @Bar = struct <@double @Baz @double>
 
-    .const @H <@double> = 999.0d
+        .const @D <@double> = 1.0d 
+        .const @E <@double> = 2.1d 
+        .const @F <@double> = 2.2d 
+        .const @G <@double> = 3.0d 
 
-    .const @U <@Baz> = {@E @F}          // {2.1d 2.2d}
-    .const @T <@Bar> = {@D @U @G}       // {1.0d {2.1d 2.2d} 3.0d}
+        .const @H <@double> = 999.0d
 
-    %b = EXTRACTVALUE <@Bar 1> @T       // %b == {2.1d 2.2d} and is a @Baz
-    %c = EXTRACTVALUE <@Baz 0> %b       // %c == 2.1d and is a double
+        .const @U <@Baz> = {@E @F}          // {2.1d 2.2d}
+        .const @T <@Bar> = {@D @U @G}       // {1.0d {2.1d 2.2d} 3.0d}
 
-    %b2 = INSERTVALUE <@Baz 0> %b @H    // %b2 == {999.0d 2.2d} and is a @Baz
-    %t2 = INSERTVALUE <@Bar 1> @T %c    // %t2 == {1.0d {999.9d 2.2d} 3.0d} and is a @Bar
+        %b = EXTRACTVALUE <@Bar 1> @T       // %b == {2.1d 2.2d} and is a @Baz
+        %c = EXTRACTVALUE <@Baz 0> %b       // %c == 2.1d and is a double
+
+        %b2 = INSERTVALUE <@Baz 0> %b @H    // %b2 == {999.0d 2.2d} and is a @Baz
+        %t2 = INSERTVALUE <@Bar 1> @T %c    // %t2 == {1.0d {999.9d 2.2d} 3.0d} and is a @Bar
 
 Vector Operations
 -----------------
@@ -1421,10 +1434,12 @@ value *vec* of vector type *T1*.
 The *index* may have any integer type and is treated as unsigned. If index
 exceeds the length of the vector, it has undefined behaviour.
 
-For LLVM users: This is the counterpart of the ``extractelement`` instruction of
-LLVM.
+    For LLVM users: This is the counterpart of the ``extractelement``
+    instruction of LLVM.
 
-Example: See the example in ``SHUFFLEVECTOR``.
+..
+
+    Example: See the example in ``SHUFFLEVECTOR``.
 
 ``INSERTELEMENT`` Instruction
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1457,10 +1472,12 @@ element values as *vec* except the element at *index* which has the value of
 The *index* may have any integer type and is treated as unsigned. If index
 exceeds the length of the vector, it has undefined behaviour.
 
-For LLVM users: This is the counterpart of the ``insertelement`` instruction of
-LLVM.
+    For LLVM users: This is the counterpart of the ``insertelement`` instruction of
+    LLVM.
 
-Example: See the example in ``SHUFFLEVECTOR``.
+..
+
+    Example: See the example in ``SHUFFLEVECTOR``.
 
 ``SHUFFLEVECTOR`` Instruction
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1501,41 +1518,43 @@ The element type of *mask* can be any integer type and is treated as unsigned.
 If any element in *mask* is not within the range between 0 and 2*n-1,
 inclusively, where n is the length of *T1*, then it has undefined behaviour.
 
-For LLVM users: This is the counterpart of the ``shufflevector`` instruction in
-LLVM.
+    For LLVM users: This is the counterpart of the ``shufflevector`` instruction
+    in LLVM.
 
-Example::
+..
 
-    .const @S0 <@float> = 3.1f
-    .const @S1 <@float> = 4.1f
-    .const @S2 <@float> = 5.9f
-    .const @S3 <@float> = 2.6f
-    .const @S4 <@float> = 5.3f
-    .const @S5 <@float> = 5.8f
-    .const @S6 <@float> = 9.7f
-    .const @S7 <@float> = 9.3f
+    Example::
 
-    .const @V0 <@4xfloat> = VEC { @S0 @S1 @S2 @S3 }     // { 3.1f 4.1f 5.9f 2.6f }
-    .const @V1 <@4xfloat> = VEC { @S4 @S5 @S6 @S7 }     // { 5.3f 5.8f 9.7f 9.3f }
+        .const @S0 <@float> = 3.1f
+        .const @S1 <@float> = 4.1f
+        .const @S2 <@float> = 5.9f
+        .const @S3 <@float> = 2.6f
+        .const @S4 <@float> = 5.3f
+        .const @S5 <@float> = 5.8f
+        .const @S6 <@float> = 9.7f
+        .const @S7 <@float> = 9.3f
 
-    .const @I32_2 = 2
-    .const @I32_3 = 3
-    .const @I32_4 = 4
-    .const @I32_5 = 5
-    .const @I32_6 = 6
-    .const @I32_7 = 7
+        .const @V0 <@4xfloat> = VEC { @S0 @S1 @S2 @S3 }     // { 3.1f 4.1f 5.9f 2.6f }
+        .const @V1 <@4xfloat> = VEC { @S4 @S5 @S6 @S7 }     // { 5.3f 5.8f 9.7f 9.3f }
 
-    .const @M0 <@4xi32> = VEC { @I32_1 @I32_0 @I32_2 @I32_1 }
+        .const @I32_2 <@i32> = 2
+        .const @I32_3 <@i32> = 3
+        .const @I32_4 <@i32> = 4
+        .const @I32_5 <@i32> = 5
+        .const @I32_6 <@i32> = 6
+        .const @I32_7 <@i32> = 7
 
-    .typedef @8xi32     = vector <@i32 8>
-    .typedef @8xfloat   = vector <@float 8>
+        .const @M0 <@4xi32> = VEC { @I32_1 @I32_0 @I32_2 @I32_1 }
 
-    .const @M1 <@8xi32> = VEC { @I32_7 @I32_5 @I32_6 @I32_4 @I32_2 @I32_1 @I32_3 @I32_0 }
+        .typedef @8xi32     = vector <@i32 8>
+        .typedef @8xfloat   = vector <@float 8>
 
-    %a = EXTRACTELEMENT <@4xfloat @i64> @V0 @I64_2      // 5.9f
-    %b = INSERTELEMENT  <@4xfloat @i64> @V0 @I64_3 @S7  // { 3.1f 4.1f 5.9f 9.3f }
-    %c1 = SHUFFLEVECTOR <@4xfloat @4xi32> @V0 @V1 @M0   // { 4.1f 3.1f 5.9f 4.1f }
-    %c2 = SHUFFLEVECTOR <@4xfloat @8xi32> @V0 @V1 @M1   // { 9.3f 5.8f 9.7f 5.3f 5.9f 4.1f 2.6f 3.1f }
+        .const @M1 <@8xi32> = VEC { @I32_7 @I32_5 @I32_6 @I32_4 @I32_2 @I32_1 @I32_3 @I32_0 }
+
+        %a = EXTRACTELEMENT <@4xfloat @i64> @V0 @I64_2      // 5.9f
+        %b = INSERTELEMENT  <@4xfloat @i64> @V0 @I64_3 @S7  // { 3.1f 4.1f 5.9f 9.3f }
+        %c1 = SHUFFLEVECTOR <@4xfloat @4xi32> @V0 @V1 @M0   // { 4.1f 3.1f 5.9f 4.1f }
+        %c2 = SHUFFLEVECTOR <@4xfloat @8xi32> @V0 @V1 @M1   // { 9.3f 5.8f 9.7f 5.3f 5.9f 4.1f 2.6f 3.1f }
 
 Memory Operations
 =================
@@ -1545,114 +1564,148 @@ Memory allocation
 
 This family of instructions allocate memory on the heap or the stack.
 
-- ``NEW < T >``
+``NEW`` Instruction
+~~~~~~~~~~~~~~~~~~~
 
-    ``T``
-        *type*, not ``hybrid``: the type to allocate
-    return value
-        Type ``ref<T>``: an object reference newly allocated object.
+``NEW`` ``<`` *T* ``>`` *excClause*
 
-+------+-----+
-| opct | idt |
-+======+=====+
-| 0x10 | T   |
-+------+-----+
+T
+    *type*, not ``hybrid``: The type to allocate.
+excClause
+    *exception clause*: Specifies the basic block to handle allocation failure.
+return value
+    Type is ``ref<T>``: An object reference to the newly allocated object.
 
-Allocate a fixed-size object on the heap which has type ``T``. Return the
-reference to it.
++------+-----+-----------+
+| opct | idt | excClause |
++======+=====+===========+
+| 0x10 | T   | excClause |
++------+-----+-----------+
 
-For LLVM users: There is no equivalence in LLVM.
+The ``NEW`` instruction allocates an object of a fixed-length type *T* on the
+heap. Return an object reference to it.
 
-Example::
+If the allocation failed, this instruction *continues exceptionally*.
 
-    %r = NEW <int<64>>          // ref<int<64>>
-    
-    .typedef @Foo = struct <int<64> double double>
-    %s = NEW <@Foo>              // ref<Foo>
+    For LLVM users: There is no equivalent instructions in LLVM.
 
-- ``NEWHYBRID < T > length``
+..
 
-    ``T``
-        *type*, must be ``hybrid``: the type to allocate
-    ``length``
-        Type ``int<WORD_LENGTH>``: the length of the variable part of the
-        hybrid.
-    return value
-        Type ``ref<T>``: an object reference newly allocated object.
+    Example: See the example in ``ALLOCAHYBRID``.
 
-+------+-----+--------+
-| opct | idt | idt    |
-+======+=====+========+
-| 0x11 | T   | length |
-+------+-----+--------+
+``NEWHYBRID`` Instruction
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Allocate an object of the ``hybrid`` type on the heap. ``length`` is the
-number of cells in the variable part.
+``NEWHYBRID`` ``<`` *T1* *T2* ``>`` *length* *excClause*
 
-For LLVM users: There is no equivalence in LLVM.
+T1
+    *type*, must be ``hybrid``: The type to allocate.
+T2
+    *type*, must be ``int``: The type of *length*.
+length
+    *variable* of type *T2*: The length of the variable part of the hybrid.
+excClause
+    *exception clause*: Specifies the basic block to handle allocation failure.
+return value
+    Type is ``ref<T1>``: An object reference to the newly allocated object.
 
-Example::
++------+-----+-----+--------+-----------+
+| opct | idt | idt | idt    | excClause |
++======+=====+=====+========+===========+
+| 0x11 | T1  | T2  | length | excClause |
++------+-----+-----+--------+-----------+
 
-    .typedef @Foo = hybrid <struct<int<64> double> int<8>>
-    %r = NEWHYBRID <@Foo> 16         // ref<@Foo>
-    // %r refers to a heap object which has a struct header followed by 16
-    // int<8>
+The ``NEWHYBRID`` instruction allocates an object of the ``hybrid`` type *T1*
+type on the heap. Return an object reference to it.
 
-- ``ALLOCA < T >``
+*length* is the length of the variable part of the hybrid. *T2* can be any
+integer type and is treated as unsigned.
 
-    ``T``
-        *type*, not ``hybrid``: the type to allocate
-    return value
-        Type ``iref<T>``: an internal reference newly allocated alloca cell.
+If the allocation failed, this instruction *continues exceptionally*.
 
-+------+-----+
-| opct | idt |
-+======+=====+
-| 0x12 | T   |
-+------+-----+
+    For LLVM users: There is no equivalent instructions in LLVM.
 
-Allocate a fixed-size object on the stack which has type ``T``. Return the
-internal reference to it.
+..
 
-For LLVM users: Alloca is the closest approximation, but µVM's
-``ALLOCA`` allocates exactly one alloca cell. Use
-``ALLOCAHYBRID`` to allocate contiguous cells of identical data
-structures.
+    Example: See the example in ``ALLOCAHYBRID``.
 
-Example::
+``ALLOCA`` ``<`` *T* ``>`` *excClause*
 
-    %r = ALLOCA <int<64>>           // iref<int<64>>
-    
-    .typedef @Foo = struct <int<64> double double>
-    %s = ALLOCA <@Foo>               // iref<@Foo>
+T
+    *type*, not ``hybrid``: The type to allocate.
+excClause
+    *exception clause*: Specifies the basic block to handle allocation failure.
+return value
+    Type is ``iref<T>``: An internal reference to the newly allocated stack
+    cell.
 
-- ``ALLOCAHYBRID < T > length``
++------+-----+-----------+
+| opct | idt | excClause |
++======+=====+===========+
+| 0x12 | T   | excClause |
++------+-----+-----------+
 
-    ``T``
-        *type*, must be ``hybrid``: the type to allocate
-    ``length``
-        Type ``int<WORD_LENGTH>``: the length of the variable part of the
-        hybrid.
-    return value
-        Type ``ref<T>``: an object reference newly allocated alloca cell.
+The ``ALLOCA`` instruction allocates a stack cell of a fixed-length type *T* on
+the stack. Return an internal reference to it.
 
-+------+-----+--------+
-| opct | idt | idt    |
-+======+=====+========+
-| 0x13 | T   | length |
-+------+-----+--------+
+If the allocation failed, this instruction *continues exceptionally*.
 
-Allocate an object of the ``hybrid`` type on the stack. ``length`` is
-the number of cells in the variable part.
+    For LLVM users: Alloca is the closest approximation, but µVM's ``ALLOCA``
+    only allocates fixed-length types. Use ``ALLOCAHYBRID`` to allocate
+    variable-length types.
 
-For LLVM users: This is similar to ``alloca`` with a number of elements. A
-``hybrid`` in µVM allows to have a fixed prefix. This is similar to
-typical C99 code like ``struct Something { ...; char suffix[];};``.
+..
 
-Example::
+    Example: See the example in ``ALLOCAHYBRID``.
 
-    .typedef @Foo = hybrid <struct <int<64> double> int<8>>
-    %r = ALLOCAHYBRID <@Foo> 16      // iref<@Foo>
+``ALLOCAHYBRID`` ``<`` *T1* *T2* ``>`` *length* *excClause*
+
+T1
+    *type*, must be ``hybrid``: The type to allocate.
+T2
+    *type*, must be ``int``: The type of *length*.
+length
+    *variable* of type *T2*: the length of the variable part of the hybrid.
+excClause
+    *exception clause*: Specifies the basic block to handle allocation failure.
+return value
+    Type is ``iref<T1>``: an internal reference to the newly allocated stack
+    cell.
+
++------+-----+-----+--------+-----------+
+| opct | idt | idt | idt    | excClause |
++======+=====+=====+========+===========+
+| 0x13 | T1  | T2  | length | excClause |
++------+-----+-----+--------+-----------+
+
+The ``ALLOCAHYBRID`` instruction allocates a stack cell of a ``hybrid`` type
+*T1* on the stack. Return an internal reference to it.
+
+*length* is the length of the variable part of the hybrid. *T2* can be any
+integer type and is treated as unsigned.
+
+If the allocation failed, this instruction *continues exceptionally*.
+
+    For LLVM users: This is similar to ``alloca`` with a number of elements. A
+    ``hybrid`` in µVM allows to have a fixed prefix. This is similar to C99
+    flexible array member like ``struct Something { ...; char suffix[];};``.
+
+..
+
+    Example::
+
+        .typedef @Foo = struct <@i64 @double @double>
+        .typedef @Bar = hybrid <@Foo @i8>
+
+        .const @I64_42 <@i64> = 42
+
+        %n1 = NEW <@i64>                        // ref<@i64>
+        %n2 = NEW <@Foo>                        // ref<@Foo>
+        %nh = NEWHYBRID <@Bar @i64> @I64_42     // ref<@Bar>
+
+        %a1 = ALLOCA <@i64>                     // iref<@i64>
+        %a2 = ALLOCA <@Foo>                     // iref<@Foo>
+        %ah = ALLOCAHYBRID <@Bar @i64> @I64_42  // iref<@Bar>
 
 Memory Addressing
 -----------------
