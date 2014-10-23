@@ -46,6 +46,8 @@ present::
     .const @D_1 <@double> = 1.0d
     .const @D_NAN <@double> = nand
 
+    .const @NULLREF <@refvoid> = NULL
+
 SSA Variables
 =============
 
@@ -250,7 +252,7 @@ var :sub:`rep`
 | nargs | arg1 | arg2 | ... |
 +-------+------+------+-----+
 
-An argument list is a list of SSA variables. It is used by instructions that
+An **argument list** is a list of SSA variables. It is used by instructions that
 take a variable number of value parameters.
 
 In the binary form, *nargs* is the number of variables (can be zero) and that
@@ -732,14 +734,6 @@ REFCAST
 
 ..
 
-    TODO: Document in a separate chapter `<floating-point>`__ and mention the
-    relation between µVM floating point operations and the IEEE 754, including
-    operations, rounding, exception handling and so on. Also provide intrinsic
-    functions for conversions and other operations that have different
-    requirements.
-
-..
-
     For LLVM users: These instructions are borrowed from LLVM. µVM currently
     lacks the conversion between raw pointer types and numerical types and they
     will be added when raw pointers are introduce. ``REFCAST`` is µVM-specific.
@@ -1044,43 +1038,43 @@ Inter-function Control Flow
 ``CALL`` and ``TAILCALL`` Instruction
 -------------------------------------
 
-``CALL`` ``<`` *sig* ``>`` *func* ``(`` *arg* :sub:`rep`  ``)`` *excClause* *keepAliveClause*
+``CALL`` ``<`` *sig* ``>`` *func* *argList* *excClause* *keepAliveClause*
 
-``TAILCALL`` ``<`` *sig* ``>`` *func* ``(`` *arg* :sub:`rep`  ``)``
+``TAILCALL`` ``<`` *sig* ``>`` *func* *argList*
 
 sig
     *function signature*: The signature of the callee.
 func
-    *variable* of type ``func`` type: The callee.
-arg :sub:`rep`
-    list of *variables* of types specified by *sig*: Argument list.
+    *variable* of type ``func<sig>``: The callee.
+argList
+    *argument list*: Argument list.
 excClause
     *exception clause*: Specifies the basic block to handle µVM exceptions and
     stack overflow.
 keepAliveClause
-    *keepalive clause*: Keep variables alive for OSR.
+    *keep-alive clause*: For on-stack replacement.
 return value
     The return type of *sig*: The return value of the callee. The ``TAILCALL``
     instruction itself does not receive the return value.
 
 CALL:
 
-+------+-----+------+-------+------+------+-----+-----------+-----------------+
-| opct | idt | idt  | lent  | idt  | idt  | ... | excClause | keepAliveClause |
-+======+=====+======+=======+======+======+=====+===========+=================+
-| 0x60 | sig | func | nargs | arg1 | arg2 | ... | excClause | keepAliveClause |
-+------+-----+------+-------+------+------+-----+-----------+-----------------+
++------+-----+------+---------+-----------+-----------------+
+| opct | idt | idt  | argList | excClause | keepAliveClause |
++======+=====+======+=========+===========+=================+
+| 0x60 | sig | func | argList | excClause | keepAliveClause |
++------+-----+------+---------+-----------+-----------------+
 
 TAILCALL:
 
-+------+-----+------+-------+------+------+-----+
-| opct | idt | idt  | lent  | idt  | idt  | ... |
-+======+=====+======+=======+======+======+=====+
-| 0x62 | sig | func | nargs | arg1 | arg2 | ... |
-+------+-----+------+-------+------+------+-----+
++------+-----+------+---------+
+| opct | idt | idt  | argList |
++======+=====+======+=========+
+| 0x62 | sig | func | argList |
++------+-----+------+---------+
 
 The ``CALL`` instruction creates a new stack frame for the callee, passes the
-arguments and starts executing from the entry block of the callee.
+arguments in *argList* and starts executing from the entry block of the callee.
 
 A ``CALL`` instruction *continues normally* when the callee returns. In this
 case the value of the ``CALL`` instruction is the return value of the callee.
@@ -1178,9 +1172,9 @@ have any exception clause and is not an OSR point.
 ``RETVOID``
 
 T
-    *type*: The return type.
+    *type*: The type of *rv*.
 rv
-    *variable* of type *T*: The return value.
+    *variable* of type *T*: The return value of the current function.
 
 RET:
 
@@ -1199,8 +1193,21 @@ RETVOID:
 +------+
 
 The ``RET`` instruction returns from the current function with *rv* as the
-return value. The ``RETVOID`` instruction returns from the current function
-whose return type is void.
+return value of the current function. The ``RETVOID`` instruction returns from
+the current function whose return type is void.
+
+The return type of the ``RET`` and the ``RETVOID`` instruction themselves are
+``void``.
+
+..
+
+    NOTE: The µVM allows giving name to a ``RET`` or ``RETVOID`` instruction
+    like ``%ret_inst = RET <@double> @SOME_CONSTANT``, but is is usually not
+    useful. In this case the type of ``%ret_inst`` is always ``void``. The
+    ``@SOME_CONSTANT`` value is returned to the caller, not the instruction's
+    SSA variable.
+
+..
 
     For LLVM users: Equivalent to LLVM's ``ret`` and ``ret void``.
 
@@ -1957,6 +1964,10 @@ locations of the *marked storage type*. Specifically, ``LOAD`` from
 ``iref<weakref<T>>`` gets a ``ref<T>``. ``ref<T>`` can be stored into a memory
 location referenced by an ``iref<weakref<T>>`` internal reference.
 
+The ``LOAD``, ``STORE``, ``CMPXCHG`` and ``ATOMICRMW`` instructions have
+optional exceptional clauses. When the memory location argument *loc* is a NULL
+reference, the instruction will *continue exceptionally*.
+
 Memory Order
 ~~~~~~~~~~~~
 
@@ -1979,7 +1990,7 @@ SEQ_CST     0x06    sequentially consistent
 ``LOAD`` Instruction
 ~~~~~~~~~~~~~~~~~~~~
 
-``LOAD`` *ord* :sub:`opt` ``<`` *T* ``>`` *loc*
+``LOAD`` *ord* :sub:`opt` ``<`` *T* ``>`` *loc* *excClause*
 
 ord :sub:`opt`
     *memory order*: The memory order. Default: ``NOT_ATOMIC``
@@ -1987,14 +1998,16 @@ T
     *type*: The referent type of *loc*.
 loc
     *variable* of type ``iref<T>``: The memory location to load from.
+excClause
+    *exception clause*: Used to handle NULL reference errors.
 return value
     Type is the unmarked type of *T*: The value loaded from *loc*
 
-+------+------+-----+------+
-| opct | opct | idt | idt  |
-+======+======+=====+======+
-| 0x1A | ord  | T   | loc  |
-+------+------+-----+------+
++------+------+-----+------+-----------+
+| opct | opct | idt | idt  | excClause |
++======+======+=====+======+===========+
+| 0x1A | ord  | T   | loc  | excClause |
++------+------+-----+------+-----------+
 
 The ``LOAD`` instruction loads from the memory location *loc*.
 
@@ -2021,7 +2034,7 @@ defaults to ``NOT_ATOMIC``. The instruction is atomic if *ord* is not
 ``STORE`` Instruction
 ~~~~~~~~~~~~~~~~~~~~~
 
-``STORE`` *ord* :sub:`opt` ``<`` *T* ``>`` *loc* *newval*
+``STORE`` *ord* :sub:`opt` ``<`` *T* ``>`` *loc* *newval* *excClause*
 
 ord :sub:`opt`
     *memory order*: The memory order. Default: ``NOT_ATOMIC``
@@ -2029,14 +2042,16 @@ T
     *type*: The referent type of *loc*.
 loc
     *variable* of type ``iref<T>``: The memory location to store into.
+excClause
+    *exception clause*: Used to handle NULL reference errors.
 newval
     *variable* of the unmarked type of *T*: The new value to store.
 
-+------+------+-----+------+--------+
-| opct | opct | idt | idt  | idt    |
-+======+======+=====+======+========+
-| 0x1B | ord  | T   | loc  | newval |
-+------+------+-----+------+--------+
++------+------+-----+------+--------+-----------+
+| opct | opct | idt | idt  | idt    | excClause |
++======+======+=====+======+========+===========+
+| 0x1B | ord  | T   | loc  | newval | excClause |
++------+------+-----+------+--------+-----------+
 
 The ``STORE`` instruction stores *newval* into the memory location *loc*.
 
@@ -2063,7 +2078,7 @@ defaults to ``NOT_ATOMIC``. The instruction is atomic if *ord* is not
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 ``CMPXCHG`` ``WEAK`` :sub:`opt` *succOrd* *failOrd* ``<`` *T* ``>`` *loc*
-*expected* *desired*
+*expected* *desired* *excClause*
 
 ``WEAK`` :sub:`opt`
     If present, the ``CMPXCHG`` operation is weak.
@@ -2078,16 +2093,18 @@ expected
 desired
     *variable* of the unmarked type of *T*: The new value to store into the
     memory.
+excClause
+    *exception clause*: Used to handle NULL reference errors.
 return value:
     Type is ``struct<U int<1>>`` where *U* is the unmarked type of *T*: A pair
     of the original value in the memory and whether this operation is
     successful.
 
-+------+------+---------+---------+-----+------+----------+---------+
-| opct | opct | opct    | opct    | idt | idt  | idt      | idt     |
-+======+======+=========+=========+=====+======+==========+=========+
-| 0x1C | weak | succOrd | failOrd | T   | loc  | expected | desired |
-+------+------+---------+---------+-----+------+----------+---------+
++------+------+---------+---------+-----+------+----------+---------+-----------+
+| opct | opct | opct    | opct    | idt | idt  | idt      | idt     | excClause |
++======+======+=========+=========+=====+======+==========+=========+===========+
+| 0x1C | weak | succOrd | failOrd | T   | loc  | expected | desired | excClause |
++------+------+---------+---------+-----+------+----------+---------+-----------+
 
 ``CMPXCHG`` loads the value from memory location *loc* and compare it with the
 *expected* value. If the comparison succeeds, then store the *desired* value to
@@ -2152,7 +2169,7 @@ The memory order of this instruction is *succOrd* if the comparison succeeds, or
 ``ATOMICRMW`` Instruction
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``ATOMICRMW`` *ord* *op* ``<`` *T* ``>`` *loc *opnd*
+``ATOMICRMW`` *ord* *op* ``<`` *T* ``>`` *loc *opnd* *excClause*
 
 ord
     *memory order*: The memory order.
@@ -2165,14 +2182,16 @@ loc
 newval
     *variable* of the unmarked type of *T*: The right-hand-side of the
     operation.  
+excClause
+    *exception clause*: Used to handle NULL reference errors.
 return value
     Type is the unmarked type of *T*: The original value in the memory.
 
-+------+------+------+-----+------+------+
-| opct | opct | opct | idt | idt  | idt  |
-+======+======+======+=====+======+======+
-| 0x1D | ord  | op   | T   | loc  | opnd |
-+------+------+------+-----+------+------+
++------+------+------+-----+------+------+-----------+
+| opct | opct | opct | idt | idt  | idt  | excClause |
++======+======+======+=====+======+======+===========+
+| 0x1D | ord  | op   | T   | loc  | opnd | excClause |
++------+------+------+-----+------+------+-----------+
 
 An **AtomicRMW operator** is one of the following:
 
@@ -2275,121 +2294,233 @@ semantic is specified in `<memory-model>`__.
         FENCE ACQ_REL
         FENCE SEQ_CST
 
-Trap Instructions
-=================
+Traps
+=====
 
-.. _inst-trap:
-.. _inst-watchpoint:
+``TRAP`` and ``WATCHPOINT`` Instruction
+---------------------------------------
 
-- ``TRAP < T > nor exc KEEPALIVE ( v1 v2 ... )``
-- ``WATCHPOINT wpid < T > dis nor exc KEEPALIVE ( v1 v2 ... )``
+``TRAP`` ``<`` *T* ``>`` *excClause* *keepAliveClause*
 
-    ``wpid``
-        *intImmediate*: Watchpoint identifier.
-    ``T``
-        *type*: The return type.
-    ``dis``
-        *label*: The destination when the ``WATCHPOINT`` is not
-        enabled.
-    ``nor``, ``exc``
-        *label*: The normal destination and the exceptional destination when
-        the ``WATCHPOINT`` is enabled.
-    ``v1``, ``v2``, ...
-        *value*: Local SSA Values to keep alive.
-    return value:
-        Type ``T``: The value returned from the client if the client chooses to
-        return normally.
+``WATCHPOINT`` *wpid* ``<`` *T* ``>`` *dis* *ena* *(* ``WPEXC`` ``(`` *exc* ``)`` *)* :sub:`opt` *keepAliveClause*
+
+wpid
+    *integer literal*: Watchpoint identifier.
+T
+    *type*: The type of the return value.
+excClause:
+    *exception clause*: For ``TRAP``, specify the basic block to handle
+    exception.
+keepAliveClause
+    *keep-alive clause*: For on-stack replacement.
+dis
+    *basic block*: For ``WATCHPOINT``, the normal destination **before** the
+    watchpoint is enabled.
+ena
+    *basic block*: For ``WATCHPOINT``, the normal destination **after** the
+    watchpoint is enabled.
+exc
+    Optional *basic block*: For ``WATCHPOINT``, the exceptional destination
+    **after** the watchpoint is enabled. This can be omitted.
+return value:
+    Type is ``T``: The value returned from the Client if the Client chooses to
+    return normally.
 
 ``TRAP``:
 
-+------+-----+-----+-----+------+-----+-----+-----+
-| opct | idt | idt | idt | lent | idt | idt | ... |
-+======+=====+=====+=====+======+=====+=====+=====+
-| 0xE8 | T   | nor | exc | nka  | v1  | v2  | ... |
-+------+-----+-----+-----+------+-----+-----+-----+
++------+-----+-----------+-----------------+
+| opct | idt | excClause | keepAliveClause |
++======+=====+===========+=================+
+| 0xE8 | T   | excClause | keepAliveClause |
++------+-----+-----------+-----------------+
 
 ``WATCHPOINT``:
 
-+------+------+-----+-----+-----+-----+------+-----+-----+-----+
-| opct | idt  | idt | idt | idt | idt | lent | idt | idt | ... |
-+======+======+=====+=====+=====+=====+======+=====+=====+=====+
-| 0xE9 | wpid | T   | dis | nor | exc | nka  | v1  | v2  | ... |
-+------+------+-----+-----+-----+-----+------+-----+-----+-----+
++------+------+-----+-----+-----+-----+-----------------+
+| opct | idt  | idt | idt | idt | idt | keepAliveClause |
++======+======+=====+=====+=====+=====+=================+
+| 0xE9 | wpid | T   | dis | ena | exc | keepAliveClause |
++------+------+-----+-----+-----+-----+-----------------+
 
-The ``TRAP`` instruction is an upcall to the client. It transfers the
-control to a trap handler in the µVM Client. The client may do anything. It may
-return normally, throw an exception, or does not return at all. When the client
-chooses to return normally, the client may return a value back to this
-instruction and that value must have type ``T``.
+The ``TRAP`` and the ``WATCHPOINT`` instructions are collectively called
+**traps**. A trap transfers the control to a trap handler in the µVM Client.
+Decided by the trap handler, this instruction may not continue, may continue
+normally with a return value of type *T*, and may continue exceptionally with a
+µVM exception.
 
-``v1``, ``v2``, ... are local SSA Values kept alive so that the client can
-introspect the value of those Values.
+A ``TRAP`` instruction is always enabled. Its return value is decided by the
+trap handler in the Client. When the exception clause is present, the exception
+generated by the Client is handled in the exceptional destination. When the
+exception clause is absent, the exception is thrown out of the current function
+activation.
 
-The ``WATCHPOINT`` instruction is a conditional variance of trap. It is
-not enabled in the beginning. The client can asynchronously (in another thread)
-enable any watchpoint identified by an integer watchpoint ID. All
-``WATCHPOINT`` instructions of that ID are enabled since then and behave
-like a ``TRAP``. When the ``WATCHPOINT`` is not enabled, it
-unconditionally branch to ``dis``.
+A ``WATCHPOINT`` instruction is associated with a watchpoint, identified by an
+integer *wpid*, which is disabled in the beginning. When the watchpoint is
+disabled, all ``WATCHPOINT`` instructions associated with it branches to the
+destination *dis* and the return value of this instruction is undefined. When
+the watchpoint is enabled, then all ``WATCHPOINT`` instructions associated with
+it transfer the control to a trap handler in the Client. If this instruction
+continues normally, it branches to the destination *ena* and the return value of
+this instruction is decided by the client; if an exception is generated, it will
+be caught in the *exc* destination if the *exc* destination is present, or the
+exception will be thrown out of the current function activation if the *exc*
+destination is absent.
 
-In the binary form, the number of keepalive values is decided by ``nka``.
+In the binary form, an absent *exc* destination is expressed as the ID of *exc*
+being 0.
 
-For LLVM users: LLVM has the ``llvm.trap`` intrinsic function, but its semantic
-is not defined.
+*Traps* are OSR points.
 
-Example 1: use ``TRAP`` to handle the case when ``%someVal != 42``::
+    NOTE: *Traps* are deliberately designed as OSR points. Interacting with the
+    Client to handle things that cannot be handled within the µVM is its main
+    purpose.
 
-    %bb1:
-        %eq = EQ <int<64>> %someVal 42
-        BRANCH2 %eq %cont %trap
+..
 
-    %cont:
-        // normal continue here
+    For LLVM users: LLVM has the ``llvm.trap`` intrinsic function, but its
+    semantic is not defined. LLVM itself does not have on-stack replacement
+    support, but `Lameed and Hendren
+    <http://dl.acm.org/citation.cfm?id=2451541>`__ proposed a framework for
+    supporting on-stack replacement in LLVM.
 
-    %trap:
-        TRAP <void> %nocont %nocont KEEPALIVE (%someVal)
+..
 
-    %nocont:
-        THROW 0 // This should not be reached, but when it is,
-                // it throws an exception whose value is null.
+    Example 1: Use ``TRAP`` to let the Client do anything, for instance, obtain
+    the version number of the µVM::
 
-Example 2: use ``TRAP`` as a client-assisted native function::
+        .funcdef @some_func VERSION @some_func_v1 <...> (...) {
+            %entry:
+                %version_num = TRAP <@i64>
 
-    .funcdef @print <int<64> (iref<int<8>>)> (%str) {
-    %entry:
-        %bytes_printed = TRAP <int<64>> %cont %fail KEEPALIVE (%str)
+                CALL <...> @print (%version_num)
+                ...
+        }
 
-    %cont:
-        RET <int<64>> %bytes_printed
+    The Client identifies this concrete ``TRAP`` instruction by its ID or its
+    global name ``@some_func_v1.version_num``. Then it can help this particular
+    instruction by returning normally, supplying its version number.
 
-    %fail:
-        %exc = LANDINGPAD
-        THROW %exc
-    }
+..
+
+    Example 2: use an unconditional ``TRAP`` to handle frequently-executed
+    loops::
+
+        .const @LOOP_THRESHOLD <@i64> = 1000
+
+        %loop_head:
+            ...
+            BRANCH2 %loop_cond %loop_body %loop_exit
+
+        %loop_body:
+            ...
+            %new_loop_count = ADD <@i64> %old_loop_count @I64_1
+            %is_frequent = SGE <@i64> %new_loop_count @LOOP_THRESHOLD
+            BRANCH2 %is_frequent %to_trap %loop_head
+
+        %to_trap:
+            %trap12345 = TRAP <@void> KEEPALIVE(%some %local %variables)
+
+        %loop_exit:
+
+    NOTE: The "variable name" ``%trap12345`` is used to identify the trap, but
+    the return type of this trap is void.
+
+..
+
+    Example 3: use ``WATCHPOINT`` for de-optimising speculatively generated
+    code. This code demonstrates a virtual table lookup::
+
+        .const @SomeVFuncOffset <@i64> = 9
+
+        %bb1:
+            %obj    = ...
+            %vtable = CALL <...> @get_virtual_table (%obj)
+            %vt_ent = CALL <...> @get_virtual_table_entry (%vtable @SomeVFuncOffset)
+            %func   = LOAD <@SomeVFuncType> %vt_ent
+
+            %rv     = CALL <...> %func (%obj ...)
+
+            ...
+            
+    But if the Client knows that the class has no subclass, it can speculatively
+    use static call rather than virtual call::
+
+        %bb1:
+            %obj    = ...
+
+            %wp1234 = WATCHPOINT 5678 <@void> %bb1_cont %bb2 KEEPALIVE(%obj)
+
+        %bb1_cont:
+            %rv     = CALL <...> @TheActualFunction (%obj ...)
+
+            ...
+
+        %bb2:
+            THROW @NULLREF  // unreachable because the client is not supposed to
+                            // let the %wp1234 continue at all.
+
+    Then when the Client loaded a new class which extends the class of ``%obj``
+    and overrides the virtual function, then the speculatively generated code is
+    no longer valid. Then the Client can enable the watchpoint 5678 and the
+    ``%wp1234`` instruction will go to the Client.
+
+..
+
+    Example 4: ``TRAP`` and ``WATCHPOINT`` with complex control flow::
+
+        %bb1:
+            %trap1  = TRAP <@i64> EXC(%bb2 %bb3) KEEPALIVE(%a %b %c ...)
+
+        %bb2:
+            // %trap1 normally continues here
+
+        %bb3:
+            %exc1   = LANDINGPAD
+            // %trap1 handles exception here
+
+        %bb4:
+            %wp1    = WATCHPINT 1 <@i64> %bb5 %bb6 WPEXC(%bb7) KEEPALIVE(%a %b %c ...)
+
+        %bb5:
+            // %wp1 normally continues here when disabled
+
+        %bb6:
+            // %wp1 normally continues here when enabled
+
+        %bb7:
+            %exc2   = LANDINGPAD
+            // %wp1 handles exception here when enabled
+
 
 C Foreign Function Interface
 ============================
 
-- ``CCALL callconv < sig > func ( arg1 arg2 ... )``
+``CCALL`` Instruction
+---------------------
 
-    ``callconv``
-        *calling convention*: The calling convention.
-    ``sig``
-        *function signature*: The signature of the callee.
-    ``func``
-        *value* of ``int<WORD_LENGTH>``: The callee's memory address.
-    ``argx``
-        *value* according to ``sig``: Parameter.
-    return value
-        Type decided by ``sig``: The return value of the callee.
+``CCALL`` *callconv* ``<`` *T* *sig* ``>`` *func* *argList*
 
-+------+----------+-----+------+-------+------+------+-----+
-| opct | opct     | idt | idt  | lent  | idt  | idt  | ... |
-+======+==========+=====+======+=======+======+======+=====+
-| 0xEC | callconv | sig | func | nargs | arg1 | arg2 | ... |
-+------+----------+-----+------+-------+------+------+-----+
+callconv
+    *calling convention*: The calling convention.
+T
+    *type*: The type of *func*.
+sig
+    *function signature*: The signature of the callee.
+func
+    *variable* of type *T*: The callee.
+argList
+    *argument list*: Arguments to the callee.
+return value
+    Type is the return type of *sig*: The return value of the callee.
 
-*calling convention* is one in the following table:
++------+----------+-----+-----+------+---------+
+| opct | opct     | idt | idt | idt  | argList |
++======+==========+=====+=====+======+=========+
+| 0xEC | callconv | T   | sig | func | argList |
++------+----------+-----+-----+------+---------+
+
+*calling convention* is one in the following table or extended by the µVM
+implementation:
 
 =========== ======
 Keyword     Binary
@@ -2397,181 +2528,399 @@ Keyword     Binary
 DEFAULT     0x00
 =========== ======
 
-The ``CCALL`` instruction calls a native C function.
+The ``CCALL`` instruction calls a native function.
 
-Currently only the ``DEFAULT`` calling convention is support, which is the
-default calling convention according to the application binary interface (ABI)
-of the current platform.
+    NOTE: The name ``CCALL`` indicates that it is intended to call C functions.
 
-``func`` is the address of the C function. This address is obtained elsewhere,
-either provided by the client which loads shared objects (.so), gets the address
-of a particular C function before generating µVM IR code, or by calling the
-``dlsym`` C function directly from µVM IR code using this ``CCALL``
-instruction to get the address of other C functions.
+*callconv* specifies the calling convention used by this instruction.
 
-The arguments and the return values are converted to be compatible with C.
-
-Parameter types:
-
-=========== =========== ========================================================
-µVM type    C type      Note
-=========== =========== ========================================================
-int<len>    int types   the C type of the same length.
-float       float
-double      double
-ref         pointer     pins heap object
-iref        pointer     pins heap object
-int<WORD>   pointer     When C expects pointer, it is possible to pass integer.
-struct      struct
-void        void
-(others)    (forbidden)
-=========== =========== ========================================================
-
-Memory types:
-
-=========== =========== ========================================================
-µVM type    C type      Note
-=========== =========== ========================================================
-int<len>    int types   the C type of the same length.
-float       float
-double      double
-int<WORD>   pointer     C pointers are treated as integers by the µVM.
-struct      struct      use the default layout.
-void        void
-(others)    (forbidden)
-=========== =========== ========================================================
-
-If any argument has type ``ref`` or it is ``iref`` and points into a heap
-object, then that object is pinned during this call. If multiple threads are
-making ``CCALL`` using the same object as parameters, then as long as
-there is one thread still in the process of a ``CCALL``, the object will
-remain to be pinned.
-
-Since not all C types have a µVM counterpart, µVM is only able to call the C
-functions with the simplest signatures. This should suffice for most system
-calls, which is the primary target of this instruction. Sometimes writing a
-simple wrapper function in C is needed.
+The semantic of this instruction is highly implementation-dependent. See
+`<uvm-ffi>`__ for a detailed description of the foreign function interface.
 
 ``CCALL`` cannot receive exceptions thrown by C++.
 
 ``CCALL`` is not an OSR point.
 
-For LLVM user: µVM is not designed to be compatible with C and functions defined
-in µVM IR does not use the native C ABI. This instruction is necessary to
-communicate with other parts of the system, especially operating systems since
-most operating systems are currently written in C and provide C interfaces.
+    For LLVM users: µVM is not designed to be compatible with C and functions
+    defined in µVM IR does not use the native C ABI. This instruction is
+    necessary to communicate with other parts of the system, especially
+    operating systems since most operating systems are currently written in C
+    and provide C interfaces.
 
-Example::
+..
 
-    // The client loads libc and gets the address for printf
-    .const @printf_address <int<64>> = 0x0011223344556600   // hard-code
-    
-    %h = ALLOCAHYBRID <hybrid<void, int<8>>> 100
-    %v = GETVARPARTIREF <hybrid<void, int<8>>> %h
-    // fill %v with string "Hello world\n\0"
-    CCALL DEFAULT <int<32> (iref<int<8>>)> @printf_address (%v)
+    Example: This example uses the C function ``printf`` to print ``"Hello
+    world!\n"``::
+
+        // The Client loads libc and gets the address for printf.
+        // Then the Client defines a constant which hard-codes the address.
+        .typedef @AddrType = int<64>
+        .const @printf_address <@AddrType> = 0x0011223344556600   // hard-coded address
+
+        // There must be a function signature defined for the printf function.
+        // However the µVM does not support vararg functions, so just define it
+        // for a particular call site.
+        .typedef @iref_char = iref<@i8>
+        .funcsig @printf_sig = @i32 (@iref_char)
+
+        .typedef @DynByteArray = hybrid<@void @i8>
+        .const @ARY_SZ <@i64> = 13
+        .const @CHAR_H  <@i8> = 0x48    // 'H'
+        .const @CHAR_e  <@i8> = 0x65    // 'e'
+        .const @CHAR_l  <@i8> = 0x6c    // 'l'
+        .const @CHAR_o  <@i8> = 0x6f    // 'o'
+        .const @CHAR_SP <@i8> = 0x20    // ' '
+        .const @CHAR_w  <@i8> = 0x77    // 'w'
+        .const @CHAR_r  <@i8> = 0x72    // 'r'
+        .const @CHAR_d  <@i8> = 0x64    // 'd'
+        .const @CHAR_NL <@i8> = 0x0a    // '\n'
+        .const @CHAR_nil <@i8> = 0      // '\0'
+        
+        // A µVM program allocates an array (represented as a hybrid)
+        %h = ALLOCAHYBRID <@DynByteArray @i64> @ARY_SZ
+        %v = GETVARPARTIREF <@DynByteArray> %h
+
+        // Then do something to fill %v with string "Hello world\n\0"
+        STORE <@i8> %v @CHAR_H          // store 'H'
+        %v1 = SHIFTIREF <@i8 @i64> %v %I64_1
+        STORE <@i8> %v1 @CHAR_e         // store 'e'
+        ...
+        %v12 = SHIFTIREF <@i8 @i64> %v11 %I64_1
+        STORE <@i8> %v12 @CHAR_nil      // store '\0'
+
+        // Then use the CCALL instruction to call the printf function.
+        // This call depends on the mapping between µVM types and the C types
+        // defined by the µVM implementation. In this case, the iref to @i8 is
+        // converted to a C pointer.
+        CCALL DEFAULT <@AddrType @printf_sig> @printf_address (%v)
 
 Thread and Stack
 ================
 
-.. _inst-newstack:
+``NEWSTACK`` Instruction
+------------------------
 
-- ``NEWSTACK < sig > func ( arg1 arg2 ... )``
+``NEWSTACK`` ``<`` *sig* ``>`` *func* *argList* *excClause*
 
-    ``sig``
-        *function signature*: The signature of the callee.
-    ``func``
-        *value* of ``int<WORD_LENGTH>``: The callee's memory address.
-    ``argx``
-        *value* according to ``sig``: Parameter.
+sig
+    *function signature*: The signature of the callee.
+func
+    *variable* of ``func<sig>``: The stack bottom function.
+argList
+    *argument list*: Argument list
+excClause
+    *exception clause*: To handle stack allocation errors.
+return value:
+    Type is ``stack``: The newly created stack.
 
-+------+-----+------+-------+------+------+-----+
-| opct | idt | idt  | lent  | idt  | idt  | ... |
-+======+=====+======+=======+======+======+=====+
-| 0xE0 | sig | func | nargs | arg1 | arg2 | ... |
-+------+-----+------+-------+------+------+-----+
++------+-----+------+---------+-----------+
+| opct | idt | idt  | argList | excClause |
++======+=====+======+=========+===========+
+| 0xE0 | sig | func | argList | excClause |
++------+-----+------+---------+-----------+
 
-The ``NEWSTACK`` instruction creates a new stack with an about-to-begin
-function activation at the bottom.
+The ``NEWSTACK`` instruction creates a new stack with a new stack frame for the
+*func* function with arguments of *argList*.
 
-The new stack is in the **READY** state.
+The new stack is in the **READY<void>** state. When a thread is bound to this
+newly created stack, it will start execution at the beginning of the *func*
+function.
 
-See `<intrinsic-funcs>`__ for more operations for stacks and threads.
+This instruction continues exceptionally if the µVM cannot allocate the new
+stack. 
 
-Intrinsic Function
-==================
+    For LLVM users: There is no native facilities provided by the official LLVM,
+    but `Dolan, Muralidharan and Gregg
+    <http://dl.acm.org/citation.cfm?id=2400695>`__ proposed an extension to LLVM
+    to support the SWAPSTACK operation. The SWAPSTACK interface of µVM is
+    inspired by their works.
 
-Intrinsic functions are a mechanism so that the µVM IR can be extended without
-adding new instructions or changing the grammar.
+..
 
-In µVM, intrinsic functions work just like regular instructions, but has a
-unified form: they take only value parameters, may have a normal destination
-and an exceptional destination and may keep some local SSA Value alive.
-Theoretically, any instructions that matches these criteria can be implemented
-as intrinsic functions. For example: throw and landingpad. In practice, they are
-so special that they deserve their own instruction.
+    Example: See the example in ``SWAPSTACK``.
 
-- ``ICALL func ( arg1 arg2 ... )``
-- ``ICALL func ( arg1 arg2 ... ) KEEPALIVE ( v1 v2 ... )``
-- ``IINVOKE func ( arg1 arg2 ... ) nor exc``
-- ``IINVOKE func ( arg1 arg2 ... ) nor exc KEEPALIVE ( v1 v2 ... )``
+``SWAPSTACK`` Instruction
+-------------------------
 
-    ``func``
-        *global identifier*: identifier for the intrinsic function.
-    ``arg1``, ``arg2``, ...
-        *value*: arguments to the intrinsic function
-    ``nor``, ``exc``
-        *label*: the normal and the exceptional destination, respectively.
-    ``v1``, ``v2``, ...
-        *value*: other SSA Values to be kept alive during this "call".
-    return value:
-        Type determined by the respective intrinsic functions. See
-        `<intrinsic-funcs>`__.
+``SWAPSTACK`` *swappee* *curStackClause* *newStackClause* *excClause* *keepAliveClause*
 
-ICALL:
+- *curStackClause* ::= ``RET_WITH`` ``<`` *T1* ``>``
+- *curStackClause* ::= ``KILL_OLD``
 
-+------+------+-------+------+------+-----+------+-----+-----+-----+
-| opct | idt  | lent  | idt  | idt  | ... | lent | idt | idt | ... |
-+======+======+=======+======+======+=====+======+=====+=====+=====+
-| 0xE4 | func | nargs | arg1 | arg2 | ... | nka  | v1  | v2  | ... |
-+------+------+-------+------+------+-----+------+-----+-----+-----+
++ *newStackClause* ::= ``PASS_PARAM`` ``<`` *T2* ``>`` *val*
++ *newStackClause* ::= ``NO_PARAM``
++ *newStackClause* ::= ``THROW_EXC`` *exc*
 
-IINVOKE:
+``SWAPSTACK``:
 
-+------+------+-----+-----+-------+------+------+-----+------+-----+-----+-----+
-| opct | idt  | idt | idt | lent  | idt  | idt  | ... | lent | idt | idt | ... |
-+======+======+=====+=====+=======+======+======+=====+======+=====+=====+=====+
-| 0xE5 | func | nor | exc | nargs | arg1 | arg2 | ... | nka  | v1  | v2  | ... |
-+------+------+-----+-----+-------+------+------+-----+------+-----+-----+-----+
++------+---------+----------------+----------------+-----------+-----------------+
+| opct | idt     | curStackClause | newStackClause | excClause | keepAliveClause |
++======+=========+================+================+===========+=================+
+| 0xE1 | swappee | curStackClause | newStackClause | excClause | keepAliveClause |
++------+---------+----------------+----------------+-----------+-----------------+
 
-``ICALL`` and ``IINVOKE`` calls a intrinsic function.
+*curStackClause* with ``RET_WITH``:
 
-The parser has knowledge of all intrinsic functions, including their expected
-parameter types, their return type, whether exceptions may be thrown and whether
-it is an OSR point. ``IINVOKE`` only makes sense for potential excepting
-instructions. The ``KEEPALIVE`` clause only makes sense for OSR point functions.
-Unlike regular function calls, not all intrinsic functions are OSR points.
++------+-----+
+| opct | idt |
++======+=====+
+| 0x01 | T1  |
++------+-----+
 
-Each intrinsic function has an identifier which is global (starting with ``@``)
-and its name starts with a ``uvm.`` prefix. It also has a numerical identifier
-for the binary form. Both are documented.
+*curStackClause* with ``KILL_OLD``:
 
-See `<intrinsic-funcs>`__ for a list of intrinsic functions.
++------+
+| opct |
++======+
+| 0x02 |
++------+
 
-For LLVM users: µVM treats intrinsic functions differently from regular
-functions and has distinct instructions. LLVM reuses the ``call`` and the
-``invoke`` instructions.
+*newStackClause* with ``PASS_PARAM``:
 
-Example::
++------+-----+-----+
+| opct | idt | idt |
++======+=====+=====+
+| 0x01 | T2  | val |
++------+-----+-----+
 
-    // math functions
-    %v1 = ICALL @uvm.sin (1.23)
-    %v2 = ICALL @uvm.cos (1.23)
-    %v3 = ICALL @uvm.tan (1.23)
-    %v4 = ICALL @uvm.sqrt (2.0)
+*newStackClause* with ``NO_PARAM``:
 
-    // extra stack/thread operations
-    %s = NEWSTACK <void ()> @foo ()
-    %t = ICALL @uvm.new_thread (%s)
++------+
+| opct |
++======+
+| 0x02 |
++------+
+
+*newStackClause* with ``THROW_EXC``:
+
++------+-----+
+| opct | idt |
++======+=====+
+| 0x03 | exc |
++------+-----+
+
+swappee
+    *variable* of type ``stack``: The stack to swap to.
+curStackClause
+    *current stack clause*: Action to the current stack.
+T1
+    *type*: The return type of this instruction if this stack is bound to a
+    thread again.
+newStackClause
+    *new stack clause*: Action to the *swappee* stack.
+T2
+    *type*: The type of *val*.
+val
+    *variable* of type *T2*: The value to pass to the *swappee* stack.
+exc
+    *variable* of type ``ref``: The exception object to raise to the *swappee*
+    stack.
+excClause
+    *exception clause*: To handle exceptions thrown to this stack.
+keepAliveClause
+    *keep-alive clause*: For on-stack replacement.
+
+The ``SWAPSTACK`` instruction unbinds the current thread with the current stack
+and rebinds it to another stack *swappee*.
+
+In a SWAPSTACK operation, the current stack is called the **swapper** and the
+stack to swap to is called the **swappee**.
+
+If the *curStackClause* is ``RET_WITH``, then the swapper will enter the
+``READY<T1>`` state. If the *curStackClause* is ``KILL_OLD``, then the swapper
+will enter the ``DEAD`` state.
+
+If the *newStackClause* is ``PASS_PARAM``, then the value *val* of type *T2* is
+passed to the *swappee* stack. If the *newStackClause* is ``NO_PARAM``, no value
+is passed to the *swappee* stack. If the *newStackClause* is ``THROW_EXC``, the
+exception object *exc* is thrown to the *swappee* stack.
+
+When a stack in the ``READY<T>`` state is pausing on a ``SWAPSTACK`` instruction
+and is being re-bound to a thread, then:
+
+- If *T* is not ``void`` and a value *v* of type *T* is passed to the stack,
+  then the ``SWAPSTACK`` instruction continues normally with *v* as its return
+  value.
+- If *T* is ``void`` and no value is passed to the stack, then ``SWAPSTACK``
+  instruction continues normally. In this case the return type of the
+  ``SWAPSTACK`` instruction is ``void``.
+- If an exception *e* is thrown to the stack, then the ``SWAPSTACK`` instruction
+  continues exceptionally. If an exception clause is present, then the
+  exceptional destination catches the exception, otherwise the exception is
+  thrown from the current stack frame.
+
+..
+
+    TODO: Move the previous paragraph to the `<threads-stacks>`__ chapter and
+    unify the description of ``TRAP``, ``WATCHPOINT`` and ``SWAPSTACK`` since
+    all are supposed to use SWAP-STACK as the underlying mechanism.
+
+The ``SWAPSTACK`` instruction is an OSR point.
+
+..
+
+    For LLVM users: See ``NEWSTACK``.
+
+..
+
+    Example: The following example demonstrates a coroutine that yields 1, 2 and
+    3 and then raise an exception in the main coroutine to terminate the
+    iteration::
+
+        .funcsig @sig1 = @void (@stack)
+        .const @I64_2 <@i64> = 2
+        .const @I64_3 <@i64> = 3
+
+        .typedef @StopIterationException = ...
+
+        // This coroutine (a generator) yields 1, 2 and 3 sequentially and stop.
+        // param %from: the stack of the main coroutine, i.e. the "caller" stack
+        .funcdef @one_two_three VERSION @one_two_three_v1 <@sig1> (%from) {
+            %entry:
+                SWAPSTACK %from RET_WITH <@void> PASS_PARAM <@i64> @I64_1
+                SWAPSTACK %from RET_WITH <@void> PASS_PARAM <@i64> @I64_2
+                SWAPSTACK %from RET_WITH <@void> PASS_PARAM <@i64> @I64_3
+
+                %exc = NEW @StopIterationException
+                SWAPSTACK %from KILL_OLD THROW_EXC %exc
+
+                THROW @NULLREF  // unreachable
+        }
+
+        .funcsig @main_sig = @void ()
+
+        .funcdef @main VERSION @main_v1 <@main_sig> () {
+            %entry:
+                // Get the reference to the current stack
+                %cur_stack = COMMINST @uvm.current_stack
+
+                // Create a new stack
+                %coro = NEWSTACK <@sig1> @one_two_three (%cur_stack)
+                BRANCH %head
+
+            %head:
+                // Go to the coroutine
+                %cur_num = SWAPSTACK %coro RET_WITH <@i64> NO_PARAM EXC(%body %exit)
+
+            %body:
+                // Do something with %cur_num
+                CALL <...> @print_num (%cur_num)
+
+                // Get the next number
+                BRANCH %head
+
+            %exit:
+                %exc = LANDINGPAD   // receives the StopIterationException
+
+                COMMINST @thread_exit
+                THROW @NULLREF  // unreachable
+        }
+
+Common Instructions
+===================
+
+**Common instructions** are a mechanism to extend the µVM IR without adding new
+instructions or changing the grammar. All *common instructions* have the same
+format: an ID, an optional name, a type parameter list, a value parameter list,
+an optional exception clause and an optional keep-alive clause.
+
+    TODO: Move the above description to the `<intrinsic-functions>`__ which will
+    be renamed "common-instructions".
+
+``COMMINST`` Instruction
+------------------------
+
+``COMMINST`` *name* *typeList* :sub:`opt` *argList* :sub:`opt` *excClause* *keepAliveClause*
+
++ *typeList* ::= ``<`` *type* :sub:`rep` ``>``
+
+name
+    *global name*: The name of the common instruction.
+typeList :sub:`opt`
+    Optional *type list*: A list of type arguments. Can be omitted.
+type :sub:`rep`
+    List of *type*: The list of type arguments.
+argList :sub:`opt`
+    Optional *argument list*: A list of value arguments. Can be omitted.
+excClause
+    *exception clause*: To provide an alternative control flow destination.
+keepAliveClause
+    *keep-alive clause*: For on-stack replacement.
+return value:
+    Type is determined by the respective common instructions: The return value
+    is determined by the respective common instructions.
+
+``COMMINST``:
+
++------+------+----------+---------+-----------+-----------------+
+| opct | idt  | typeList | argList | excClause | keepAliveClause |
++======+======+==========+=========+===========+=================+
+| 0xE4 | ID   | typeList | argList | excClause | keepAliveClause |
++------+------+----------+---------+-----------+-----------------+
+
+*typeList*:
+
++--------+-------+-------+-----+
+| lent   | idt   | idt   | ... |
++========+=======+=======+=====+
+| ntypes | type1 | type2 | ... |
++--------+-------+-------+-----+
+
+The ``COMMINST`` instruction calls a common instruction identified by *name* in
+the text form or *ID* in the binary form. A list of type arguments *typeList*, a
+list of value arguments *argList*, an optional exception clause *excClause* and
+a possibly empty keep-alive clause *keepAliveClause* are provided for the common
+instruction. The return value of this instruction is decided by the specific
+common instruction. The semantic is defined by the specific common instruction.
+
+The *typeList* is considered empty when omitted in the text form. In the binary
+form, there are exactly *ntypes* type IDs following the *ntypes* field. The
+*argList* is considered empty when omitted in the text form.
+
+A ``COMMINST`` instruction must supply as many type arguments and value
+arguments as the specific common instruction requires. A ``COMMINST``
+instruction must not have an exception clause unless the common instruction can
+continue exceptionally. A ``COMMINST`` instruction must have an empty keep-alive
+clause unless the common instruction is an OSR point.
+
+See `<intrinsic-funcs>`__ for a complete list of common instructions.
+
+    TODO: Move the file to "common-instructions".
+
+..
+
+    For LLVM users: Common instructions in µVM is the counterpart of intrinsic
+    functions of the LLVM. Common instructions are just like other µVM
+    instructions except they have the same instruction format and can be
+    extended without changing the µVM IR grammar. They are not functions and are
+    not called by the ``CALL`` instructions which calls µVM functions.
+
+..
+
+    Example::
+
+        .const @F_2 <@float> = 2.0f
+        .const @D_2 <@double> = 2.0d
+        .const @MAX_SINT <@i32> = 0x7fffffff
+
+        // extra math functions (planned, to be extended)
+        %v1 = COMMINST @uvm.math.sin  <@float>  (@F_1)
+        %v2 = COMMINST @uvm.math.cos  <@float>  (@F_2)
+        %v3 = COMMINST @uvm.math.tan  <@double> (@D_1)
+        %v4 = COMMINST @uvm.math.sqrt <@double> (@D_2)
+        %v5 = COMMINST @uvm.math.add_ovf <@i32> (@MAX_SINT @I32_1) EXC(%bb1 %bb2)
+
+        %bb1:
+            ...
+
+        %bb2:
+            // Handle signed integer overflow here.
+
+        // extra stack/thread operations
+        %s = NEWSTACK <...> @foo (...)
+        %t = COMMINST @uvm.new_thread (%s)
+
+        // the proper thread exit
+        COMMINST @uvm.thread_exit       // no type args or value args
 
 .. vim: tw=80
