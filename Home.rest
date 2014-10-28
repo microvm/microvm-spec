@@ -12,7 +12,7 @@ Contents:
 - `µVM IR Binary Form <uvm-ir-binary>`__
 - `Type System <type-system>`__
 - `Instruction Set <instruction-set>`__
-- `Intrinsic Functions <intrinsic-funcs>`__
+- `Common Instructions <common-insts>`__
 - `Threads and Stacks <threads-stacks>`__
 - `µVM Memory and Garbage Collection <uvm-memory>`__
 - `Memory Model <memory-model>`__

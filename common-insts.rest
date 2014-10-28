@@ -1,0 +1,184 @@
+===================
+Common Instructions
+===================
+
+This document specifies Common Instructions.
+
+**Common Instructions** are instructions that have a common format and are
+used with the ``COMMINST`` super instruction. They have:
+
+1. An ID and a name. (This means, they are *identified*. See `<uvm-ir>`__.)
+2. A type parameter list.
+3. A value parameter list.
+4. An optional exception clause.
+5. A possibly empty (which means optional) keep-alive clause.
+
+*Common instructions* are a mechanism to extend the µVM IR without adding new
+instructions or changing the grammar.
+
+    NOTE: *Common instructions* were named "intrinsic function" in previous
+    versions of this document. The name was borrowed from the LLVM. However, the
+    common instructions in µVM are quite different from the usual concept of
+    intrinsic functions.
+
+    Intrinsic functions usually mean a kind a function that is understood
+    directly by the compiler. The C function ``memcpy`` is considered an
+    intrinsic function by some compilers. In JikesRVM, methods of the ``Magic``
+    class are a kind of intrinsic functions. They appear like ordinary functions
+    in the language and bypass all front-end tools including the C parser and
+    javac, but they are understood by the backend. Their purpose is to perform
+    tasks that cannot be expressed by the high-level programming language,
+    including direct raw memory access in Java.
+
+    Common instructions only differ from ordinary µVM instructions in that they
+    have a common format and are called by the ``COMMINST`` super instruction.
+    The purpose is to add more instructions to the µVM IR without having to
+    modify the parser.
+
+    Common instructions are not µVM functions and cannot be called by the
+    ``CALL`` instruction, nor can it be directly used from the high-level
+    language that the Client implements. The µVM Client must understand common
+    instructions because it is the only source of IR code of the µVM. For
+    special high-level language functions that cannot be directly implemented in
+    the high-level programming language, like the methods in the
+    ``java.lang.Thread`` class, the Client must translate those things that are
+    special in the high-level language to appropriate µVM IR code, which may or
+    may not involve common instructions.
+
+This document uses the following notation:
+
+    ``[id]@name < T1 T2 ... > ( p1:t1, p2:t2, ... ) excClause KEEPALIVE -> RT``
+    
+``id`` is the ID and ``@name`` is the name. ``T1 T2 ...`` is a list of types.
+It is the type parameter list. ``p1:t1, p2:t2, ...`` is a list of symbolic name
+and type pair. It is the value parameter list with the type of each parameter.
+If ``excClause`` or ``KEEPALIVE`` are present, they mean that the common
+instruction accepts exception clause or keepalive clause, respectively.  ``RT``
+is the return type. If the type parameter list or the value parameter list are
+omitted, it means the common instruction takes no type parameters or value
+parameters, respectively. If the return type is omitted, it returns ``void``.
+
+Thread and Stack operations
+===========================
+
+- ``[0x201]@uvm.new_thread (%s: stack) -> thread``
+
+Create a new thread for a given stack ``%s``. The stack must be in the **READY**
+state. After executing ``@uvm.new_thread``, the stack enters the **ACTIVE**
+state and the new thread starts running immediately. Return the handle to the
+newly created thread.
+
+- ``[0x202]@uvm.kill_stack (%s: stack)``
+
+Destroy the given stack ``%s``. The stack ``%s`` must be in the **READY** state
+and will enter the **DEAD** state.
+
+- ``[0x203]@uvm.thread_exit``
+
+Stop the current thread and kill the current stack. The current stack will enter
+the **DEAD** state. The current thread stops running.
+
+- ``[0x204]@uvm.current_stack -> stack``
+
+Return the current stack.
+
+64-bit Tagged Reference
+=======================
+
+- ``[0x211]@uvm.tr64.is_fp (%tr: tagref64) -> int<1>``
+
+Test if ``%tr`` contains a floating point value.
+
+- ``[0x212]@uvm.tr64.is_int (%tr: tagref64) -> int<1>``
+
+Test if ``%tr`` contains an integer value.
+
+- ``[0x213]@uvm.tr64.is_ref (%tr: tagref64) -> int<1>``
+
+Test if ``%tr`` contains an object reference value.
+
+- ``[0x214]@uvm.tr64.from_fp (%val: double) -> tagref64``
+
+Construct a ``tagref64`` value from a floating point value ``%val``.
+
+- ``[0x215]@uvm.tr64.from_int (%val: int<52>) -> tagref64``
+
+Construct a ``tagref64`` value from an integer value ``%val``.
+
+- ``[0x216]@uvm.tr64.from_ref (%ref: ref<void>, %tag: int<6>) -> tagref64``
+
+Construct a ``tagref64`` value from an object reference ``%ref`` and a tag
+``%tag``.
+
+- ``[0x217]@uvm.tr64.to_fp (%tr: tagref64) -> double``
+
+Extract the floating point value from ``%tr``, assuming ``%tr`` contains a
+floating point value.
+
+- ``[0x218]@uvm.tr64.to_int (%tr: tagref64) -> int<52>``
+
+Extract the integer value from ``%tr``, assuming ``%tr`` contains an integer
+value.
+
+- ``[0x219]@uvm.tr64.to_ref (%tr: tagref64) -> ref<void>``
+
+Extract the object reference from ``%tr``, assuming ``%tr`` contains reference
+value.
+
+- ``[0x21a]@uvm.tr64.to_ref (%tr: tagref64) -> int<6>``
+
+Extract the ``int<6>`` tag accompanying the object reference from ``%tr``,
+assuming ``%tr`` contains reference value.
+
+Math Instructions
+=================
+
+    TODO: Should provide enough math functions to support:
+
+    1. Ordinary arithmetic and logical operations that throw exceptions when
+       overflow. Example: C# in checked mode, ``java.lang.Math.addOvf`` added in
+       Java 1.8.
+    2. Floating point math functions. Example: trigonometric functions, testing
+       NaN, fused multiply-add, ...
+
+Futex Instructions
+==================
+
+Wait
+----
+
+- ``[0x220]@uvm.futex.wait <T> (%loc: iref<T>, %val: T) -> int<64>``
+- ``[0x221]@uvm.futex.wait_timeout <T> (%loc: iref<T>, %val: T, %timeout: int<64>) -> int<64>``
+
+``T`` must be an integer type.
+
+The ``@uvm.futex.wait`` and the ``@uvm.futex.wait_timeout`` instructions verify
+if the memory location ``%loc`` still contains the value ``%val`` and then wait
+on the memory location ``%loc`` until being woken. If ``%loc`` does not
+contain ``%val``, return immediately.
+
+The ``@uvm.futex.wait`` instruction waits indefinitely.
+
+The ``@uvm.futex.wait_timeout`` instruction has an extra ``%timeout`` parameter
+which is a 64-bit unsigned integer that represents a time in nanoseconds. It
+specifies the duration of the wait. This instruction is allowed to spuriously
+wake up before timeout.
+
+It returns a integer which indicates the result of this call:
+
+* 0: the current thread is woken.
+* 1: the memory location ``%loc`` does not contain the value ``%val``.
+* 2: spurious wakeup.
+* 3: timeout during waiting (``@uvm.futex.wait_timeout`` only).
+
+Wake
+----
+
+- ``[0x222]@uvm.futex.wake <T> (%loc: iref<T>, %nthread: int<64>) -> int<64>``
+
+``T`` must be an integer type.
+
+The ``@uvm.futex.wake`` instruction wakes at most ``%nthread`` threads waiting
+on memory location ``%loc``. Return the number of threads woken up.
+
+.. vim: tw=80

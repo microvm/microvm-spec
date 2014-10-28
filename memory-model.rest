@@ -335,7 +335,7 @@ An evaluation A **synchronises with** another evaluation B if:
 
 ..
 
-    NOTE: A thread can be created by the ``@uvm.new_thread`` intrinsic function
+    NOTE: A thread can be created by the ``@uvm.new_thread`` common instruction
     or its equivalent Client API.
 
     NOTE: Since there is no explicit heap memory management in µVM, the

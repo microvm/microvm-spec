@@ -2819,14 +2819,6 @@ The ``SWAPSTACK`` instruction is an OSR point.
 Common Instructions
 ===================
 
-**Common instructions** are a mechanism to extend the µVM IR without adding new
-instructions or changing the grammar. All *common instructions* have the same
-format: an ID, an optional name, a type parameter list, a value parameter list,
-an optional exception clause and an optional keep-alive clause.
-
-    TODO: Move the above description to the `<intrinsic-functions>`__ which will
-    be renamed "common-instructions".
-
 ``COMMINST`` Instruction
 ------------------------
 
@@ -2883,9 +2875,7 @@ instruction must not have an exception clause unless the common instruction can
 continue exceptionally. A ``COMMINST`` instruction must have an empty keep-alive
 clause unless the common instruction is an OSR point.
 
-See `<intrinsic-funcs>`__ for a complete list of common instructions.
-
-    TODO: Move the file to "common-instructions".
+See `<common-insts>`__ for a complete list of common instructions.
 
 ..
 

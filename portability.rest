@@ -186,8 +186,6 @@ control flow is taken.
 
 The availability of ``COMMINST`` is specified in the next section.
 
-    TODO: Rename "intrinsic function" to "common instruction".
-
 In any cases when an error occurs and the control flow is expected to transfer
 to the exceptional control flow, but the exception clause is not supplied, then
 it is an undefined behaviour.
