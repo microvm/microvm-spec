@@ -2,17 +2,259 @@
 The µVM Memory
 ==============
 
+Overview
+========
+
 The µVM supports automatic memory management via garbage collection. There is a
 **heap** which contains garbage-collected **objects** as well as many **stacks**
 and a **global memory** which contain data that are not garbage-collected.
 
-Heap, Stack and Global Memory
-=============================
+The heap memory is managed by the garbage collector.
 
-Object Layout
-=============
+Unlike C or C++, local SSA variables are not bound to memory locations. Stack
+memory must be allocated by the ``ALLOCA`` or ``ALLOCAHYBRID`` instructions or
+using the µVM-Client interface.
 
-TODO: Scalar, structs and arrays.
+This specification does not mandate any object layout, but it is recommended to
+layout common data types as in the platform application binary interface (ABI)
+so that the C foreign function interface is easier to implement.
 
+Basic Concepts
+==============
+
+There are three kinds of memory in the µVM, namely the **heap memory**, the
+**stack memory** and the **global memory**.
+
+Memory is allocated in their respective **allocation units**. Every allocation
+unit has a **lifetime** which begins when the allocation unit is created and
+ends when it is destroyed.
+
+A **memory location** is a region of data storage in the memory which can
+represent a data value. The **lifetime** of a memory location is the same as the
+allocation unit that contains it.
+
+    NOTE: The "object" in the C language is the counterpart of "memory location"
+    in µVM. The µVM does not have bit fields and a memory location is always an
+    "object" in C's sense. The word "object" is a synonym of "heap object" or
+    "garbage-collected object" in the µVM context.
+
+When an allocation unit is destroyed and another allocation unit occupied the
+same or overlapping space as the former, they are different allocation units.
+Different allocation units contain no common memory locations. When a heap
+object is moved by the garbage collector, it is still the same object. Any
+memory locations within the same object remain the same.
+
+    NOTE: This means the memory of the µVM is an abstraction over the memory
+    space of the process. 
+
+Memory Allocation and Deallocation
+==================================
+
+An allocation unit in the heap memory is called a **heap object**, or **object**
+when unambiguous. It is created when executing the ``NEW`` or ``NEWHYBRID``
+instructions or the ``new`` or ``new_hybrid`` API message. It is destroyed when
+the object is collected by the garbage collector.
+
+An allocation unit in the stack memory is called an **alloca cell**. It is
+created when executing the ``ALLOCA`` or ``ALLOCAHYBRID`` instruction or during
+on-stack replacement using API messages. It is destroyed when the stack frame
+containing it is destroyed.
+
+An allocation unit in the global memory is called a **global cell**. One global
+cell is created for every ``.const`` declaration in a bundle submitted to the
+µVM. Global cells are never destroyed.
+
+Initial Values
+--------------
+
+The initial value of any memory location is defined as the following, according
+the type of data value the memory location represents:
+
+* The initial value of ``int`` is 0.
+* The initial value of floating point types is positive zero.
+* The initial value of ``ref``, ``iref``, ``weakref``, ``func``, ``stack``
+  and ``thread`` is ``NULL``.
+* The initial value of ``tagref64`` is a floating point number which is
+  positive zero.
+* The initial values of all fields or elements in ``struct``, ``array`` and
+  the variable part of ``hybrid`` are the initial values according to their
+  respective types.
+
+Garbage Collection
+------------------
+
+A **root** is an object reference or internal reference in any global cell,
+alloca cell, live local SSA variable or the stack in any Client Agent.
+
+An object is **strongly reachable** if it can be reached by traversing only
+strong references from any root. An object is **weakly reachable** if it is not
+strongly reachable, but can be reached by traversing strong and weak references
+from any root. Otherwise an object is **unreachable**.
+
+The garbage collector can collect unreachable objects. It may also modify weak
+references which refers to a weakly reachable object to ``NULL``.
+
+    NOTE: Doing the latter may make weakly reachable objects become unreachable.
+
+The garbage collector may move objects.
+
+Memory Accessing
+================
+
+To **load** means to copy data from the memory. To **store** is to copy data to
+the memory. To **access** is to load or store. A load operation **sees** the
+value it copied.
+
+    NOTE: The concrete instructions are named in capital letters: LOAD and
+    STORE. The abstract operations are in lower case: load, store and
+    access. The CMPXCHG instruction and the ATOMICRMW instruction may perform
+    both a load and a store operation.
+
+Memory access operations can be performed by some µVM instructions (see
+`<instruction-set>`__, the µVM-Client API messages (see
+`<uvm-client-interface>`__) or other implementation-specific ways.
+
+    NOTE: Since the µVM may interoperate with external entities, including
+    external libraries, the operating system or other non-µVM threads, the
+    memory model (see `<memory-model>`__) should be extended by a concrete
+    implementation to make meaningful programs that include external entities.
+
+Two memory accesses **conflict** if one stores to a memory location and the
+other loads from or stores to the same memory location.
+
+The result of µVM memory access operations are defined by the µVM memory model.
+See `<memory-model>`__.
+
+Memory Data Layout
+==================
+
+The way how data of any type are represented in the memory is
+implementation-defined. It is recommended to use the layout defined by the
+application binary interface of the platform in order to allow data exchange via
+the foreign function interface implementation.
+
+The µVM has some reference rules introduced later, which may affect the memory
+data layout.
+
+Reference Rules
+===============
+
+Every memory location has an associated type bound when the memory location is
+created and cannot be changed. The memory location can only hold values of that
+type.
+
+    NOTE: The association between memory location and type is conceptual. This
+    does not mean the µVM implementation has to keep a metadata of the type of
+    all memory locations at runtime. The implementation only needs to keep
+    enough metadata to implement its garbage collector.
+
+A memory location has a **beginning** and an **end**. The value it holds is
+represented in that region.
+
+A non-NULL internal reference of type *T* refers to a memory location of
+type *T*. It can be **cast** to an internal reference of type *T2* and the
+memory location of the new internal reference has the same beginning as the old
+internal reference.
+
+Prefix Rule
+-----------
+
+    NOTE: The prefix rule is design to support having common language-specific
+    object headers in objects. It also supports inheritance in object-oriented
+    programming where a superclass is a prefix of a subclass.
+
+Some type **is a prefix** of another type. In this case, they have **shared
+components**. A component of a type is the whole type or a part of it if it is a
+composite type.
+
+*T1* is a prefix of *T2* if any of the following is true, and their shared
+components are defined accordingly:
+
++ *T1* and *T2* are the same type.
+
+  - *T1* is a shared component with *T2*.
+
++ *T1* is ``void``.
+
+  - They have no shared components.
+
++ *T1* is any type *T* and *T2* is ``struct<SEQ>`` where *T* is the first type
+  in the type sequence *SEQ*.
+
+  - *T1* is a shared component with the first field of *T2*.
+
++ *T1* is any type *T* and *T2* is ``hybrid<T U>``.
+
+  - *T1* is a shared component with the fixed part of *T2*.
+
++ *T1* is any type *T* and *T2* is ``array<T n>`` or ``vector<T n>`` and n >=
+  1.
+
+  - *T1* is a shared component with the first element of *T2*.
+
++ There is a type *T3* so that *T1* is a prefix of *T3* and *T3* is a prefix of
+  *T2*.
+
+  - The shared components between *T1* and *T2* are their mutual shared components
+    with *T3*.
+
+..
+
+    Example:
+    
+    * ``float`` is a prefix of ``struct <float double>``
+    * ``float`` is a prefix of ``hybrid <float int<8>>``
+    * ``float`` is a prefix of ``array <float 10>``
+    * ``float`` is a prefix of ``vector <float 4>``
+    * ``float`` is a prefix of ``struct <struct <float double> int<32>>``
+
+    However, ``struct<float float>`` is not a prefix of ``struct<float float
+    double>``. The two types may be aligned differently.
+
+    ``vector<float 4>`` is a prefix of ``array<vector<float 4> 10``, but not a
+    prefix of ``array<float 40>`` because vectors have stricter alignment
+    requirements than scalar types.
+
+If all of the following are true:
+
+* There is a memory location *M* which represents value of type *T2*, and,
+* there is a type *T1* and *T1* is a prefix of *T2*, and,
+* *r1* is a value of ``iref<T1>`` and refers to memory location *M1*, and,
+* *r2* is a value of ``iref<T2>`` and refers to memory location *M*, and,
+* *M1* and *M* have the same beginning, and,
+* *rc1* is an internal reference derived from *r1*, and,
+* *rc2* is an internal reference derived from *r2*, and,
+* *rc1* and *rc2* refer to a shared component between *T1* and *T2*,
+
+then *rc1* and *rc2* refer to the same memory location.
+
+Array Rule
+----------
+
+A **memory array** is defined as a contiguous memory location of components of
+the same type. The ``array`` type, the ``vector`` type as well as the variable
+part of a ``hybrid`` are all represented in the memory as memory arrays.
+
+Nested ``array``, ``vector`` and variable part of ``hybrid`` can be considered
+as a single memory array with the innermost element type of the nested type as
+the element type.
+
+    Example: The variable part of ``hybrid<void array<array<vector<float 4> 10
+    20>>`` can be treated as:
+
+    + a memory array of ``float``, or,
+    + a memory array of ``vector<float 4>``, or
+    + a memory array of ``array<vector<float 4> 10>``, or
+    + a memory array of ``array<array<vector<float 4> 10> 20>``, or
+
+Internal references to an element of a memory array can be shifted to other
+elements in the same memory array using the ``SHIFTIREF`` instruction.
+
+    NOTE: ``SHIFTREF`` may cross the boundary of µVM types, but still remain in
+    the memory array. For example, an internal reference to the first ``float``
+    in the ``array<array<float 10> 10>`` array, which is a 10x10 matrix of
+    float, can be shifted to other rows using the ``SHIFTIREF`` instruction and
+    cross the 10-element boundary. Shifting by 12 elements from element (0,0)
+    will reach the element at (1,2).
 
 .. vim: tw=80

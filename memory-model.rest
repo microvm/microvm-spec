@@ -34,7 +34,7 @@ allows the µVM implementation and the processor to maximise the throughput whil
 relying on the programmer to correctly synchronise their programs.
 
 Notable differences from C11
-============================
+----------------------------
 
 The program order in the µVM is a total order while the sequenced-before
 relationship in C is a partial order, because there are unspecified order of
@@ -49,7 +49,7 @@ set of µVM rather than the library. Mutex locks, however, have to be implemente
 on top of this memory model.
 
 Notable differences from LLVM
-=============================
+-----------------------------
 
 LLVM does not guarantee that all atomic writes to a memory location has a total
 order unless using ``monotonic`` or stronger memory order. It provides an
@@ -67,116 +67,17 @@ Concepts
 ========
 
 data value
-    A data value is an instance of a µVM type. Data values can (but do not have
-    to) be represented as a sequence of bytes.
+    See `<type-system>`__
 
-        NOTE: For example, ``int<1>`` is usually used as conditional flags. In a
-        realistic implementation, it may represent a flag in some CPU state
-        words.
+SSA variable, instruction and evaluation
+    See `<instruction-set>`__
 
-        NOTE: The use of the word "data" is to disambiguate from "SSA value"
-        used in some literature.
-
-SSA variable and evaluation
-    An SSA variable holds a data value. It is defined by either a declared
-    constant, a global memory reference, a function, a parameter or an
-    instruction.
-    
-    The execution of an instruction is called an **evaluation**. An evaluation
-    determines the data value associated to an instruction and this process is
-    called **value computation**. Accessing the memory or changing the state of
-    the execution environment is called **side effect**. An evaluation may have
-    side effects.
-
-        NOTE: Older µVM documents uses the word "SSA value" and LLVM also uses
-        "SSA value" informally. They mean the same thing. The use of word "SSA"
-        before "variable" is to emphasise that the value is assigned exactly in
-        one place, unlike in most programming languages.
-
-    TODO: The definition of data value and SSA variable should be moved to their
-    respective chapters.
-
-memory and allocation unit
-    There are three kinds of memory in the µVM, namely the **heap memory**, the
-    **stack memory** and the **global memory**.
-    
-    Memory is allocated in their respective **allocation units**.
-    
-    - An allocation unit in the heap memory is called a **heap object**, or
-      **object** when unambiguous. It is created when executing the ``NEW`` or
-      ``NEWHYBRID`` instructions or their equivalent Client API.  It is
-      destroyed when it becomes unreachable from garbage collection roots.
-    - An allocation unit in the stack memory is called an **alloca cell**. It is
-      created when executing the ``ALLOCA`` or ``ALLOCAHYBRID`` instruction or
-      their equivalent Client API. It is destroyed when the stack frame
-      containing it is destroyed.
-    - An allocation unit in the global memory is called a **global cell**. One
-      global cell is created for every ``.const`` declaration in a bundle
-      submitted to the µVM. Global cells are never destroyed.
-
-    The **lifetime** of an allocation unit begins when it is created and ends
-    when it is destroyed. When an allocation unit is destroyed and another
-    allocation unit occupied the same or overlapping space as the former, they
-    are different allocation units.
-
-    When a heap object is moved by the garbage collector, it is still the same
-    object.
-
-memory location
-    A memory location is a region of data storage in the memory which can
-    represent a data value.
-
-    The **lifetime** of a memory location is the same as the allocation unit
-    that contains it. Different allocation units contain no common memory
-    locations.
-    
-    When a heap object is moved by the garbage collector, any memory locations
-    within it remain the same.
-
-        NOTE: The "object" in the C language is the counterpart of "memory
-        location" in µVM. The µVM does not have bit fields and a memory location
-        is always an "object" in C's sense. To avoid the ambiguity of "object"
-        which means a "heap object" in the µVM context, "memory location" is
-        always used when referring to the memory.
-
-        NOTE: SSA variables in the µVM do not have memory locations, even
-        though they may be spilled by the register allocator. For this reason,
-        local variables that can be updated via reference should be allocated
-        using ``ALLOCA``.
-
-load, store and access
-    To **load** is to copy data from an SSA variable to the memory. To **store**
-    is to copy data from the memory to an SSA variable. To **access** is to load
-    or store.
-
-    A load operation **sees** a value if that value is moved to the SSA
-    variable.
-
-        NOTE: The concrete instructions are named in capital letters: LOAD and
-        STORE. The abstract operations are in lower case: load, store and
-        access.
-
-initial value
-    The initial value of any memory location is defined as the following,
-    according the type of data value the memory location represents:
-
-    * The initial value of ``int`` is 0.
-    * The initial value of floating point types is positive zero.
-    * The initial value of ``ref``, ``iref``, ``weakref``, ``func``, ``stack``
-      and ``thread`` is ``NULL``.
-    * The initial value of ``tagref64`` is a floating point number which is
-      positive zero.
-    * The initial values of all fields or elements in ``struct``, ``array`` and
-      the variable part of ``hybrid`` are the initial values according to their
-      respective types.
-
-conflict
-    Two memory accesses conflict if one stores to a memory location and the
-    other loads from or stores to the same location.
+memory, initial value, load, store, access and conflict
+    See `<uvm-memory>`__
 
 thread
-    A thread is the unit of CPU scheduling. In this memory model, a thread is
-    not limited to a µVM thread.
+    A thread is the unit of CPU scheduling. In this memory model, threads
+    include but are not limited to µVM threads.
 
 Comparison of Terminology
 -------------------------
@@ -388,11 +289,14 @@ a dependency from* A, if:
     NOTE: Operations involving ``struct`` types in the µVM may be implemented as
     no-ops. Consider the following::
 
-        .type @A = struct <int<64> int<64>>
-        .const @A_ZERO <@A> = {0 0}
+        .typedef @i64 = int<64>
+        .const @I64_0 <@i64> = 0
 
-        %v = LOAD CONSUME <int<64>> %some_memory_location
-        %x = INSERTVALUE <@A 0> @A_ZERO %v      // {%v 0}
+        .type @A = struct <@i64 @i64>
+        .const @A_ZERO <@A> = {@I64_0 @I64_0}
+
+        %v = LOAD CONSUME <@i64> %some_memory_location
+        %x = INSERTVALUE  <@A 0> @A_ZERO %v     // {%v 0}
         %y = EXTRACTVALUE <@A 0> %x             // %v
         %z = EXTRACTVALUE <@A 1> %x             // 0
 
