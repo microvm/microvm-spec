@@ -1122,6 +1122,9 @@ have any exception clause and is not an OSR point.
     NOTE: ``TAILCALL`` is semantically similar to calling a function and
     immediately return the returned value, but reuses the current frame.
 
+If the callee is not defined, the Client will handle this by defining the
+function. After returning from the Client, this instruction will be tried again.
+
 ..
 
     For LLVM users:
@@ -1137,7 +1140,7 @@ have any exception clause and is not an OSR point.
       function calls.
     - Arguments will not be automatically zero or sign-extended or truncated for
       the programmer. Conversions must be explicitly done before calling.  
-    - The ``func`` type in µVM is a dedicated function reference, not a pointer.  
+    - The ``func`` type in µVM is a dedicated function reference, not a pointer. 
     - All parameters are passed by value and parameters are SSA Values. To pass
       on-stack data or arrays, use ``alloca`` and pass ``iref``.  
     - The keep-alive clause is unique to µVM for OSR.
@@ -2638,15 +2641,14 @@ return value:
 | 0xE0 | sig | func | argList | excClause |
 +------+-----+------+---------+-----------+
 
-The ``NEWSTACK`` instruction creates a new stack with a new stack frame for the
-*func* function with arguments of *argList*.
-
-The new stack is in the **READY<void>** state. When a thread is bound to this
-newly created stack, it will start execution at the beginning of the *func*
-function.
+The ``NEWSTACK`` instruction creates a new stack with *func* as the stack-bottom
+function and *argList* as its arguments.
 
 This instruction continues exceptionally if the µVM cannot allocate the new
 stack. 
+
+If the callee is not defined, the Client will handle this by defining the
+function. After returning from the Client, this instruction will be tried again.
 
     For LLVM users: There is no native facilities provided by the official LLVM,
     but `Dolan, Muralidharan and Gregg
@@ -2741,9 +2743,6 @@ keepAliveClause
 
 The ``SWAPSTACK`` instruction unbinds the current thread with the current stack
 and rebinds it to another stack *swappee*.
-
-In a SWAPSTACK operation, the current stack is called the **swapper** and the
-stack to swap to is called the **swappee**.
 
 If the *curStackClause* is ``RET_WITH``, then the swapper will enter the
 ``READY<T1>`` state. If the *curStackClause* is ``KILL_OLD``, then the swapper

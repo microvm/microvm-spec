@@ -87,10 +87,10 @@ Names and Identifiers
 ---------------------
 
 Many entities in the µVM are **identified**. An identified entity has an
-identifiers (ID) and optionally a name.  An identifier (ID) is a 32-bit integer.
+identifiers (ID) and optionally a name. An identifier (ID) is a 32-bit integer.
 A name is a string starting with a ``@`` or a ``%`` and followed by many
-characters in the set: ``[0-9a-zA-Z_-.]``. Both, if present, uniquely identifies
-an **identified** entity.
+characters in the set: ``[0-9a-zA-Z_-.]``. An ID uniquely identifies an
+*identified* entity. A name also uniquely identifies an *identified* entity.
 
     NOTE: This specification does not define what is an "entity". An English
     dictionary would define "entity" as "a thing with distinct and independent
@@ -470,6 +470,8 @@ where:
 * ``Params`` is a list of names for the formal parameter list, and
 * ``Body`` is a sequence of instructions, constants and labels.
 
+A version of function is an identified entity.
+
 ..
 
     NOTE: The version is required for each definition. Although calling a
@@ -586,7 +588,7 @@ which is one of the following:
   - ``NEW``, ``NEWHYBRID``, ``ALLOCA``, ``ALLOCAHYBRID``
   - ``LOAD``, ``STORE``, ``CMPXCHG``, ``ATOMICRMW``
   - ``TRAP``, ``WATCHPOINT``
-  - ``NEWSTACK``
+  - ``NEWSTACK``, ``SWAPSTACK``
   - Some common instructions via the generic ``COMMINST`` instruction
 
 - ``BRANCH``, ``BRANCH2``, ``SWITCH``

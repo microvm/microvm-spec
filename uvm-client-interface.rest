@@ -2,74 +2,221 @@
 µVM-Client Interface
 ====================
 
-This page defines the abstract interface between the µVM and the Client,
-including messages, call-backs, signals and so on. Because how a µVM is
-implemented is not defined by this specification, the concrete interface (i.e.
-the concrete API in high-level languages) of particular µVM implementations may
-vary. 
+    NOTE: Cleaning-up in progress...
 
-To reduce confusion, in this article, "message" means a message sent from the
+Overview
+========
+
+This chapter defines the **µVM-Client API**, or "the API", the abstract
+interface between the µVM and the Client, including messages, call-backs,
+signals and so on. Because how a µVM is implemented is not defined by this
+specification, the concrete interface (i.e.  the concrete API in high-level
+languages) of particular µVM implementations may vary. 
+
+To reduce confusion, in this chapter, "message" means a message sent from the
 client to the µVM. "call-back" means a message sent from the µVM to the client.
 Both are synchronous, means the caller should wait for the callee to finish,
 unless explicitly specified as "asynchronous".
 
 How to register those call-backs is implementation-specific. How messages and
 call-backs are represented is implementation-specific. How parameters and return
-values are represented is implementation-specific.
+values are represented is implementation-specific. Parameters may not literally
+match the parameters defined in this chapter.
 
-NOTE: They may be represented as classes, objects, methods, delegates, events,
-signals, interfaces, actor messages, functions and so on, depending on whether
-the implementation uses object-oriented, actor-based, functional, procedural or
-other kinds of programming languages.
+    NOTE: For example, if a message expects a list as an argument, a Client in
+    the C language can pass a pointer and a length to indicate a slice of an
+    array while a Client in Haskell can pass a List which is a linked list.
 
-A "handle" is something that the client can use to refer to some object in the
-µVM. This can be implemented in whatever way convenient to the implementation.
+    NOTE: They may be represented as classes, objects, methods, delegates,
+    events, signals, interfaces, actor messages, functions and so on, depending
+    on whether the implementation uses object-oriented, actor-based, functional,
+    procedural or other kinds of programming languages.
 
-Start-up
-========
+The µVM provides interfaces for the Client to load bundles and manipulate the
+state of the µVM, including creating stacks and threads, allocating objects,
+accessing memory and manipulating stacks and frames.
 
-How to start a µVM and/or a client is implementation-specific.
+The Client interacts with the µVM through Client Agents. A Client Agent
+maintains a stack (not µVM stack) of µVM values, including references, so that
+the Client can operate on µVM stacks without holding raw pointers into the µVM
+memory. The Client also allocates memory via Client Agents. Client Agents
+are supposed to be used by a single Client thread at a time.
+
+    NOTE: The stack-based interface is inspired by Lua 4.0 and later. This has
+    two benefits: 1) The Client API no longer has to provide data types for µVM
+    types in the language the Client is implemented in. The Client can simply
+    address µVM values using indices to the Client Agent stack. 2) Garbage
+    collection roots from the Client are those references in the Client Agent
+    stack. It is not needed to pin objects which are held by the Client or ask
+    the Client for a list of mutable pointers which the garbage collector can
+    trace and update.
+
+    NOTE: Implementations may reserve local memory blocks in Client Agents so
+    the Client can allocate objects in the heap concurrently and efficiently
+    using multiple Client Agents.
+
+Basic µVM Operations
+====================
+
+Starting Up and Shutting Down
+-----------------------------
+
+How to start a µVM and/or a Client is implementation-specific.
 
 In the beginning, whether there are existing types, signatures, constants,
-global values or functions already defined or declared, or µVM stacks or no µVM
+global cells or functions already defined or declared, or µVM stacks or µVM
 threads already created is implementation-specific.
 
+How to stop a µVM and/or a Client is implementation-specific. Stopping a µVM
+implies stopping all µVM threads in it.
+
 µVM IR Code Loading
-===================
+-------------------
 
-µVM IR code is provided by the client. It is delivered in the unit of bundles.
-A bundle consists of many type definitions, function signature definitions,
-constant definitions, global data definitions, function declarations and
-function definitions, which are collectively called top-level definitions. See
-`uVM IR <uvm-ir>`__ for more details. 
+The Client delivers µVM IR code in the unit of **bundles** (see `<uvm-ir>`__).
 
-How a bundle is delivered from the client to the µVM is implementation-specific.
+The API provides a ``load_bundle`` message, but the concrete way how a bundle is
+delivered from the client to the µVM is implementation-specific.
 
 Multiple bundles can be sequentially delivered to the µVM. If the µVM implements
 parallel bundle delivery, the result must be equivalent to as if they were
 delivered in a specific sequence.
 
-In a bundle, if a types, function signatures, constants, global data or function
-declaration has the same ID or name as any existing top-level definitions
-defined in previous bundles, it is an error.
+In a bundle, if any identified entity except function definition has the same ID
+or name as any existing identified entities defined in previous bundles, it is
+an error.
 
-.. _func-redef:
+If a function definition has the same ID and name as a previous function
+definition or function declaration, it must also have the same function
+signature and the new function definition **redefines** the previous function
+definition or declaration. If the signatures are different or the ID or name is
+the same as any identified entities other than function definitions or function
+declarations, it is an error.
 
-If a function definition has the ID as a previous function definition or
-function declaration, it must also have the same function signature and the new
-function definition **redefines** the previous function definition or
-declaration. If the signatures are different, it is an error.
+After a function definition redefines another function definition or
+declaration, subsequent calls to the function will call the newly defined
+version of the function.
 
-When a function definition redefines another function definition or declaration,
-all existing call sites to the previously defined or undefined function now
-calls the newly defined function.
+All existing activations of any functions remain unchanged, that is, they remain
+to be the old versions of the functions. 
 
-All existing activations of any functions remain unchanged. Only new calls will
-activate the new version. IDs of function-local entities, including parameters,
-basic blocks and instructions, cannot be reused, hence old IDs of them still
-refer to them in the old version of functions. Specifically, traps can still
-introspect stack frames of functions of old versions using old IDs of
-instructions.
+    NOTE: Specifically, existing traps in older versions of functions remain
+    valid. During OSR, redefining a function will not affect any existing
+    function activations unless they are explicitly popped by the Client.
+
+Client Agents
+=============
+
+The ``new_agent`` Message
+-------------------------
+
+A Client Agent can be created using the ``new_agent`` message to the µVM.
+
+- receiver: µVM
+- message: ``new_agent``
+- parameters: None
+- return value: A Client Agent
+
+This message gives the Client a handle to a Client Agent.
+
+    Example Java signature: ``ClientAgent MicroVM.newAgent()``
+
+    Example C signature: ``int new_agent()`` where the µVM instance is implicit
+    and the return value is an integer handle to the Client Agent.
+
+    Example C signature: ``client_agent *new_agent(microvm *vm)`` where the
+    µVM instance and the Client Agent are represented as pointers.
+
+The ``close_agent`` Message
+---------------------------
+
+- receiver: Client Agent
+- message: ``close_agent``
+- parameters: None
+- return value: None
+- stack: Not changed
+
+This message closes a Client Agent, destroying the Client Agent stack. The µVM
+implementation may release resources reserved by the Client Agent. Closed Client
+Agents cannot be used again.
+
+    Example Java signature: ``void ClientAgent.close()``
+
+    Example C signature: ``void close_agent(int agent_id)``
+
+    Example C signature: ``void close_agent(client_agent *agent)``
+
+Bundle Loading
+==============
+
+The ``load_bundle`` Message
+---------------------------
+
+- receiver: µVM
+- message: ``load_bundle``
+- parameters:
+
+  + ``bundle``: µVM IR bundle
+
+- return value: None
+- stack: Not changed
+
+Load the µVM IR bundle ``bundle`` into the µVM.
+
+    Example Java signatures::
+
+        void MicroVM.loadBundleText  (File bundle)
+        void MicroVM.loadBundleText  (String bundle)
+        void MicroVM.loadBundleBinary(File bundle)
+        void MicroVM.loadBundleBinary(byte[] bundle)
+        void MicroVM.loadBundleBinary(byte[] bundle, int start, int length)
+
+    Example C signatures::
+
+        void load_bundle_text_from_fd    (microvm *vm, int bundle)
+        void load_bundle_text_from_file  (microvm *vm, FILE *bundle)
+        void load_bundle_text_from_str   (microvm *vm, char *bundle)
+        void load_bundle_binary_from_fd  (microvm *vm, int bundle)
+        void load_bundle_binary_from_file(microvm *vm, FILE *bundle)
+        void load_bundle_binary_from_buf (microvm *vm, char *bundle, int length)
+
+Client Agent Stack Operations
+=============================
+
+There is a stack of µVM values in a Client Agent. Elements are addressed by an
+integer. Positive integers address elements from the bottom of the stack where 0
+refers to the element at the bottom and 0+n refers to the n-th element above the
+bottom element. Negative integers addresses elements from the top of the stack
+where -1 refers to the top element and -1-n refers to the n-th element below the
+top element. All elements are accessible.
+
+The Client Agent stack is initially empty.
+
+Accessing non-existing elements has undefined behaviour. Operations on stack
+elements which do not have the expected types has undefined behaviour.
+Operations which depends on stack-top elements but either the elements do not
+exist or they do not have the expected types have undefined behaviours.
+
+The ``push_value`` Message
+--------------------------
+
+- receiver: Client Agent
+- message: ``push_value``
+- parameters:
+
+  + ``uvm_type``: the µVM type of the value
+  + ``val``: the value represented in the Client language.
+
+- return value: None
+- stack:
+
+  + before: ...
+  + after: ..., ``new_val``
+
+Convert a Client value ``val`` to a µVM value of type ``uvm_type`` and push the
+new value ``new_val`` on the Client Agent stack.
+
+    Example: TODO
 
 Stack and Thread Creation
 =========================
