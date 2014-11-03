@@ -8,39 +8,38 @@ Overview
 ========
 
 This chapter defines the **µVM-Client API**, or "the API", the abstract
-interface between the µVM and the Client, including messages, call-backs,
-signals and so on. Because how a µVM is implemented is not defined by this
-specification, the concrete interface (i.e.  the concrete API in high-level
-languages) of particular µVM implementations may vary. 
+interface between the µVM and the Client. This API is defined in an
+object-oriented style using *receivers*, *messages*, *parameters* and *return
+values*. The concrete µVM implementation can implement this API using the
+preferred style (procedural, functional, object-oriented, message passing and so
+on) of the language the Client is implemented in.
 
-To reduce confusion, in this chapter, "message" means a message sent from the
-client to the µVM. "call-back" means a message sent from the µVM to the client.
-Both are synchronous, means the caller should wait for the callee to finish,
-unless explicitly specified as "asynchronous".
+To reduce confusion, in this chapter, "**message**" means a message sent from
+the Client to the µVM. "**call-back**" means a message sent from the µVM to the
+Client. Both are synchronous, means the sender should wait for the receiver to
+finish, unless explicitly specified as "asynchronous".
 
-How to register those call-backs is implementation-specific. How messages and
-call-backs are represented is implementation-specific. How parameters and return
-values are represented is implementation-specific. Parameters may not literally
-match the parameters defined in this chapter.
+Although call-backs are defined in this chapter, how to register those
+call-backs to the µVM is implementation-specific. How messages and call-backs
+are represented is implementation-specific. How parameters and return values are
+represented is implementation-specific. Parameters may not literally match the
+parameters defined in this chapter.
 
     NOTE: For example, if a message expects a list as an argument, a Client in
     the C language can pass a pointer and a length to indicate a slice of an
     array while a Client in Haskell can pass a List which is a linked list.
 
-    NOTE: They may be represented as classes, objects, methods, delegates,
-    events, signals, interfaces, actor messages, functions and so on, depending
-    on whether the implementation uses object-oriented, actor-based, functional,
-    procedural or other kinds of programming languages.
-
 The µVM provides interfaces for the Client to load bundles and manipulate the
 state of the µVM, including creating stacks and threads, allocating objects,
 accessing memory and manipulating stacks and frames.
 
-The Client interacts with the µVM through Client Agents. A Client Agent
-maintains a stack (not µVM stack) of µVM values, including references, so that
-the Client can operate on µVM stacks without holding raw pointers into the µVM
-memory. The Client also allocates memory via Client Agents. Client Agents
-are supposed to be used by a single Client thread at a time.
+The Client interacts with the µVM for some certain tasks through Client Agents.
+A Client Agent maintains a stack (not µVM stack) of µVM values, including
+references, so that the Client can operate on µVM stacks without holding raw
+pointers into the µVM memory. The Client also allocates memory via Client
+Agents. Client Agents are supposed to be used by a single Client thread at a
+time, but the Client can have multiple Client Agents at the same time and use
+them concurrently.
 
     NOTE: The stack-based interface is inspired by Lua 4.0 and later. This has
     two benefits: 1) The Client API no longer has to provide data types for µVM
@@ -53,7 +52,17 @@ are supposed to be used by a single Client thread at a time.
 
     NOTE: Implementations may reserve local memory blocks in Client Agents so
     the Client can allocate objects in the heap concurrently and efficiently
-    using multiple Client Agents.
+    using multiple Client Agents. This is similar to thread-local memory
+    allocators in garbage collectors that support parallel mutators.  
+
+..
+
+    For Lua users: The Client Agent is the counterpart of ``lua_State``. Both
+    maintain stacks in order to segregate Lua or µVM types and garbage
+    collection from the C or Client world. However, µVM Client Agents can also
+    access the µVM memory (heap, stack or global) which is shared between
+    multiple Client Agents as well as multiple µVM Threads running concurrently
+    in the same µVM instance. In Lua, ``lua_State`` instances are isolated.
 
 Basic µVM Operations
 ====================
@@ -76,7 +85,7 @@ implies stopping all µVM threads in it.
 The Client delivers µVM IR code in the unit of **bundles** (see `<uvm-ir>`__).
 
 The API provides a ``load_bundle`` message, but the concrete way how a bundle is
-delivered from the client to the µVM is implementation-specific.
+delivered from the Client to the µVM is implementation-specific.
 
 Multiple bundles can be sequentially delivered to the µVM. If the µVM implements
 parallel bundle delivery, the result must be equivalent to as if they were
@@ -117,7 +126,12 @@ A Client Agent can be created using the ``new_agent`` message to the µVM.
 - parameters: None
 - return value: A Client Agent
 
-This message gives the Client a handle to a Client Agent.
+This message creates a Client Agent and returns a handle to it.
+
+    For Lua users: This is similar to ``lua_newstate``, but multiple Client
+    Agents share the µVM memory and can be used concurrently.
+
+..
 
     Example Java signature: ``ClientAgent MicroVM.newAgent()``
 
@@ -139,6 +153,10 @@ The ``close_agent`` Message
 This message closes a Client Agent, destroying the Client Agent stack. The µVM
 implementation may release resources reserved by the Client Agent. Closed Client
 Agents cannot be used again.
+
+    For Lua users: This is similar to ``lua_close``.
+
+..
 
     Example Java signature: ``void ClientAgent.close()``
 
@@ -163,11 +181,19 @@ The ``load_bundle`` Message
 
 Load the µVM IR bundle ``bundle`` into the µVM.
 
+    For Lua users: This is similar to ``lua_load``, but a µVM bundle itself is
+    not an executable thing like a Lua top-level function. It is loaded by µVM,
+    not Client Agent.
+
+..
+
     Example Java signatures::
 
         void MicroVM.loadBundleText  (File bundle)
+        void MicroVM.loadBundleText  (Reader bundle)
         void MicroVM.loadBundleText  (String bundle)
         void MicroVM.loadBundleBinary(File bundle)
+        void MicroVM.loadBundleBinary(InputStream bundle)
         void MicroVM.loadBundleBinary(byte[] bundle)
         void MicroVM.loadBundleBinary(byte[] bundle, int start, int length)
 
@@ -197,11 +223,11 @@ elements which do not have the expected types has undefined behaviour.
 Operations which depends on stack-top elements but either the elements do not
 exist or they do not have the expected types have undefined behaviours.
 
-The ``push_value`` Message
---------------------------
+The ``push_primitive`` Message
+------------------------------
 
 - receiver: Client Agent
-- message: ``push_value``
+- message: ``push_primitive``
 - parameters:
 
   + ``uvm_type``: the µVM type of the value
@@ -213,13 +239,284 @@ The ``push_value`` Message
   + before: ...
   + after: ..., ``new_val``
 
+This message is only applicable for **integer types** and **floating point
+types**.
+
 Convert a Client value ``val`` to a µVM value of type ``uvm_type`` and push the
 new value ``new_val`` on the Client Agent stack.
 
-    Example: TODO
+For the case where the ``val`` is an integer and ``uvm_type`` is an integer
+type, if the Client value ``val`` is shorter than the µVM type ``uvm_type``, the
+API implementation should provide two versions of this message for zero
+extension and sign extension. If the Client value ``val`` is longer than the µVM
+type ``uvm_type``, it will be truncated.
 
+    For Lua users: This is the counterpart of ``lua_pushnumber``,
+    ``lua_pushboolean``, ``lua_pushinteger``, ``lua_pushstring`` and so on. But
+    the µVM has much fewer primitive data types.
+
+..
+
+    Example Java signatures::
+
+        void ClientAgent.pushByte  (int typeID, byte val)
+        void ClientAgent.pushShort (int typeID, short val)
+        void ClientAgent.pushInt   (int typeID, int val)
+        void ClientAgent.pushLong  (int typeID, long val)
+        void ClientAgent.pushFloat (int typeID, float val)
+        void ClientAgent.pushDouble(int typeID, double val)
+        void ClientAgent.pushBigInt(int typeID, BigInteger val)
+
+        void ClientAgent.pushByte  (int typeID, byte val, boolean signExt)
+        void ClientAgent.pushShort (int typeID, byte val, boolean signExt)
+        ...
+
+    Example Java usage::
+
+        ClientAgent ca = ...;
+        ca.pushInt (idOf("@i32"), 0x12345678);
+        ca.pushLong(idOf("@i64"), 0x123456789abcdef0L);
+        ca.pushInt (idOf("@i64"), 0x12345678, false);       // zero extended
+        ca.pushInt (idOf("@i64"), 0x12345678, true);        // sign extended
+        ca.pushLong(idOf("@i32"), 0xfedcba9876543210L);     // truncated to 0x76543210
+
+        ca.pushBigInt(idOf("@i128"), new BigInteger("12233445566778899aabbccddeeff001", 16));
+
+    Example C signatures::
+
+        void push_schar (client_agent_t *ca, int type_id, signed char val)
+        void push_uchar (client_agent_t *ca, int type_id, unsigned char val)
+        void push_short (client_agent_t *ca, int type_id, short val)
+        void push_ushort(client_agent_t *ca, int type_id, unsigned short val)
+        void push_int   (client_agent_t *ca, int type_id, int val)
+        void push_uint  (client_agent_t *ca, int type_id, unsigned int val)
+        void push_long  (client_agent_t *ca, int type_id, long val)
+        void push_ulong (client_agent_t *ca, int type_id, unsigned long val)
+        void push_longlong  (client_agent_t *ca, int type_id, long long val)
+        void push_ulonglong (client_agent_t *ca, int type_id, unsigned long long val)
+        void push_ulonglong (client_agent_t *ca, int type_id, unsigned long long val)
+        void push_float (client_agent_t *ca, int type_id, float val)
+        void push_double(client_agent_t *ca, int type_id, double val)
+
+    Example C usage::
+
+        client_agent_t *ca = ...;
+        push_int (ca, id_of("@i32"), 42);
+        push_long(ca, id_of("@i64"), 42L);
+        push_int (ca, id_of("@i64"), 42);       // sign extended
+        push_uint(ca, id_of("@i64"), 42U);      // zero extended
+        push_long(ca, id_of("@i32"), 42L);      // truncated
+
+The ``push_value`` message
+--------------------------
+
+- receiver: Client Agent
+- message: ``push_value``
+- parameters:
+
+  + ``index``: the index, in the current stack, of the value to copy
+
+- return value: None
+- stack:
+
+  + before: ...
+  + after: ..., ``val``
+
+The ``push_value`` message copies the value at ``index`` in the stack of the
+current Client Agent to the top of the stack as ``val``.
+
+    For Lua users: This is the counterpart of the ``lua_pushvalue`` function.
+
+..
+
+    Example Java signature: ``void ClientAgent.pushValue(int index)``
+
+    Example C signature: ``void push_value(client_agent_t *ca, int index)``
+
+The ``push_constant`` message
+-----------------------------
+
+- receiver: Client Agent
+- message: ``push_constant``
+- parameters:
+
+  + ``id``: the ID of the constant
+
+- return value: None
+- stack:
+
+  + before: ...
+  + after: ..., ``val``
+
+The ``push_constant`` message pushes a µVM constant identified by ``id`` to the
+top of the stack as ``val``.
+
+    For Lua users: Lua does not have declared constants, but this is similar to
+    the ``lua_getglobal`` function where the global value is assigned by a
+    constant.
+
+..
+
+    Example Java signature: ``void ClientAgent.pushConstant(int id)``
+
+    Example C signature: ``void push_constant(client_agent_t *ca, int id)``
+
+The ``push_global`` message
+---------------------------
+
+- receiver: Client Agent
+- message: ``push_global``
+- parameters:
+
+  + ``id``: the ID of the global cell
+
+- return value: None
+- stack:
+
+  + before: ...
+  + after: ..., ``val``
+
+The ``push_global`` message pushes an internal reference to a global cell
+identified by ``id`` to the top of the stack as ``val``.
+
+    For Lua users: This is the counterpart of the ``lua_getglobal`` function,
+    but "global cells" in the µVM are memory locations while Lua global values
+    are values.
+
+..
+
+    Example Java signature: ``void ClientAgent.pushGlobal(int id)``
+
+    Example C signature: ``void push_global(client_agent_t *ca, int id)``
+
+The ``push_function`` message
+-----------------------------
+
+- receiver: Client Agent
+- message: ``push_function``
+- parameters:
+
+  + ``id``: the ID of the µVM function
+
+- return value: None
+- stack:
+
+  + before: ...
+  + after: ..., ``val``
+
+The ``push_function`` message pushes a function reference of the function
+identified by ``id`` to the top of the stack as ``val``.
+
+    For Lua users: This is the counterpart of the ``lua_getglobal`` function
+    where the global value is a Lua function, but "functions" in the µVM are
+    special.
+
+..
+
+    Example Java signature: ``void ClientAgent.pushFunction(int id)``
+
+    Example C signature: ``void push_function(client_agent_t *ca, int id)``
+
+The ``pop_value`` message
+-------------------------
+
+- receiver: Client Agent
+- message: ``pop_value``
+- parameters:
+
+  + ``nvalues``: *integer*: the number of values to pop
+
+- return value: None
+- stack:
+
+  + before: ..., ``val1``, ``val2``, ..., ``valn``
+  + after: ...
+
+Pop ``nvalues`` values from the Client Agent stack.
+
+    Example Java signature: ``void ClientAgent.popVlaue(int nValues)``
+
+    Example C signature: ``void pop_value(client_agent_t, *ca, int n_values)``
+
+The ``to_client_value`` message
+-------------------------------
+
+- receiver: Client Agent
+- message: ``to_client_value``
+- parameters:
+
+  + ``index``: the index of the value in the stack of the current Client Agent.
+
+- return value: The µVM value represented as a value in the Client language.
+- stack: Not changed
+
+This message is only applicable for **integer types** and **floating point
+types**.
+
+Convert a µVM value in the Client Agent stack at ``index`` to a Client value.
+
+For the case where the µVM value is an integer, if the Client type has fewer
+bits than the µVM type, the value will be truncated. If the Client type has more
+bits than the µVM type, the API implementation should provide two versions of
+this message for zero extension and sign extension.
+
+If the µVM type cannot be converted to the Client type, it has undefined
+behaviour.
+
+    For Lua users: This is the counterpart of ``lua_tonumber``,
+    ``lua_toboolean``, ``lua_tostring`` and so on. But the µVM has much fewer
+    primitive data types.
+
+..
+
+    Example Java signatures::
+
+        byte    ClientAgent.toByte  (int index)
+        short   ClientAgent.toShort (int index)
+        int     ClientAgent.toInt   (int index)
+        long    ClientAgent.toLong  (int index)
+        float   ClientAgent.toFloat (int index)
+        double  ClientAgent.toDouble(int index)
+        BigInteger ClientAgent.toBigInt(int index)
+
+        int     ClientAgent.toInt   (int index, boolean signExt)
+        long    ClientAgent.toLong  (int index, boolean signExt)
+        BigInteger ClientAgent.toBigInt(int index, boolean signExt)
+        ...
+
+    Example Java usage::
+
+        ClientAgent ca = ...;
+        int  v1 = ca.toInt (-1);
+        long v2 = ca.toLong(-2);
+        long v3 = ca.toLong(-3, false);   // zero extended
+        long v4 = ca.toLong(-4, true);    // sign extended
+        float  v5 = ca.toLong(-4, true);
+        double v6 = ca.toLong(-4, true);
+
+
+    Example C signatures::
+
+        signed char   to_schar (client_agent_t *ca, int index)
+        unsigned char to_uchar (client_agent_t *ca, int index)
+        ...
+        int           to_int   (client_agent_t *ca, int index)
+        unsigned int  to_uint  (client_agent_t *ca, int index)
+        ...
+        float         to_float (client_agent_t *ca, int index)
+        double        to_double(client_agent_t *ca, int index)
+
+    Example C usage::
+
+        client_agent_t *ca = ...;
+
+        int a           = to_int (ca, -1);       // sign extended
+        unsigned int b  = to_uint(ca, -2);       // zero extended
+    
 Stack and Thread Creation
 =========================
+
+    TODO: Update to the new API design.
 
 The ``new_stack`` message
 -------------------------
