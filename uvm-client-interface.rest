@@ -140,6 +140,7 @@ This message creates a Client Agent and returns a handle to it.
 
     Example C signature: ``client_agent *new_agent(microvm *vm)`` where the
     µVM instance and the Client Agent are represented as pointers.
+        
 
 The ``close_agent`` Message
 ---------------------------
@@ -938,41 +939,88 @@ This operation has the memory order ``ord``.
 Stack and Thread Creation
 =========================
 
-    TODO: Update to the new API design.
-
 The ``new_stack`` message
 -------------------------
 
-In addition to the ``NEWSTACK`` instruction, the MicroVM provides the client a
-message ``new_stack`` so that the client can create new stacks.
-
-- name: ``new_stack``
+- receiver: Client Agent
+- message: ``new_stack``
 - parameters:
 
-  - ``callee``: The function whose activation will be at the bottom frame of the
-    stack.
-  - ``args``: The arguments to that function.
+  + ``nparams``: The number of parameters to the stack-bottom function.
 
-- returns: A handle to the new stack
+- return value: None
+- stack:
+
+  + before: ..., ``func``, ``arg_1``, ``arg_2``, ..., ``arg_nparams``
+  + after: ..., ``sta``
+
+``func`` must be a function reference. There are ``nparams`` arguments on the
+Client Agent stack above ``func``. The types of the arguments must match the
+signature of ``func``.
+
+The ``new_stack`` message creates a new µVM stack, using ``func`` as the
+stack-bottom function and ``arg_1``, ..., ``arg_nparams`` as its arguments. The
+reference to the new stack ``sta`` is pushed on the Client Agent stack.
+
+    For Lua users: This is similar to the ``lua_call`` function, but µVM
+    functions execute on µVM stacks instead of Client Agent stacks.
+
+    This is also similar to the ``coroutine.create`` Lua function followed by
+    ``coroutine.resume`` supplying its initial arguments. But a µVM stack cannot
+    run until it is bound to a µVM thread.
+
+..
+
+    Example Java signature: ``void ClientAgent.newStack(int nParams)``
+
+    Example C signature: ``void new_stack(agent_t *ca, int nparams)``
+
+    Example Java usage::
+
+        ClientAgent ca = ...;
+
+        // Assume @gcd is <@i64 (@i64 @i64)>
+
+        ca.pushFunction(idOf("@gcd"));
+        ca.pushLong(idOf("@i64"), 42);
+        ca.pushLong(idOf("@i64"), 21);
+
+        ca.newStack(2);
+
+        ca.newThread();  // see below.
 
 The ``new_thread`` message
 --------------------------
 
-In addition to the ``@uvm.new_thread`` intrinsic function, the MicroVM provides
-the client a message ``new_thread`` so that the client can create new threads.
+- receiver: Client Agent
+- message: ``new_stack``
+- parameters: None
+- return value: None
+- stack:
 
-- name: ``new_thread``
-- parameters:
+  + before: ..., ``sta``
+  + after: ..., ``thr``
 
-  - ``stack``: The stack which the new thread is initially bound to.
+``sta`` must be a stack reference.
 
-- returns: A handle to the new thread.
+The ``new_thread`` message creates a new µVM thread ``thr`` with ``sta`` as its
+initial stack.
 
-As the ``@uvm.new_thread`` intrinsic function, a newly created thread is started
-immediately.
+    For Lua users: When used together with ``new_stack``, this is similar to
+    ``coroutine.create`` and ``coroutine.resume``. But µVM threads are
+    concurrent. There are patterns to implement Lua-like coroutines using the
+    ``SWAPSTACK`` µVM instruction.
+
+..
+
+    Example Java signature: ``void ClientAgent.newThread()``
+
+    Example C signature: ``void new_thread(agent_t *ca)``
 
 Trap and Undefined Function Handling
 ====================================
+
+    TODO: Update to the new API
 
 The ``TRAP`` and the ``WATCHPOINT`` instructions represent places that a µVM
 program requires assistance from the client. When a µVM program calls a µVM
@@ -1118,41 +1166,33 @@ generating a trivial function per type that returns its argument.
 TODO: Is it reasonable enough to limit a new frame to start from the beginning
 of a function? It seems to be the only sane solution.
 
-Client-held GC Roots
-====================
-
-TODO
-
-Direct Memory Access for the Client
-===================================
-
-TODO
-
 Signal Handling
 ===============
 
-The µVM needs to handle (to be defined) some hardware traps including
-divide-by-zero errors and floating point exceptions. These should be implemented
-by signal handling in UNIX-like operating systems. Meanwhile the client may also
-need to handle such erroneous cases, for example, when implementing an
-interpreter. According to how the operating system works, only one signal
-handler can be registered by a process at the same time.
+In an environment where the µVM is present, the Client should not register
+signal handlers. The µVM should register signal handlers. On receiving the
+signal, the µVM shall check if it designates a run-time error in any µVM IR
+code. If so, it shall be handled within the µVM. If it does not occur in any µVM
+IR code, it shall be forwarded to the Client via a call-back. Errors within the
+µVM runtime are fatal and will not be handled. The previous signal handler
+registered by external libraries shall be preserved by the µVM in case the
+external library shall take the responsibility of handling the signal.
 
-In an environment where the µVM is present, the client should not register the
-signal handler. The µVM should register the signal handler. When signals arrive,
-e.g. SIGFPE for divide-by-zero error, the µVM should check if the error occurs
-in any µVM IR code. If so, it should be handled within the µVM (to be defined)
-by taking the exceptional branching (to be defined). If it does not occur in any
-µVM IR code, it should let the client handle it by calling back or sending
-messages to the client depending on the implementation. Errors like
-divide-by-zero within the µVM runtime (e.g. the garbage collector) are fatal and
-will not be handled. The previous signal handler registered by external
-libraries will be preserved by the µVM in case the error does not occur within
-the client, either, and needs to be daisy-chained to external libraries.
+    NOTE: Both the Client and the µVM may need to handle signals. The µVM needs
+    to handle some hardware traps including divide-by-zero errors and floating
+    point exceptions. These should be implemented by signal handling in
+    UNIX-like operating systems. Meanwhile the Client may also need to handle
+    such erroneous cases, for example, when implementing an interpreter.
+    
+    According to how the operating system works, only one signal handler can be
+    registered by a process at the same time. This comes to a compromise in the
+    design: in the presence of the µVM, the signal flows from the µVM, the
+    Client and the external libraries.
 
-Theoretically the µVM should be the only entity in the process that registers
-signal handlers and all other entities, including the client or other libraries
-designed with the µVM in mind, when having the need to handle signals, should
-use the call-back or message-passing mechanisms provided by the µVM.
+    Theoretically the µVM should be the only entity in the process that
+    registers signal handlers and all other entities, including the Client or
+    other libraries designed with the µVM in mind, when having the need to
+    handle signals, should use the call-back or message-passing mechanisms
+    provided by the µVM.
 
 .. vim: tw=80
