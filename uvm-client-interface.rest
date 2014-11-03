@@ -177,7 +177,6 @@ The ``load_bundle`` Message
   + ``bundle``: µVM IR bundle
 
 - return value: None
-- stack: Not changed
 
 Load the µVM IR bundle ``bundle`` into the µVM.
 
@@ -436,7 +435,32 @@ Pop ``nvalues`` values from the Client Agent stack.
 
     Example Java signature: ``void ClientAgent.popVlaue(int nValues)``
 
-    Example C signature: ``void pop_value(client_agent_t, *ca, int n_values)``
+    Example C signature: ``void pop_value(client_agent_t *ca, int n_values)``
+
+The ``get_type`` message
+------------------------
+
+- receiver: Client Agent
+- message: ``get_type``
+- parameters:
+
+  + ``index``: the index of the value in the stack of the current Client Agent.
+
+- return value: The type ID of the value type.
+- stack: Not changed
+
+The ``get_type`` message gets the type ID of the type of the µVM value at the
+``index`` position in the current Client Agent.
+
+    For Lua users: This is the counterpart of ``lua_isnumber``,
+    ``lua_isboolean``, ``lua_isstring`` and so on. But this message returns the
+    type ID instead of a Boolean result.
+
+..
+
+    Example Java signature: ``int ClientAgent.getType(int index)``
+
+    Example C signature: ``int get_type(client_agent_t *ca, int index)``
 
 The ``to_client_value`` message
 -------------------------------
@@ -512,7 +536,405 @@ behaviour.
 
         int a           = to_int (ca, -1);       // sign extended
         unsigned int b  = to_uint(ca, -2);       // zero extended
+
+Memory Operations
+=================
+
+The ``new`` message
+-------------------
+
+- receiver: Client Agent
+- message: ``new``
+- parameters:
+
+  + ``type``: The µVM type of the allocated object. Must not be ``hybrid``.
+
+- return value: None
+- stack:
+
+  + before: ...
+  + after: ..., ``ref``
+
+The ``new`` message allocates a µVM object of a fixed-length type in the µVM
+heap and push the object reference ``ref`` to it on the stack.
+
+    For Lua users: This is similar to the ``lua_newtable`` or
+    ``lua_createtable`` function, but the µVM can allocate many types on the
+    heap. In this sense, it is also similar to ``lua_newuserdata``, but the
+    allocated µVM object has associated metadata to identify references in the
+    object.
+
+..
+
+    Example Java signature: ``void ClientAgent.newFixed(int typeID)``. Note that
+    ``new`` is a keyword in Java.
+
+    Example C signature: ``void new_fixed(agent_t *ca, int type_id)``. To avoid
+    conflicting with the C++ ``new`` keyword, it is recommended to rename this
+    message.
+
+The ``new_hybrid`` message
+--------------------------
+
+- receiver: Client Agent
+- message: ``new_hybrid``
+- parameters:
+
+  + ``type``: The µVM type of the allocated object. Must be ``hybrid``.
+
+- return value: None
+- stack:
+
+  + before: ..., ``length``
+  + after: ..., ``ref``
+
+``length`` must have integer type and is treated as unsigned.
+
+The ``new_hybrid`` message allocates a µVM object of ``hybrid`` type with a
+variable part of length ``length`` in the µVM heap and push the object reference
+``ref`` to it on the stack.
+
+    For Lua users: This is similar to the ``lua_newtable`` or
+    ``lua_createtable`` function which is used to allocate an array.
+
+..
+
+    Example Java signature: ``void ClientAgent.newHybrid(int typeID)``
+
+    Example C signature: ``void new_hybrid(agent_t *ca, int type_id)``
+
+The ``refcast`` message
+-----------------------
+
+- receiver: Client Agent
+- message: ``refcast``
+- parameters:
+
+  + ``new_type``: The new type for ``val1``, that is, the type of ``val2``.
+
+- return value: None
+- stack:
+
+  + before: ..., ``val1``
+  + after: ..., ``val2``
+
+The ``refcast`` message converts a value ``val1`` of a general reference type
+(see `<type-system>`__) to another value ``val2`` of general reference type
+``new_type``.
+
+The type of ``val1`` and the type ``new_type`` must match the constraint of the
+type parameters *T1* and *T2* of the ``REFCAST`` instruction (see
+`<instruction-set>`__).
+
+    For Lua users: No counterparts.
+
+..
+
+    Example Java signature: ``void ClientAgent.refcast(int new_type_id)``
+
+    Example C signature: ``void refcast(agent_t *ca, int new_type_id)``
+
+The ``get_iref`` message
+------------------------
+
+- receiver: Client Agent
+- message: ``get_iref``
+- parameters: None
+- return value: None
+- stack:
+
+  + before: ..., ``ref``
+  + after: ..., ``iref``
+
+The ``get_iref`` message converts an object reference ``ref`` to an internal
+reference ``iref`` to the same object and push the internal reference on the
+stack.
+
+    For Lua users: No counterparts.
+
+..
+
+    Example Java signature: ``void ClientAgent.getIRef()``
+
+    Example C signature: ``void get_iref(agent_t *ca)``
+
+The ``get_field_iref`` message
+------------------------------
+
+- receiver: Client Agent
+- message: ``get_field_iref``
+- parameters:
+
+  + ``index``: The index of the struct to get reference.
+
+- return value: None
+- stack:
+
+  + before: ..., ``iref1``
+  + after: ..., ``iref2``
+
+``iref1`` must be an internal reference to a struct type.
+
+The ``get_field_iref`` message converts an internal reference ``iref1`` to an
+internal reference ``iref2`` to the ``index``-th field of the struct.
+
+    For Lua users: No counterparts.
+
+..
+
+    Example Java signature: ``void ClientAgent.getFieldIRef(int index)``
+
+    Example C signature: ``void get_field_iref(agent_t *ca, int index)``
+
+The ``get_elem_iref`` message
+-----------------------------
+
+- receiver: Client Agent
+- message: ``get_elem_iref``
+- parameters: None
+- return value: None
+- stack:
+
+  + before: ..., ``iref1``, ``index``
+  + after: ..., ``iref2``
+
+``iref1`` must be an internal reference to an array or vector type. ``index``
+must have integer type and is treated as signed.
+
+The ``get_field_iref`` message converts an internal reference ``iref1`` to
+to an internal reference ``iref2`` to the ``index``-th element of the array or
+vector.
+
+    For Lua users: No counterparts.
+
+..
+
+    Example Java signature: ``void ClientAgent.getElemIRef()``
+
+    Example C signature: ``void get_elem_iref(agent_t *ca)``
+
+The ``shift_iref`` message
+--------------------------
+
+- receiver: Client Agent
+- message: ``shift_iref``
+- parameters: None
+- return value: None
+- stack:
+
+  + before: ..., ``iref1``, ``offset``
+  + after: ..., ``iref2``
+
+``iref1`` must be an internal reference. ``offset`` must have integer type and
+is treated as signed.
+
+The ``shift_iref`` message shifts the internal reference ``iref1`` forward by
+``offset``. The result ``iref2`` is pushed on the stack.
+
+    For Lua users: No counterparts.
+
+..
+
+    Example Java signature: ``void ClientAgent.shiftIRef()``
+
+    Example C signature: ``void shift_iref(agent_t *ca)``
+
+The ``get_fixed_part_iref`` and the ``get_var_part_iref`` message
+-----------------------------------------------------------------
+
+- receiver: Client Agent
+- message: ``get_fixed_part_iref``, ``get_var_part_iref``
+- parameters: None
+- return value: None
+- stack:
+
+  + before: ..., ``iref1``
+  + after: ..., ``iref2``
+
+``iref1`` must be an internal reference to a hybrid type.
+
+The ``get_fixed_part_iref`` message converts an internal reference ``iref1``
+to an internal reference ``iref2`` to the fixed part of it.
+
+The ``get_var_part_iref`` message converts an internal reference ``iref1`` to an
+internal reference ``iref2`` to the 0-th element of the variable part of it. It
+has undefined behaviour if the variable part has 0 elements.
+
+    For Lua users: No counterparts.
+
+..
+
+    Example Java signatures::
+
+        void ClientAgent.getFixedPartIRef()
+        void ClientAgent.getVarPartIRef()
+
+    Example C signatures::
     
+        void get_fixed_part_iref(agent_t *ca)
+        void get_var_part_iref(agent_t *ca)
+
+The ``load`` message
+--------------------
+
+- receiver: Client Agent
+- message: ``load``
+- parameters:
+
+  + ``ord``: The memory order
+
+- return value: None
+- stack:
+
+  + before: ..., ``loc``
+  + after: ..., ``val``
+
+``loc`` must be an internal reference.
+
+The ``load`` message loads from the memory location of ``loc`` and pushes the
+result to the stack.
+
+This operation has the memory order ``ord``.
+
+    For Lua users: No counterparts.
+
+..
+
+    Example Java signature: ``void ClientAgent.load(MemoryOrder ord)``
+
+    Example C signatures: ``void load(agent_t *ca, memory_order_t ord)``
+
+The ``store`` message
+---------------------
+
+- receiver: Client Agent
+- message: ``store``
+- parameters:
+
+  + ``ord``: The memory order
+
+- return value: None
+- stack:
+
+  + before: ..., ``loc``, ``newval``
+  + after: ...
+
+``loc`` must be an internal reference. ``newval`` must have the unmarked type of
+the referent type of ``loc``.
+
+The ``store`` message stores ``newval`` into the memory location of ``loc``.
+
+This operation has the memory order ``ord``.
+
+    For Lua users: No counterparts.
+
+..
+
+    Example Java signatures: ``void ClientAgent.store(MemoryOrder ord)``
+
+    Example C signatures: ``void store(agent_t *ca, memory_order_t ord)``
+
+The ``cmpxchg`` message
+-----------------------
+
+- receiver: Client Agent
+- message: ``cmpxchg``
+- parameters:
+
+  + ``ord_succ``: The memory order when successful.
+  + ``ord_fail``: The memory order when failed.
+  + ``weak``: *boolean*; Weak if true. Strong if false.
+
+- return value: *boolean*: true if successful, false otherwise.
+- stack:
+
+  + before: ..., ``loc``, ``expected``, ``desired``
+  + after: ..., ``oldval``
+
+``loc`` must be an internal reference. ``expected`` and ``desired`` must have
+the unmarked type of the referent type of ``loc``.
+
+The ``cmpxchg`` message loads form ``loc`` and compare with ``expected``. If
+successful, then store ``desired`` to ``loc``, otherwise do nothing. In both
+cases, the old value ``oldval`` at memory location ``loc`` is pushed to the
+stack. This whole process happen atomically.
+
+If this operation is strong, The comparison is successful if and only if the
+loaded value equals ``expected``. If weak, it may spuriously fail even if they
+are equal.
+
+This operation has the memory order ``ord_succ`` when successful and
+``ord_fail`` when failed.
+
+    For Lua users: No counterparts.
+
+..
+
+    Example Java signature: ``boolean ClientAgent.cmpxchg(MemoryOrder ordSucc, MemoryOrder ordFail, boolean weak)``
+
+    Example C signature: ``int cmpxchg(agent_t *ca, memory_order_t ord_succ, memory_order_t ord_fail, int weak)``
+
+The ``atomicrmw`` message
+-------------------------
+
+- receiver: Client Agent
+- message: ``atomicrmw``
+- parameters:
+
+  + ``ord``: The memory order.
+  + ``op``: The operation
+
+- return value: None
+- stack:
+
+  + before: ..., ``loc``, ``opnd``
+  + after: ..., ``oldval``
+
+``loc`` must be an internal reference. ``opnd`` must have the unmarked type of
+the referent type of ``loc``.
+
+The ``atomicrmw`` message performs a binary operation ``op`` on the current
+value in ``loc`` as the left-hand-side and ``opnd`` as the right-hand-side.
+Push the old value ``oldval`` at ``loc`` to the stack and store the result to
+``loc``.  The whole process happen atomically.
+
+``op`` is one operation defined in the ``ATOMICRMW`` instruction. (See
+`<instruction-set>`__)
+
+This operation has the memory order ``ord``.
+
+    For Lua users: No counterparts.
+
+..
+
+    Example Java signature: ``void ClientAgent.atomicrmw(MemoryOrder ord, AtomicRMWOp op)``
+
+    Example C signature: ``void atomicrmw(agent_t *ca, memory_order_t ord, atomic_rmw_op_t op)``
+
+The ``fence`` message
+---------------------
+
+- receiver: Client Agent
+- message: ``fence``
+- parameters:
+
+  + ``ord``: The memory order.
+
+- return value: None
+- stack: Not changed.
+
+The ``fence`` is a memory fence.
+
+This operation has the memory order ``ord``.
+
+    For Lua users: No counterparts.
+
+..
+
+    Example Java signature: ``void ClientAgent.fence(MemoryOrder ord)``
+
+    Example C signature: ``void fence(agent_t *ca, memory_order_t ord)``
+
 Stack and Thread Creation
 =========================
 
