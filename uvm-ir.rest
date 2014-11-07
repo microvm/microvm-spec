@@ -83,7 +83,7 @@ definition**, **function signature definition**, **constant definition**,
 
     NOTE: For Java users, a bundle is the counterpart of a Java class file.
 
-Names and Identifiers
+Identifiers and Names
 ---------------------
 
 Many entities in the µVM are **identified**. An identified entity has an
@@ -99,6 +99,41 @@ characters in the set: ``[0-9a-zA-Z_-.]``. An ID uniquely identifies an
 In the µVM IR text form, names are exclusively used and IDs are automatically
 generated. In the binary form, IDs are exclusively generated and names can be
 introduced via name-binding.
+
+    NOTE: There may be multiple different identified entities for the same
+    thing. It is allowed to declare two types with the same concrete type::
+
+        .typedef @i64  = int<64>
+        .typedef @long = int<64>
+
+    In the µVM IR, if ``@i64`` and ``@long`` are declared this way, they can be
+    used interchangeably. For example, an ``ADD``  instruction can add an
+    ``@i64`` value to a ``@long`` value because both are ``int<64>``.
+
+    NOTE: Just because some kinds of entities are identified does not mean all
+    entities of that kind in a concrete µVM implementation must have IDs and
+    names. Types are one example. Type definitions in the µVM IR are always
+    identified, but some µVM instructions may yield values of types that are not
+    defined in the IR. For example, the ``CMPXCHG`` instruction on type *T*
+    yields a value of type ``struct<T int<1>>`` where the second field indicates
+    whether the ``CMPXCHG`` operation is successful. The struct type may not be
+    defined in the IR, but the µVM IR program cannot make use of the result
+    unless it defines a type for the struct type because the ``EXTRACTVALUE``
+    instruction takes a type parameter which is the type of the struct value
+    parameter. For example::
+
+        .typedef @i1 = int<1>
+        .typedef @i64 = int<64>
+        .typedef @i64_cmpxchg_result = struct<@i64 @i1>
+
+        %result = CMPXCHG SEQ_CST RELAXED <@i64> %opnd %exp %des
+        %oldval = EXTRACTVALUE <@i64_cmpxchg_result 0> %result
+        %succ   = EXTRACTVALUE <@i64_cmpxchg_result 1> %result
+
+    Instructions of similar property include ``SHUFFLEVECTOR`` (result has a new
+    vector type), ``GETIREF`` (ref to iref), ``LOAD`` (marked storage type to
+    unmarked type), ``CMPXCHG`` (result is a struct), ``ATOMICRMW`` (marked
+    storage type to unmarked type).
 
 Names
 ~~~~~

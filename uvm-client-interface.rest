@@ -239,17 +239,17 @@ The ``push_primitive`` Message
   + before: ...
   + after: ..., ``new_val``
 
-This message is only applicable for **integer types** and **floating point
-types**.
+This message is only applicable for **integer types**, **floating point types**
+and **vector types**.
 
 Convert a Client value ``val`` to a µVM value of type ``uvm_type`` and push the
 new value ``new_val`` on the Client Agent stack.
 
-For the case where the ``val`` is an integer and ``uvm_type`` is an integer
-type, if the Client value ``val`` is shorter than the µVM type ``uvm_type``, the
-API implementation should provide two versions of this message for zero
-extension and sign extension. If the Client value ``val`` is longer than the µVM
-type ``uvm_type``, it will be truncated.
+For the case where the value is integer or integer vector, if the Client value
+``val`` is shorter than the µVM type ``uvm_type``, the API implementation should
+provide two versions of this message for zero extension and sign extension. If
+the Client value ``val`` is longer than the µVM type ``uvm_type``, it will be
+truncated.
 
     For Lua users: This is the counterpart of ``lua_pushnumber``,
     ``lua_pushboolean``, ``lua_pushinteger``, ``lua_pushstring`` and so on. But
@@ -271,6 +271,10 @@ type ``uvm_type``, it will be truncated.
         void ClientAgent.pushShort (int typeID, byte val, boolean signExt)
         ...
 
+        void ClientAgent.pushIntVec     (int typeID, int[] val, boolean signExt)
+        void ClientAgent.pushFloatVec   (int typeID, float[] val)
+        void ClientAgent.pushDoubleVec  (int typeID, double[] val)
+
     Example Java usage::
 
         ClientAgent ca = ...;
@@ -281,6 +285,8 @@ type ``uvm_type``, it will be truncated.
         ca.pushLong(idOf("@i32"), 0xfedcba9876543210L);     // truncated to 0x76543210
 
         ca.pushBigInt(idOf("@i128"), new BigInteger("12233445566778899aabbccddeeff001", 16));
+
+        ca.pushIntVec(idOf("@4xi32"), new int[] {1,2,3,4}, false);
 
     Example C signatures::
 
@@ -297,6 +303,11 @@ type ``uvm_type``, it will be truncated.
         void push_ulonglong (client_agent_t *ca, int type_id, unsigned long long val)
         void push_float (client_agent_t *ca, int type_id, float val)
         void push_double(client_agent_t *ca, int type_id, double val)
+
+        void push_4xint_vec     (client_agent_t *ca, int type_id, __m128 val)
+        void push_4xfloat_vec   (client_agent_t *ca, int type_id, __m128 val)
+        void push_2xdouble_vec  (client_agent_t *ca, int type_id, __m128 val)
+        void push_int_vec_from_ary(client_agent_t *ca, int type_id, int *ary)
 
     Example C usage::
 
@@ -438,31 +449,6 @@ Pop ``nvalues`` values from the Client Agent stack.
 
     Example C signature: ``void pop_value(client_agent_t *ca, int n_values)``
 
-The ``get_type`` message
-------------------------
-
-- receiver: Client Agent
-- message: ``get_type``
-- parameters:
-
-  + ``index``: the index of the value in the stack of the current Client Agent.
-
-- return value: The type ID of the value type.
-- stack: Not changed
-
-The ``get_type`` message gets the type ID of the type of the µVM value at the
-``index`` position in the current Client Agent.
-
-    For Lua users: This is the counterpart of ``lua_isnumber``,
-    ``lua_isboolean``, ``lua_isstring`` and so on. But this message returns the
-    type ID instead of a Boolean result.
-
-..
-
-    Example Java signature: ``int ClientAgent.getType(int index)``
-
-    Example C signature: ``int get_type(client_agent_t *ca, int index)``
-
 The ``to_client_value`` message
 -------------------------------
 
@@ -504,6 +490,10 @@ behaviour.
         double  ClientAgent.toDouble(int index)
         BigInteger ClientAgent.toBigInt(int index)
 
+        int[]   ClientAgent.toInts  (int index)
+        float[] ClientAgent.toFloats(int index)
+        ...
+
         int     ClientAgent.toInt   (int index, boolean signExt)
         long    ClientAgent.toLong  (int index, boolean signExt)
         BigInteger ClientAgent.toBigInt(int index, boolean signExt)
@@ -519,7 +509,6 @@ behaviour.
         float  v5 = ca.toLong(-4, true);
         double v6 = ca.toLong(-4, true);
 
-
     Example C signatures::
 
         signed char   to_schar (client_agent_t *ca, int index)
@@ -530,6 +519,9 @@ behaviour.
         ...
         float         to_float (client_agent_t *ca, int index)
         double        to_double(client_agent_t *ca, int index)
+        
+        __m128        to_m128  (client_agent_t *ca, int index)
+        void          to_ints  (client_agent_t *ca, int index, int *result)
 
     Example C usage::
 
@@ -537,6 +529,71 @@ behaviour.
 
         int a           = to_int (ca, -1);       // sign extended
         unsigned int b  = to_uint(ca, -2);       // zero extended
+
+        int vec[4];
+        to_ints(ca, -3, vec)
+
+Struct Operations
+=================
+
+The ``extract_value`` message
+-----------------------------
+
+- receiver: Client Agent
+- message: ``extract_value``
+- parameters:
+
+  + ``index``: The index of the field of the struct.
+
+- return value: None
+- stack:
+
+  + before: ..., ``str``
+  + after: ..., ``fld``
+
+``str`` must have struct type.
+
+The ``extract_value`` message extracts the ``index``-th field from struct value
+``str`` and pushes the field ``fld`` on the stack.
+
+    For Lua users: This is similar to the ``lua_getfield``, but µVM struct
+    fields are statically typed.
+
+..
+
+    Example Java signature: ``void ClientAgent.extractValue(int index)``
+
+    Example C signature: ``void extract_value(agent_t *ca, int index)``
+
+The ``insert_value`` message
+----------------------------
+
+- receiver: Client Agent
+- message: ``insert_value``
+- parameters:
+
+  + ``index``: The index of the field of the struct.
+
+- return value: None
+- stack:
+
+  + before: ..., ``str1``, ``newval``
+  + after: ..., ``str2``
+
+``str1`` must have struct type. ``newval`` must have the type for
+the ``index``-th field of ``str1``.
+
+The ``insert_value`` message creates a new struct value ``str2`` which is the
+same as ``str1`` except the ``index``-th field become ``newval``.
+
+    For Lua users: This is similar to the ``lua_setfield``, but this messages
+    creates values, not updating existing values.
+
+..
+
+    Example Java signature: ``void ClientAgent.insertValue(int index)``
+
+    Example C signature: ``void insert_value(agent_t *ca, int index)``
 
 Memory Operations
 =================
