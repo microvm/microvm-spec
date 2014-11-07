@@ -278,9 +278,8 @@ fields. Exactly that number of type IDs follows the ``nfields`` literal.
         .typedef @f = float
         .typedef @d = double
 
-        .typedef @struct1 = struct<>
-        .typedef @struct2 = struct<@byte @short @int @f @d>
-        .typedef @struct3 = struct<@f @f @struct2 @d @d> // nesting structs
+        .typedef @struct1 = struct<@byte @short @int @f @d>
+        .typedef @struct2 = struct<@f @f @struct1 @d @d> // nesting structs
 
 Array
 -----
