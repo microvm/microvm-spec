@@ -1900,6 +1900,7 @@ behaviour.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``GETFIXEDPARTIREF`` ``<`` *T* ``>`` *opnd*
+
 ``GETVARPARTIREF`` ``<`` *T* ``>`` *opnd*
 
 T
@@ -2191,7 +2192,7 @@ The memory order of this instruction is *succOrd* if the comparison succeeds, or
 ``ATOMICRMW`` Instruction
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``ATOMICRMW`` *ord* *op* ``<`` *T* ``>`` *loc *opnd* *excClause*
+``ATOMICRMW`` *ord* *op* ``<`` *T* ``>`` *loc* *opnd* *excClause*
 
 ord
     *memory order*: The memory order.
@@ -2201,7 +2202,7 @@ T
     *type*: The referent type of *loc*.
 loc
     *variable* of ``iref<T>``: The memory location to access.
-newval
+opnd
     *variable* of the unmarked type of *T*: The right-hand-side of the
     operation.  
 excClause
