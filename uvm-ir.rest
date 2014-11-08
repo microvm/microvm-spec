@@ -347,7 +347,8 @@ A **constant constructor** can be the following:
 - A **struct constructor** creates a struct constant. It is:
 
   + an opening brace ``{``, followed by
-  + a sequence of global names of other constants separated by spaces, and
+  + a sequence of global names of other global variables separated by spaces,
+    and
   + a closing brace ``}``.
 
   A constant must not be recursive.
@@ -446,6 +447,15 @@ A **constant constructor** can be the following:
 
         .typedef @4xfloat = vector <@float 4>
         .const @vec1 <@4xfloat> = VEC { @float1 @float2 @float3 @float4 }
+
+        // global cells and functions are global variables, too, and they are constants
+        .global @g1 <@i64>
+        .funcdecl @f1 <@noparamsnoret>
+
+        .typedef @irefi64 = iref<i64>
+        .typedef @record2_t = struct<@irefi64 @some_func>
+
+        .const @record2 <@record2_t> = {@g1 @f1}
 
 Global Cell Definition
 ======================
