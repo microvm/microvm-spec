@@ -1113,6 +1113,14 @@ clause is absent, it has undefined behaviour.
 
 The ``CALL`` instruction is an OSR point.
 
+When a stack in the ``READY<T>`` state is pausing on a ``CALL`` instruction
+and is being re-bound to a thread, then it continues normally with the return
+value being the value received, or continues exceptionally, catching the
+exception received.
+
+    NOTE: Such a state can be the result of OSR: Upper frames are popped and the
+    current callee is forced to return a value provided by the Client.
+
 The ``TAILCALL`` instruction replaces the caller's stack frame with a new stack
 frame for the callee. The ``TAILCALL`` requires that the callee must have the
 same return type as the caller. The caller of the current function becomes the
@@ -2669,8 +2677,8 @@ function. After returning from the Client, this instruction will be tried again.
 - *curStackClause* ::= ``RET_WITH`` ``<`` *T1* ``>``
 - *curStackClause* ::= ``KILL_OLD``
 
-+ *newStackClause* ::= ``PASS_PARAM`` ``<`` *T2* ``>`` *val*
-+ *newStackClause* ::= ``NO_PARAM``
++ *newStackClause* ::= ``PASS_VALUE`` ``<`` *T2* ``>`` *val*
++ *newStackClause* ::= ``PASS_VOID``
 + *newStackClause* ::= ``THROW_EXC`` *exc*
 
 ``SWAPSTACK``:
@@ -2697,7 +2705,7 @@ function. After returning from the Client, this instruction will be tried again.
 | 0x02 |
 +------+
 
-*newStackClause* with ``PASS_PARAM``:
+*newStackClause* with ``PASS_VALUE``:
 
 +------+-----+-----+
 | opct | idt | idt |
@@ -2705,7 +2713,7 @@ function. After returning from the Client, this instruction will be tried again.
 | 0x01 | T2  | val |
 +------+-----+-----+
 
-*newStackClause* with ``NO_PARAM``:
+*newStackClause* with ``PASS_VOID``:
 
 +------+
 | opct |
@@ -2749,24 +2757,16 @@ If the *curStackClause* is ``RET_WITH``, then the swapper will enter the
 ``READY<T1>`` state. If the *curStackClause* is ``KILL_OLD``, then the swapper
 will enter the ``DEAD`` state.
 
-If the *newStackClause* is ``PASS_PARAM``, then the value *val* of type *T2* is
-passed to the *swappee* stack. If the *newStackClause* is ``NO_PARAM``, no value
-is passed to the *swappee* stack. If the *newStackClause* is ``THROW_EXC``, the
-exception object *exc* is thrown to the *swappee* stack.
+If the *newStackClause* is ``PASS_VALUE``, then it passes the value *val* of
+type *T2* is passed to the *swappee* stack. If the *newStackClause* is
+``PASS_VOID``, then it *passes void* (see `<threads-stacks>`__) to the *swappee*
+stack. If the *newStackClause* is ``THROW_EXC``, the exception object *exc* is
+thrown to the *swappee* stack.
 
 When a stack in the ``READY<T>`` state is pausing on a ``SWAPSTACK`` instruction
-and is being re-bound to a thread, then:
-
-- If *T* is not ``void`` and a value *v* of type *T* is passed to the stack,
-  then the ``SWAPSTACK`` instruction continues normally with *v* as its return
-  value.
-- If *T* is ``void`` and no value is passed to the stack, then ``SWAPSTACK``
-  instruction continues normally. In this case the return type of the
-  ``SWAPSTACK`` instruction is ``void``.
-- If an exception *e* is thrown to the stack, then the ``SWAPSTACK`` instruction
-  continues exceptionally. If an exception clause is present, then the
-  exceptional destination catches the exception, otherwise the exception is
-  thrown from the current stack frame.
+and is being re-bound to a thread, then it continues normally with the return
+value being the value received, or continues exceptionally, catching the
+exception received.
 
 ..
 
@@ -2796,9 +2796,9 @@ The ``SWAPSTACK`` instruction is an OSR point.
         // param %from: the stack of the main coroutine, i.e. the "caller" stack
         .funcdef @one_two_three VERSION @one_two_three_v1 <@sig1> (%from) {
             %entry:
-                SWAPSTACK %from RET_WITH <@void> PASS_PARAM <@i64> @I64_1
-                SWAPSTACK %from RET_WITH <@void> PASS_PARAM <@i64> @I64_2
-                SWAPSTACK %from RET_WITH <@void> PASS_PARAM <@i64> @I64_3
+                SWAPSTACK %from RET_WITH <@void> PASS_VALUE <@i64> @I64_1
+                SWAPSTACK %from RET_WITH <@void> PASS_VALUE <@i64> @I64_2
+                SWAPSTACK %from RET_WITH <@void> PASS_VALUE <@i64> @I64_3
 
                 %exc = NEW @StopIterationException
                 SWAPSTACK %from KILL_OLD THROW_EXC %exc
@@ -2819,7 +2819,7 @@ The ``SWAPSTACK`` instruction is an OSR point.
 
             %head:
                 // Go to the coroutine
-                %cur_num = SWAPSTACK %coro RET_WITH <@i64> NO_PARAM EXC(%body %exit)
+                %cur_num = SWAPSTACK %coro RET_WITH <@i64> PASS_VOID EXC(%body %exit)
 
             %body:
                 // Do something with %cur_num

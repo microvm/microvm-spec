@@ -143,6 +143,9 @@ and it **receives the value**.
 A binding operation can **pass void** to the stack. In this case, the
 stack must be in the **READY<void>** state and it **receives void**.
 
+    NOTE: It is just a more explicit way to say "not pass a value, but continue
+    normally".
+
 A binding operation can **raise an exception** to the stack. In this case,
 the stack can be in **READY<T>** with any *T* and it **receives the
 exception**.
