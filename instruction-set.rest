@@ -271,7 +271,7 @@ many IDs follows it.
 
         CALL     <@sig> @func (%arg0 %arg1 %arg2)
         TAILCALL <@sig> @func (%arg0 %arg1 %arg2)
-        CCALL    <@sig> @func (%arg0 %arg1 %arg2)
+        CCALL    <@func_ty @sig> @func (%arg0 %arg1 %arg2)
         NEWSTACK <@sig> @func (%arg0 %arg1 %arg2)
         COMMINST @some.common.instruction (%arg0 %arg1 %arg2)
 
