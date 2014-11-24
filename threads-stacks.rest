@@ -65,25 +65,20 @@ DEAD
     The stack is dead. It cannot be used again and its resources can be
     reclaimed by the garbage collector.
 
-There is also a flag **TRAPPED** on the stack, which is set when the stack is
-trapped and the Client is manipulating the stack. This flag prevents the thread
-bound to it from execution and prevents other µVM threads from binding the
-stack to a thread.
-
 Here is a summary of the state and transition of stacks.
 
-======================= ============================ =======================
-Operation               Current Stack                New/Destination Stack
-======================= ============================ =======================
-create new stack        N/A                          READY<void>
-create new thread       N/A                          READY<void> -> ACTIVE
-swap-stack              ACTIVE -> READY<T>           READY<T> -> ACTIVE
-@uvm.kill_stack         N/A                          READY<T> -> DEAD
-@uvm.thread_exit        ACTIVE -> DEAD               N/A
-TRAP                    ACTIVE -> READY, set TRAPPED N/A
-undefined function      ACTIVE, set TRAPPED          N/A
-stack-related errors    ACTIVE, set TRAPPED          N/A
-======================= ============================ =======================
+======================= =============================== =======================
+Operation               Current Stack                   New/Destination Stack
+======================= =============================== =======================
+create new stack        N/A                             READY<void>
+create new thread       N/A                             READY<void> -> ACTIVE
+swap-stack              ACTIVE -> READY<T>              READY<T> -> ACTIVE
+@uvm.kill_stack         N/A                             READY<T> -> DEAD
+@uvm.thread_exit        ACTIVE -> DEAD                  N/A
+TRAP                    ACTIVE -> READY<T>              N/A
+undefined function      ACTIVE                          N/A
+stack-related errors    ACTIVE                          N/A
+======================= =============================== =======================
 
 Stack and Thread Creation
 =========================
@@ -143,12 +138,12 @@ and it **receives the value**.
 A binding operation can **pass void** to the stack. In this case, the
 stack must be in the **READY<void>** state and it **receives void**.
 
-    NOTE: It is just a more explicit way to say "not pass a value, but continue
-    normally".
+    NOTE: "Pass void" is just a more explicit way to say "not pass a value, but
+    continue normally".
 
-A binding operation can **raise an exception** to the stack. In this case,
-the stack can be in **READY<T>** with any *T* and it **receives the
-exception**.
+A binding operation can **raise an exception** to the stack. In this case, the
+stack can be in **READY<T>** with any *T* (including ``void``) and it **receives
+the exception**.
 
 It gives undefined behaviour if the stack is not in the expected state.
 
@@ -175,8 +170,7 @@ kills the current stack and the ``SWAPSTACK`` instruction can do either option
 on the swapper.
 
 Executing a ``TRAP`` or an enabled ``WATCHPOINT`` instruction implies an
-unbinding operation, leaving the current stack to a **READY<T>** state and set
-the **TRAPPED** flag.
+unbinding operation, leaving the current stack to a **READY<T>** state.
 
 Swap-stack
 ----------

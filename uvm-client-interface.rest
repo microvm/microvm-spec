@@ -33,22 +33,48 @@ The µVM provides interfaces for the Client to load bundles and manipulate the
 state of the µVM, including creating stacks and threads, allocating objects,
 accessing memory and manipulating stacks and frames.
 
-The Client interacts with the µVM for some certain tasks through Client Agents.
-A Client Agent maintains a registry that holds µVM values and lets the Client
-refer to those values via opaque handles. µVM references can be held for the
-Client in this way so that the Client can operate on µVM memory without holding
-raw pointers into the µVM memory. The Client also allocates memory via Client
-Agents. Client Agents are supposed to be used by a single Client thread at a
-time, but the Client can have multiple Client Agents at the same time and use
-them concurrently.
+Starting Up and Shutting Down
+=============================
 
-    NOTE: The stack-based interface is inspired by JNI and the C API of Lua 2.1.
-    This has two benefits: 1) The Client API refers to µVM values via handles so
-    it is no longer necessary to provide data types for µVM types in the
-    language the Client is implemented in. 2) Garbage collection roots from the
-    Client are those references in the registry. It is not needed to pin objects
-    which are held by the Client or ask the Client for a list of mutable
-    pointers which the garbage collector can trace and update.
+How to start a µVM and/or a Client is implementation-specific.
+
+In the beginning, whether there are existing types, signatures, constants,
+global cells or functions already defined or declared, or µVM stacks or µVM
+threads already created is implementation-specific.
+
+How to stop a µVM and/or a Client is implementation-specific. Stopping a µVM
+implies stopping all µVM threads in it.
+
+Client Agents
+=============
+
+The Client interacts with the µVM for almost all tasks through **Client
+Agents**.
+
+A Client Agent maintains a registry that holds µVM values for the Client. The
+values are referred by the Client via opaque **handles**. The representation of
+handles is implementation-specific. µVM references held in Client Agents are
+part of the garbage collection roots.
+
+    NOTE: This design serves two purposes. Both purposes are inspired by the Lua
+    C API and JNI.
+    
+    1. To segregate the type system of µVM and the Client. The Client may be
+       very different from the µVM. For example, C and Java does not have
+       portable vector types. Lua does not have integer types. Python's ``int``
+       type has arbitrary precision while µVM ``int`` is fixed. None have the
+       equivalent µVM ``ref``, ``iref``, ``func``, ``thread`` and ``stack``
+       transparent or opaque reference types. Handling µVM values opaquely
+       allows the Client to **precisely** express their desired µVM types and
+       values.
+
+    2. To simplify garbage collection. By recording all references held by the
+       Client, the µVM can easily identify all roots. Making the representation
+       of handles implementation-specific gives the Client several choices:
+
+       1. Handles can be raw pointers and all Client-held references are pinned.
+       2. Handles are indices in an indirection table. Since all memory accesses
+          are done via one indirection, the µVM GC can still move objects.
 
     Since Lua 4.0, it introduced a stack-based API to pass values to/from the C
     program. That stack is unnecessary for the µVM because the µVM is not
@@ -57,10 +83,15 @@ them concurrently.
     the registry and use the indices as handles, but this should not be known to
     the Client.
 
-    Implementations may reserve local memory blocks in Client Agents so the
-    Client can allocate objects in the heap concurrently and efficiently using
-    multiple Client Agents. This is similar to thread-local memory allocators in
-    garbage collectors that support parallel mutators.  
+Client Agents are supposed to be used by a single Client thread at a time, but
+the Client can have multiple Client Agents at the same time and use them
+concurrently.
+
+    NOTE: Since a Client Agent is used by one thread, implementations may
+    reserve blocks of heap memory in Client Agents so that memory allocation
+    will not always require global locks. This trick is used by many garbage
+    collectors that support parallel mutators, for example,
+    [Immix](http://users.cecs.anu.edu.au/~steveb/downloads/pdf/immix-pldi-2008.pdf).
 
 ..
 
@@ -78,23 +109,59 @@ them concurrently.
     invocation or an "attached" native thread, where there is a registry of Java
     references.
 
-Basic µVM Operations
-====================
+The ``new_agent`` Message
+-------------------------
 
-Starting Up and Shutting Down
------------------------------
+A Client Agent can be created using the ``new_agent`` message to the µVM.
 
-How to start a µVM and/or a Client is implementation-specific.
+- receiver: µVM
+- message: ``new_agent``
+- parameters: None
+- return value: A Client Agent
 
-In the beginning, whether there are existing types, signatures, constants,
-global cells or functions already defined or declared, or µVM stacks or µVM
-threads already created is implementation-specific.
+This message creates a Client Agent.
 
-How to stop a µVM and/or a Client is implementation-specific. Stopping a µVM
-implies stopping all µVM threads in it.
+    For Lua users: This is similar to ``lua_newstate``, but multiple Client
+    Agents share the µVM memory and can be used concurrently.
 
-µVM IR Code Loading
--------------------
+..
+
+    Example Java signature: ``ClientAgent MicroVM.newAgent()``
+
+    Example C signature: ``int new_agent()`` where the µVM instance is implicit
+    and the return value is an integer identifier of a particular Client Agent
+    of the global µVM instance.
+
+    Example C signature: ``client_agent *new_agent(microvm *vm)`` where the
+    µVM instance and the Client Agent are represented as pointers.
+
+The ``close_agent`` Message
+---------------------------
+
+- receiver: Client Agent
+- message: ``close_agent``
+- parameters:
+
+  + ``agent``: A client agent
+
+- return value: None
+
+This message closes a Client Agent, destroying the Client Agent and all handles
+created by it. The µVM implementation may release resources reserved by the
+Client Agent. Closed Client Agents cannot be used again.
+
+    For Lua users: This is similar to ``lua_close``.
+
+..
+
+    Example Java signature: ``void ClientAgent.close()``
+
+    Example C signature: ``void close_agent(int agent_id)``
+
+    Example C signature: ``void close_agent(client_agent *agent)``
+
+Bundle Loading
+==============
 
 The Client delivers µVM IR code in the unit of **bundles** (see `<uvm-ir>`__).
 
@@ -131,60 +198,6 @@ to be the old versions of the functions.
     valid. During OSR, redefining a function will not affect any existing
     function activations unless they are explicitly popped by the Client.
 
-Client Agents
-=============
-
-The ``new_agent`` Message
--------------------------
-
-A Client Agent can be created using the ``new_agent`` message to the µVM.
-
-- receiver: µVM
-- message: ``new_agent``
-- parameters: None
-- return value: A Client Agent
-
-This message creates a Client Agent and returns a handle to it.
-
-    For Lua users: This is similar to ``lua_newstate``, but multiple Client
-    Agents share the µVM memory and can be used concurrently.
-
-..
-
-    Example Java signature: ``ClientAgent MicroVM.newAgent()``
-
-    Example C signature: ``int new_agent()`` where the µVM instance is implicit
-    and the return value is an integer handle to the Client Agent.
-
-    Example C signature: ``client_agent *new_agent(microvm *vm)`` where the
-    µVM instance and the Client Agent are represented as pointers.
-        
-
-The ``close_agent`` Message
----------------------------
-
-- receiver: Client Agent
-- message: ``close_agent``
-- parameters: None
-- return value: None
-
-This message closes a Client Agent, destroying the Client Agent stack. The µVM
-implementation may release resources reserved by the Client Agent. Closed Client
-Agents cannot be used again.
-
-    For Lua users: This is similar to ``lua_close``.
-
-..
-
-    Example Java signature: ``void ClientAgent.close()``
-
-    Example C signature: ``void close_agent(int agent_id)``
-
-    Example C signature: ``void close_agent(client_agent *agent)``
-
-Bundle Loading
-==============
-
 The ``load_bundle`` Message
 ---------------------------
 
@@ -199,8 +212,7 @@ The ``load_bundle`` Message
 Load the µVM IR bundle ``bundle`` into the µVM.
 
     For Lua users: This is similar to ``lua_load``, but a µVM bundle itself is
-    not an executable thing like a Lua top-level function. It is loaded by µVM,
-    not Client Agent.
+    not an executable thing like a Lua top-level function.
 
 ..
 
@@ -226,21 +238,28 @@ Load the µVM IR bundle ``bundle`` into the µVM.
 Client Agent Regisry Operations
 ===============================
 
-There is a registry of µVM values in a Client Agent. Entries are addressed by
-handles, which is a type in the Client language.
+Details About Handles
+---------------------
 
-    NOTE: the handle type is usually integer, but does not have to.
+A handle refers to a value in the registry of a Client Agent. In the Client, a
+handle can have any type determined by the µVM implementation. A handle is only
+valid for the Client Agent that created it.
 
-The registry is initially empty for a Client Agent.
+The registry of a Client Agent is initially empty.
 
-Handles can be deleted. Using a deleted handles has undefined behaviour.
+All handles that are returned from a Client Agent are new handles created by
+that Client Agent.
 
 The ``put_xxx`` messages introduce new handles to various µVM values. The
 ``delete_handle`` message destroys handles.  The ``to_client_value`` message
-converts values of µVM to Client types.
+converts values of µVM to Client types. Other messages may manipulate µVM values
+and return handles to the new results of µVM types.
+
+Handles can be deleted by the ``delete_handle`` message. Using a deleted handles
+has undefined behaviour.
 
 The ``put_primitive`` Message
-------------------------------
+-----------------------------
 
 - receiver: Client Agent
 - message: ``put_primitive``
@@ -249,7 +268,8 @@ The ``put_primitive`` Message
   + ``uvm_type``: the µVM type of the value
   + ``val``: the value represented in the Client language.
 
-- return value: A handle to the converted µVM value.
+- return value: A handle to the converted µVM value. It has the µVM type of
+  ``uvm_type``.
 
 This message is only applicable for **integer types**, **floating point types**
 and **vector types**.
@@ -275,64 +295,64 @@ truncated.
 
     Example Java signatures::
 
-        int ClientAgent.putByte  (int typeID, byte val)
-        int ClientAgent.putShort (int typeID, short val)
-        int ClientAgent.putInt   (int typeID, int val)
-        int ClientAgent.putLong  (int typeID, long val)
-        int ClientAgent.putFloat (int typeID, float val)
-        int ClientAgent.putDouble(int typeID, double val)
-        int ClientAgent.putBigInt(int typeID, BigInteger val)
+        Handle ClientAgent.putByte  (int typeID, byte val)
+        Handle ClientAgent.putShort (int typeID, short val)
+        Handle ClientAgent.putInt   (int typeID, int val)
+        Handle ClientAgent.putLong  (int typeID, long val)
+        Handle ClientAgent.putFloat (int typeID, float val)
+        Handle ClientAgent.putDouble(int typeID, double val)
+        Handle ClientAgent.putBigInt(int typeID, BigInteger val)
 
-        int ClientAgent.putByte  (int typeID, byte val, boolean signExt)
-        int ClientAgent.putShort (int typeID, byte val, boolean signExt)
+        Handle ClientAgent.putByte  (int typeID, byte val, boolean signExt)
+        Handle ClientAgent.putShort (int typeID, byte val, boolean signExt)
         ...
 
-        int ClientAgent.putIntVec     (int typeID, int[] val, boolean signExt)
-        int ClientAgent.putFloatVec   (int typeID, float[] val)
-        int ClientAgent.putDoubleVec  (int typeID, double[] val)
+        Handle ClientAgent.putIntVec     (int typeID, int[] val, boolean signExt)
+        Handle ClientAgent.putFloatVec   (int typeID, float[] val)
+        Handle ClientAgent.putDoubleVec  (int typeID, double[] val)
 
     Example Java usage::
 
         ClientAgent ca = ...;
-        int a = ca.putInt (idOf("@i32"), 0x12345678);
-        int b = ca.putLong(idOf("@i64"), 0x123456789abcdef0L);
-        int c = ca.putInt (idOf("@i64"), 0x12345678, false);       // zero extended
-        int d = ca.putInt (idOf("@i64"), 0x12345678, true);        // sign extended
-        int e = ca.putLong(idOf("@i32"), 0xfedcba9876543210L);     // truncated to 0x76543210
+        Handle a = ca.putInt (idOf("@i32"), 0x12345678);
+        Handle b = ca.putLong(idOf("@i64"), 0x123456789abcdef0L);
+        Handle c = ca.putInt (idOf("@i64"), 0x12345678, false);       // zero extended
+        Handle d = ca.putInt (idOf("@i64"), 0x12345678, true);        // sign extended
+        Handle e = ca.putLong(idOf("@i32"), 0xfedcba9876543210L);     // truncated to 0x76543210
 
-        int f = ca.putBigInt(idOf("@i128"), new BigInteger("12233445566778899aabbccddeeff001", 16));
+        Handle f = ca.putBigInt(idOf("@i128"), new BigInteger("12233445566778899aabbccddeeff001", 16));
 
-        int g = ca.putIntVec(idOf("@4xi32"), new int[] {1,2,3,4}, false);
+        Handle g = ca.putIntVec(idOf("@4xi32"), new int[] {1,2,3,4}, false);
 
     Example C signatures::
 
-        int put_schar (client_agent_t *ca, int type_id, signed char val)
-        int put_uchar (client_agent_t *ca, int type_id, unsigned char val)
-        int put_short (client_agent_t *ca, int type_id, short val)
-        int put_ushort(client_agent_t *ca, int type_id, unsigned short val)
-        int put_int   (client_agent_t *ca, int type_id, int val)
-        int put_uint  (client_agent_t *ca, int type_id, unsigned int val)
-        int put_long  (client_agent_t *ca, int type_id, long val)
-        int put_ulong (client_agent_t *ca, int type_id, unsigned long val)
-        int put_longlong  (client_agent_t *ca, int type_id, long long val)
-        int put_ulonglong (client_agent_t *ca, int type_id, unsigned long long val)
-        int put_ulonglong (client_agent_t *ca, int type_id, unsigned long long val)
-        int put_float (client_agent_t *ca, int type_id, float val)
-        int put_double(client_agent_t *ca, int type_id, double val)
+        handle_t put_schar     (client_agent_t *ca, int type_id, signed char val)
+        handle_t put_uchar     (client_agent_t *ca, int type_id, unsigned char val)
+        handle_t put_short     (client_agent_t *ca, int type_id, short val)
+        handle_t put_ushort    (client_agent_t *ca, int type_id, unsigned short val)
+        handle_t put_int       (client_agent_t *ca, int type_id, int val)
+        handle_t put_uint      (client_agent_t *ca, int type_id, unsigned int val)
+        handle_t put_long      (client_agent_t *ca, int type_id, long val)
+        handle_t put_ulong     (client_agent_t *ca, int type_id, unsigned long val)
+        handle_t put_longlong  (client_agent_t *ca, int type_id, long long val)
+        handle_t put_ulonglong (client_agent_t *ca, int type_id, unsigned long long val)
+        handle_t put_ulonglong (client_agent_t *ca, int type_id, unsigned long long val)
+        handle_t put_float     (client_agent_t *ca, int type_id, float val)
+        handle_t put_double    (client_agent_t *ca, int type_id, double val)
 
-        int put_4xint_vec     (client_agent_t *ca, int type_id, __m128 val)
-        int put_4xfloat_vec   (client_agent_t *ca, int type_id, __m128 val)
-        int put_2xdouble_vec  (client_agent_t *ca, int type_id, __m128 val)
-        int put_int_vec_from_ary(client_agent_t *ca, int type_id, int *ary)
+        handle_t put_4xint_vec       (client_agent_t *ca, int type_id, __m128 val)
+        handle_t put_4xfloat_vec     (client_agent_t *ca, int type_id, __m128 val)
+        handle_t put_2xdouble_vec    (client_agent_t *ca, int type_id, __m128 val)
+        handle_t put_int_vec_from_ary(client_agent_t *ca, int type_id, int *ary)
 
     Example C usage::
 
         client_agent_t *ca = ...;
-        int a = put_int (ca, id_of("@i32"), 42);
-        int b = put_long(ca, id_of("@i64"), 42L);
-        int c = put_int (ca, id_of("@i64"), 42);       // sign extended
-        int d = put_uint(ca, id_of("@i64"), 42U);      // zero extended
-        int e = put_long(ca, id_of("@i32"), 42L);      // truncated
+        handle_t a = put_int (ca, id_of("@i32"), 42);
+        handle_t b = put_long(ca, id_of("@i64"), 42L);
+        handle_t c = put_int (ca, id_of("@i64"), 42);       // sign extended
+        handle_t d = put_uint(ca, id_of("@i64"), 42U);      // zero extended
+        handle_t e = put_long(ca, id_of("@i32"), 42L);      // truncated
 
 The ``put_constant`` message
 ----------------------------
@@ -343,7 +363,8 @@ The ``put_constant`` message
 
   + ``id``: the ID of the µVM constant
 
-- return value: A handle of the constant value.
+- return value: A handle of the constant value. It has the same type as the SSA
+  variable of ``id``.
 
 The ``put_constant`` message creates a handle to a µVM constant value.
 
@@ -358,9 +379,9 @@ The ``put_constant`` message creates a handle to a µVM constant value.
 
 ..
 
-    Example Java signature: ``int ClientAgent.putConstant(int id)``
+    Example Java signature: ``Handle ClientAgent.putConstant(int id)``
 
-    Example C signature: ``int put_constant(client_agent_t *ca, int id)``
+    Example C signature: ``handle_t put_constant(client_agent_t *ca, int id)``
 
 The ``put_global`` message
 --------------------------
@@ -371,7 +392,9 @@ The ``put_global`` message
 
   + ``id``: the ID of the global cell
 
-- return value: A handle to a internal reference value of the global cell.
+- return value: A handle to a internal reference value of the global cell. It
+  has the same type as the SSA variable of ``id``.
+
 
 The ``put_global`` message creates a handle whose value is the internal
 reference to a global cell.
@@ -387,9 +410,9 @@ reference to a global cell.
 
 ..
 
-    Example Java signature: ``int ClientAgent.putGlobal(int id)``
+    Example Java signature: ``Handle ClientAgent.putGlobal(int id)``
 
-    Example C signature: ``int put_global(client_agent_t *ca, int id)``
+    Example C signature: ``handle_t put_global(client_agent_t *ca, int id)``
 
 The ``put_function`` message
 -----------------------------
@@ -400,7 +423,8 @@ The ``put_function`` message
 
   + ``id``: the ID of the µVM function
 
-- return value: A handle to a function value of the µVM function.
+- return value: A handle to a function value of the µVM function. It
+  has the same type as the SSA variable of ``id``.
 
 The ``put_function`` message creates a handle whose value is a function value
 that refers to the µVM function.
@@ -416,9 +440,9 @@ that refers to the µVM function.
 
 ..
 
-    Example Java signature: ``int ClientAgent.putFunction(int id)``
+    Example Java signature: ``Handle ClientAgent.putFunction(int id)``
 
-    Example C signature: ``int put_function(client_agent_t *ca, int id)``
+    Example C signature: ``handle_t put_function(client_agent_t *ca, int id)``
 
 The ``delete_handle`` message
 -----------------------------
@@ -448,11 +472,11 @@ Delete the handle.
 
 ..
 
-    Example Java signature: ``void ClientAgent.deleteHandle(int handle)``
+    Example Java signature: ``void ClientAgent.deleteHandle(Handle handle)``
 
-    Example Java signature: ``void ClientAgent.deleteHandles(int... handles)``
+    Example Java signature: ``void ClientAgent.deleteHandles(Handle... handles)``
 
-    Example C signature: ``void delete_handle(client_agent_t *ca, int handle)``
+    Example C signature: ``void delete_handle(client_agent_t *ca, handle_t handle)``
 
 The ``to_client_value`` message
 -------------------------------
@@ -486,56 +510,59 @@ behaviour.
 
     Example Java signatures::
 
-        byte    ClientAgent.toByte  (int handle)
-        short   ClientAgent.toShort (int handle)
-        int     ClientAgent.toInt   (int handle)
-        long    ClientAgent.toLong  (int handle)
-        float   ClientAgent.toFloat (int handle)
-        double  ClientAgent.toDouble(int handle)
-        BigInteger ClientAgent.toBigInt(int handle)
+        byte    ClientAgent.toByte  (Handle handle)
+        short   ClientAgent.toShort (Handle handle)
+        int     ClientAgent.toInt   (Handle handle)
+        long    ClientAgent.toLong  (Handle handle)
+        float   ClientAgent.toFloat (Handle handle)
+        double  ClientAgent.toDouble(Handle handle)
+        BigInteger ClientAgent.toBigInt(Handle handle)
 
-        int[]   ClientAgent.toInts  (int handle)
-        float[] ClientAgent.toFloats(int handle)
+        // dump µVM vectors to arrays
+        int[]   ClientAgent.toInts  (Handle handle)
+        float[] ClientAgent.toFloats(Handle handle)
         ...
 
-        int     ClientAgent.toInt   (int handle, boolean signExt)
-        long    ClientAgent.toLong  (int handle, boolean signExt)
-        BigInteger ClientAgent.toBigInt(int handle, boolean signExt)
+        int     ClientAgent.toInt   (Handle handle, boolean signExt)
+        long    ClientAgent.toLong  (Handle handle, boolean signExt)
+        BigInteger ClientAgent.toBigInt(Handle handle, boolean signExt)
         ...
 
     Example Java usage::
 
         ClientAgent ca = ...;
-        int  v1 = ca.toInt (-1);
-        long v2 = ca.toLong(-2);
-        long v3 = ca.toLong(-3, false);   // zero extended
-        long v4 = ca.toLong(-4, true);    // sign extended
-        float  v5 = ca.toLong(-4, true);
-        double v6 = ca.toLong(-4, true);
+        int  v1 = ca.toInt (h1);
+        long v2 = ca.toLong(h2);
+        long v3 = ca.toLong(h3, false);   // zero extended
+        long v4 = ca.toLong(h4, true);    // sign extended
+        float  v5 = ca.toLong(h5, true);
+        double v6 = ca.toLong(h6, true);
 
     Example C signatures::
 
-        signed char   to_schar (client_agent_t *ca, int handle)
-        unsigned char to_uchar (client_agent_t *ca, int handle)
+        signed char   to_schar (client_agent_t *ca, handle_t handle)
+        unsigned char to_uchar (client_agent_t *ca, handle_t handle)
         ...
-        int           to_int   (client_agent_t *ca, int handle)
-        unsigned int  to_uint  (client_agent_t *ca, int handle)
+        int           to_int   (client_agent_t *ca, handle_t handle)
+        unsigned int  to_uint  (client_agent_t *ca, handle_t handle)
         ...
-        float         to_float (client_agent_t *ca, int handle)
-        double        to_double(client_agent_t *ca, int handle)
+        float         to_float (client_agent_t *ca, handle_t handle)
+        double        to_double(client_agent_t *ca, handle_t handle)
         
-        __m128        to_m128  (client_agent_t *ca, int handle)
-        void          to_ints  (client_agent_t *ca, int handle, int *result)
+        __m128        to_m128  (client_agent_t *ca, handle_t handle)
+
+        // dump µVM vector to an int array
+        void          to_ints  (client_agent_t *ca, handle_t handle, int *result)
 
     Example C usage::
 
         client_agent_t *ca = ...;
 
-        int a           = to_int (ca, -1);       // sign extended
-        unsigned int b  = to_uint(ca, -2);       // zero extended
+        int a           = to_int (ca, h1);       // sign extended
+        unsigned int b  = to_uint(ca, h2);       // zero extended
 
         int vec[4];
-        to_ints(ca, -3, vec)
+        to_ints(ca, h3, vec)
 
 Struct Operations
 =================
@@ -565,9 +592,9 @@ of ``str``.
 
 ..
 
-    Example Java signature: ``int ClientAgent.extractValue(int handle, int index)``
+    Example Java signature: ``Handle ClientAgent.extractValue(Handle handle, int index)``
 
-    Example C signature: ``int extract_value(agent_t *ca, int handle, int index)``
+    Example C signature: ``handle_t extract_value(agent_t *ca, handle_t handle, int index)``
 
 The ``insert_value`` message
 ----------------------------
@@ -602,9 +629,9 @@ same as ``str`` except the ``index``-th field become ``newval``.
 
 ..
 
-    Example Java signature: ``int ClientAgent.insertValue(int str, int index, int newval)``
+    Example Java signature: ``Handle ClientAgent.insertValue(Handle str, int index, Handle newval)``
 
-    Example C signature: ``int insert_value(agent_t *ca, int str, int index, int newval)``
+    Example C signature: ``handle_t insert_value(agent_t *ca, handle_t str, int index, handle_t newval)``
 
     Example in Scala::
     
@@ -646,10 +673,10 @@ heap.
 
 ..
 
-    Example Java signature: ``int ClientAgent.newFixed(int typeID)``. Note that
+    Example Java signature: ``Handle ClientAgent.newFixed(int typeID)``. Note that
     ``new`` is a keyword in Java.
 
-    Example C signature: ``int new_fixed(agent_t *ca, int type_id)``. To avoid
+    Example C signature: ``handle_t new_fixed(agent_t *ca, int type_id)``. To avoid
     conflicting with the C++ ``new`` keyword, it is recommended to rename this
     message.
 
@@ -681,9 +708,9 @@ variable part of length ``length`` in the µVM heap.
 
 ..
 
-    Example Java signature: ``int ClientAgent.newHybrid(int typeID, int length)``
+    Example Java signature: ``Handle ClientAgent.newHybrid(int typeID, int length)``
 
-    Example C signature: ``int new_hybrid(agent_t *ca, int type_id, int length)``
+    Example C signature: ``handle_t new_hybrid(agent_t *ca, int type_id, int length)``
 
 The ``refcast`` message
 -----------------------
@@ -706,9 +733,9 @@ the type parameters *T1* and *T2* of the ``REFCAST`` instruction (see
 
 ..
 
-    Example Java signature: ``int ClientAgent.refcast(int handle, int new_type_id)``
+    Example Java signature: ``Handle ClientAgent.refcast(Handle handle, int new_type_id)``
 
-    Example C signature: ``int refcast(agent_t *ca, int handle, int new_type_id)``
+    Example C signature: ``handle_t refcast(agent_t *ca, handle_t handle, int new_type_id)``
 
 The ``get_iref`` message
 ------------------------
@@ -724,9 +751,9 @@ The ``get_iref`` message
 The ``get_iref`` message converts an object reference ``handle`` to an internal
 reference to the same object.
 
-    Example Java signature: ``int ClientAgent.getIRef(int handle)``
+    Example Java signature: ``Handle ClientAgent.getIRef(Handle handle)``
 
-    Example C signature: ``int get_iref(agent_t *ca, int handle)``
+    Example C signature: ``handle_t get_iref(agent_t *ca, handle_t handle)``
 
 The ``get_field_iref`` message
 ------------------------------
@@ -743,9 +770,9 @@ The ``get_field_iref`` message
 The ``get_field_iref`` message converts an internal reference ``handle`` to an
 internal reference to the ``index``-th field of the struct.
 
-    Example Java signature: ``int ClientAgent.getFieldIRef(int handle, int index)``
+    Example Java signature: ``Handle ClientAgent.getFieldIRef(Handle handle, int index)``
 
-    Example C signature: ``int get_field_iref(agent_t *ca, int handle, int index)``
+    Example C signature: ``handle_t get_field_iref(agent_t *ca, handle_t handle, int index)``
 
 The ``get_elem_iref`` message
 -----------------------------
@@ -764,11 +791,9 @@ The ``get_elem_iref`` message
 The ``get_field_iref`` message converts an internal reference ``handle`` to to
 an internal reference to the ``index``-th element of the array or vector.
 
-    Example Java signature: ``int ClientAgent.getElemIRef(int handle, int index)``
+    Example Java signature: ``Handle ClientAgent.getElemIRef(Handle handle, Handle index)``
 
-    Example Scala signature: ``def ClientAgent.getElemIRef(handle: Handle, index: Int): Handle``
-
-    Example C signature: ``int get_elem_iref(agent_t *ca, int handle, int index)``
+    Example C signature: ``handle_t get_elem_iref(agent_t *ca, handle_t handle, handle_t index)``
 
 The ``shift_iref`` message
 --------------------------
@@ -787,16 +812,9 @@ The ``shift_iref`` message
 The ``shift_iref`` message shifts the internal reference ``handle`` forward by
 ``offset``. 
 
-    For Lua users: No counterparts.
+    Example Java signature: ``Handle ClientAgent.ShiftIRdf(Handle handle, Handle offset)``
 
-..
-
-
-    Example Java signature: ``int ClientAgent.ShiftIRdf(int handle, int offset)``
-
-    Example Scala signature: ``def ClientAgent.ShiftIRdf(handle: Handle, offset Int): Handle``
-
-    Example C signature: ``int shift_iref(agent_t *ca, int handle, int offset)``
+    Example C signature: ``handle_t shift_iref(agent_t *ca, handle_t handle, handle_t offset)``
 
 The ``get_fixed_part_iref`` and the ``get_var_part_iref`` message
 -----------------------------------------------------------------
@@ -819,13 +837,13 @@ undefined behaviour if the variable part has 0 elements.
 
     Example Java signatures::
 
-        int ClientAgent.getFixedPartIRef(int handle)
-        int ClientAgent.getVarPartIRef(int handle)
+        Handle ClientAgent.getFixedPartIRef(Handle handle)
+        Handle ClientAgent.getVarPartIRef(Handle handle)
 
     Example C signatures::
     
-        int get_fixed_part_iref(agent_t *ca, int handle)
-        int get_var_part_iref(agent_t *ca, int handle)
+        handle_t get_fixed_part_iref(agent_t *ca, handle_t handle)
+        handle_t get_var_part_iref(agent_t *ca, handle_t handle)
 
 The ``load`` message
 --------------------
@@ -847,9 +865,9 @@ This operation has the memory order ``ord``.
 
 ..
 
-    Example Java signature: ``int ClientAgent.load(MemoryOrder ord, int loc)``
+    Example Java signature: ``Handle ClientAgent.load(MemoryOrder ord, Handle loc)``
 
-    Example C signatures: ``int load(agent_t *ca, memory_order_t ord, int loc)``
+    Example C signatures: ``handle_t load(agent_t *ca, memory_order_t ord, handle_t loc)``
 
 The ``store`` message
 ---------------------
@@ -874,9 +892,9 @@ This operation has the memory order ``ord``.
 
 ..
 
-    Example Java signatures: ``void ClientAgent.store(MemoryOrder ord, int loc, int newval)``
+    Example Java signatures: ``void ClientAgent.store(MemoryOrder ord, Handle loc, Handle newval)``
 
-    Example C signatures: ``void store(agent_t *ca, memory_order_t ord, int loc, int newval)``
+    Example C signatures: ``void store(agent_t *ca, memory_order_t ord, handle_t loc, handle_t newval)``
 
 The ``cmpxchg`` message
 -----------------------
@@ -914,9 +932,9 @@ This operation has the memory order ``ord_succ`` when successful and
 
     Example in Java::
         
-        class CmpXchgResult { boolean isSucc; int oldval; }
+        class CmpXchgResult { boolean isSucc; Handle oldval; }
         CmpXchgResult ClientAgent.cmpxchg(MemoryOrder ordSucc, MemoryOrder ordFail,
-            boolean weak, int loc, int expected, int desired)
+            boolean weak, Handle loc, Handle expected, Handle desired)
 
     Example in Scala::
         
@@ -926,7 +944,7 @@ This operation has the memory order ``ord_succ`` when successful and
     Example in C::
 
         void cmpxchg(agent_t *ca, memory_order_t ord_succ, memory_order_t ord_fail,
-            int weak, int loc, int expected, int desired, int *is_succ, int *oldval)
+            bool weak, handle_t loc, handle_t expected, handle_t desired, bool *is_succ, handle_t *oldval)
 
 The ``atomicrmw`` message
 -------------------------
@@ -953,9 +971,9 @@ stores the result to ``loc``. The whole process happen atomically.
 
 This operation has the memory order ``ord``.
 
-    Example Java signature: ``int ClientAgent.atomicrmw(MemoryOrder ord, AtomicRMWOp op, int loc, int opnd)``
+    Example Java signature: ``Handle ClientAgent.atomicrmw(MemoryOrder ord, AtomicRMWOp op, Handle loc, Handle opnd)``
 
-    Example C signature: ``int atomicrmw(agent_t *ca, memory_order_t ord, atomic_rmw_op_t op, int loc, int opnd)``
+    Example C signature: ``handle_t atomicrmw(agent_t *ca, memory_order_t ord, atomic_rmw_op_t op, handle_t loc, handle_t opnd)``
 
 The ``fence`` message
 ---------------------
@@ -1003,9 +1021,9 @@ stack-bottom function and ``arg_list`` as its arguments.
 
 ..
 
-    Example Java signature: ``int ClientAgent.newStack(int func, int[] argList)``
+    Example Java signature: ``Handle ClientAgent.newStack(Handle func, Handle[] argList)``
 
-    Example C signature: ``int new_stack(agent_t *ca, int func, int nargs, int* args)``
+    Example C signature: ``handle_t new_stack(agent_t *ca, handle_t func, int nargs, handle_t* args)``
 
     Example Java usage::
 
@@ -1013,13 +1031,13 @@ stack-bottom function and ``arg_list`` as its arguments.
 
         // Assume @gcd is <@i64 (@i64 @i64)>
 
-        int func = ca.putFunction(idOf("@gcd"));
-        int arg0 = ca.putLong(idOf("@i64"), 42);
-        int arg1 = ca.putLong(idOf("@i64"), 21);
+        Handle func = ca.putFunction(idOf("@gcd"));
+        Handle arg0 = ca.putLong(idOf("@i64"), 42);
+        Handle arg1 = ca.putLong(idOf("@i64"), 21);
 
-        int stack = ca.newStack(func, new int[] {arg0, arg1});
+        Handle stack = ca.newStack(func, new Handle[] {arg0, arg1});
 
-        int thread = ca.newThread(stack);  // see below.
+        Handle thread = ca.newThread(stack);  // see below.
 
         ca.deleteHandles(func, arg0, arg1, stack);
 
@@ -1044,158 +1062,121 @@ stack.
 
 ..
 
-    Example Java signature: ``int ClientAgent.newThread(int stack)``
+    Example Java signature: ``Handle ClientAgent.newThread(Handle stack)``
 
-    Example C signature: ``int new_thread(agent_t *ca, int stack)``
+    Example C signature: ``handle_t new_thread(agent_t *ca, handle_t stack)``
+
+Stack Introspection and On-stack Replacement
+============================================
+
+The ``current_instruction`` message
+-----------------------------------
+
+TODO
+
+The ``dump_keepalives`` message
+-------------------------------
+
+TODO
+
+The ``pop_frame`` message
+-------------------------
+
+TODO
+
+The ``push_frame`` message
+--------------------------
+
+TODO
 
 Trap and Undefined Function Handling
 ====================================
 
-    TODO: Update to the new API
-
 The ``TRAP`` and the ``WATCHPOINT`` instructions represent places that a µVM
-program requires assistance from the client. When a µVM program calls a µVM
-function that is declared but not defined, the µVM also asks the client for
-further actions. In both cases, the µVM pauses the running µVM thread, preserves
-the stack state and transfers the control to call-backs registered by the
-client.
+program requires assistance from the Client. When a µVM program calls a µVM
+function that is declared but not defined, the µVM also asks the Client to
+define the function. In both cases, the µVM pauses the running µVM thread,
+preserves the stack state and execute the corresponding call-backs.
 
 The ``handle_trap`` call-back
 -----------------------------
 
-This call-back is called when a trap (both ``TRAP`` and enabled ``WATCHPOINT``)
-is hit. Since there may be multiple µVM threads running, more than one thread
-may hit the trap simultaneously. The implementation is only required to have all
-of them handled, sequentially or parallelly.
-
 - name: ``handle_trap``
 - parameters:
 
-    - ``thread``: A handle to the thread which hit the trap.
+  + ``ca``: A Client Agent for this call.
+  + ``thread``: A handle to the thread which hit the trap.
+  + ``stack``: A handle to the stack which the thread was bound to.
+  + ``watchpoin_id``: The watch point ID. 0 if it is ``TRAP``.
 
-- returns: The client should tell the µVM how to resume execution.
+- returns: How the ``thread`` should continue. It can be one of the following
+  tagged structures:
 
-TODO: Define an extra ``TRAPPED`` state of a stack.
+  + ``EXIT``: The thread terminates.
+  + ``REBIND_PASS_VALUE(new_stack, value)``: Rebind ``thread`` with a stack,
+    passing a value.
 
-TODO: The trap handler may dis-associate a thread with its stack and
-re-associate with another stack. The state of the new stack is unknown (but a
-good client must be sure about its state).
-  
-.. whether the trap should return
-   normally with the appropriate return value, or exceptionally with an object
-   reference referring to an object as the exception. See the ``TRAP`` instruction
-   for more details. If the client stops the thread, the return value is ignored by
-   the µVM. If OSR happened, the return value is also ignored.
+    * ``new_stack``: A handle in ``ca`` to a stack. Must be in state
+      ``READY<T>`` for some *T*.
+    * ``value``: A handle in ``ca`` to a value passed to the stack. Must have
+      type *T*.
 
+  + ``REBIND_PASS_VOID(new_stack)``: Rebind ``thread`` with a stack, passing
+    void.
 
-The ``thread`` handle can be used to introspect all states of the stack,
-including the trap ID which can be obtained as the "current instruction".
+    * ``new_stack``: A handle in ``ca`` to a stack. Must be in state
+      ``READY<void>``.
+
+  + ``REBIND_THROW_EXC(new_stack, exc)``: Rebind ``thread`` with a stack,
+    throwing an exception.
+
+    * ``new_stack``: A handle in ``ca`` to a stack.
+    * ``exc``: A handle in ``ca`` to a value passed. Must have type ``ref<T>``
+      for some *T*.
+
+This call-back is called when a trap (either a ``TRAP`` or an enabled
+``WATCHPOINT``) is hit.
+
+A Client Agent ``ca`` is provided to the Client for this particular call. It
+initially has two handles, namely ``thread`` and ``stack``. It is automatically
+closed after this handler returned.
+
+The ``thread`` and the ``stack`` are already unbound when entering this
+handler.
+
+The return value tells the µVM how the ``thread`` shall continue. It may
+terminate or bind to a stack to continue. In all cases, the ``new_stack`` field
+may or may not be the ``stack`` parameter. The ``stack`` will not be
+automatically killed even with ``EXIT``.
+
+When multiple µVM threads hit traps concurrently, the µVM guarantees that this
+call-back is called for each hit. However, the µVM implementation may decide
+whether all calls to this call-back can be executed concurrently or only
+sequentially.
 
 The ``handle_undefined_function`` call-back
 -------------------------------------------
 
-This call-back is called when an undefined function is called (by ``CALL``,
-``INVOKE`` or ``TAILCALL``), used by ``NEWSTACK`` or any intrinsic functions
-that may call a µVM function. Since there may be multiple µVM threads running,
-more than one thread may call undefined functions simultaneously. The
-implementation is only required to have all of them handled, sequentially or
-parallelly.
-
 - name: ``handle_undefined_function``
 - parameters:
 
-    - ``thread``: A handle to the thread which hit the trap.
     - ``function_id``: The ID of the undefined function.
 
 - returns: nothing
 
-The client should define the undefined function. After returning, the µVM
-program will re-execute the same instruction again unless the thread is stopped.
+This call-back is called when an undefined function is called (by ``CALL``,
+``INVOKE`` or ``TAILCALL``), used by ``NEWSTACK`` or any intrinsic functions
+that may call a µVM function. 
 
-Thread and Stack Introspection
-------------------------------
+``function_id`` is the ID of the callee function. After returning, the µVM
+program will re-execute the same instruction again.
 
-When a trap is hit or an undefined function is called, the thread pauses and the
-client takes over the control. It gives the client an opportunity to introspect
-the state of the thread and its associated stack.
+    NOTE: This means that the Client must define the undefined function, or the
+    µVM will keep calling this call-back again and again.
 
-This specification defines the relations between some µVM objects and some
-messages to manipulate them. How those objects are represented, how to navigate
-through those objects and how to access their attributes are
-implementation-specific. The implementation may represent them as objects in
-the implementation language (e.g. Java Objects when the µVM and the Client are
-implemented in Java), or just their IDs.
-
-Object ``Thread``
-
-    - attribute ``stack``: its associated stack
-
-Object ``Stack``
-
-    - attribute ``top``: the top frame of the stack
-    - attribute ``state``: the state of a stack (READY, RUNNING, DEAD)
-      (todo: TRAPPED?)
-
-Object ``Frame``
-
-    - attribute ``next``: the next frame under the current frame if the current
-      frame is not the bottom frame of the stack
-    - attribute ``cur_inst``: the current (µVM) instruction
-    - attribute ``func``: the specific version of a function which is active in
-      this frame
-    - attribute ``keep_alives``: the values of local SSA Values kept alive by
-      the KEEPALIVE clause of the current instruction
-
-The kept-alive values of all frames, not just the top frame, can be
-introspected. Since function re-definition is allowed in µVM, a frame is
-associated with an exact version of a function, not just the function itself.
-
-TODO: The top frame may be executing any instruction that is allowed in its
-state. If 
-
-.. The top frame should be executing a ``TRAP`` or ``WATCHPOINT`` instruction when
-    handling a trap, or ``CALL``, ``INVOKE``, ``TAILCALL`` or ``NEWSTACK`` (or
-    intrinsic functions introduced in the future) when handling an undefined
-    function. All frames below are executing ``CALL`` or ``INVOKE`` (or intrinsic
-    functions).
-
-There are only one trap handler and one undefined function handler registered at
-a time. The client can multiplex these handlers by inspecting the ID of the
-current instruction to know which instruction triggered this trap or undefined
-function and handle it accordingly.
-
-On-stack Replacement (OSR)
---------------------------
-
-On-stack replacement is a way to replace existing function activations (i.e.
-stack frames) with others.
-
-OSR can only be done on a stack whose top frame is executing an OSR point
-instruction.
-
-NOTE: Undefined function calls are not OSR points. ``TRAP``, ``WATCHPOINT`` and
-intrinsic functions labelled as OSR points are.
-
-The µVM imposes restrictions on what OSR can do to a stack.
-
-1. It can pop as many frames as desired.
-2. After popping, it must push one stack with a function and its arguments. This
-   function must have the return value expected by the caller in the frame
-   below. When the execution is resumed to this stack, it will start at the
-   beginning of this new function.
-
-TODO: Is the above two steps atomic, in the sense that it is a single action:
-"pop n frames and push one frame with func and args"? If it is not atomic, what
-intermediate state is a stack in? Is it necessary to maintain some intermediate
-states for those intermediate frames? (e.g. callee-saved registers?)
-
-TODO: Add a "RETURNING" state? But how to "return a value of a specific type to
-a caller that expect this type" in a generic way? In other words, does it
-require return-type-specific code? If it does, it is not different from
-generating a trivial function per type that returns its argument.
-
-TODO: Is it reasonable enough to limit a new frame to start from the beginning
-of a function? It seems to be the only sane solution.
+Since there may be multiple µVM threads running, more than one thread may call
+undefined functions simultaneously. The implementation is only required to have
+all of them handled, sequentially or parallelly.
 
 Signal Handling
 ===============
