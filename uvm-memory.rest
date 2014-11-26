@@ -83,13 +83,21 @@ the type of data value the memory location represents:
 Garbage Collection
 ------------------
 
-A **root** is an object reference or internal reference in any global cell,
-alloca cell, live local SSA variable or the stack in any Client Agent.
+A **root** is an object reference or internal reference in:
+
+* any global cell, or
+* any bound µVM stacks, or
+* the registry in any Client Agent.
+
+A live stack contains references in its alloca cells and live local SSA
+variables. A dead stack contains no references. A thread can strongly reach its
+bound stack unless it is temporarily unbound because of trapping.
 
 An object is **strongly reachable** if it can be reached by traversing only
-strong references from any root. An object is **weakly reachable** if it is not
-strongly reachable, but can be reached by traversing strong and weak references
-from any root. Otherwise an object is **unreachable**.
+strong, stack and thread references from any root. An object is **weakly
+reachable** if it is not strongly reachable, but can be reached by traversing
+strong stack, thread and weak references from any root. Otherwise an object is
+**unreachable**.
 
 The garbage collector can collect unreachable objects. It may also modify weak
 references which refers to a weakly reachable object to ``NULL``.

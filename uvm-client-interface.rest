@@ -742,7 +742,7 @@ The ``get_iref`` message
 
 - receiver: Client Agent
 - message: ``get_iref``
-- parameters: None
+- parameters:
 
   + ``handle``: A handle to an object reference value.
 
@@ -779,7 +779,7 @@ The ``get_elem_iref`` message
 
 - receiver: Client Agent
 - message: ``get_elem_iref``
-- parameters: None
+- parameters:
 
   + ``handle``: A handle to an internal reference of an array or vector.
   + ``index``: A handle of a µVM integer: the index of the element.
@@ -800,7 +800,7 @@ The ``shift_iref`` message
 
 - receiver: Client Agent
 - message: ``shift_iref``
-- parameters: None
+- parameters:
 
   + ``handle``: A handle to an internal reference.
   + ``offset``: A handle of a µVM integer: the offset.
@@ -1045,8 +1045,8 @@ The ``new_thread`` message
 --------------------------
 
 - receiver: Client Agent
-- message: ``new_stack``
-- parameters: None
+- message: ``new_thread``
+- parameters:
 
   + ``sta``: A handle of a stack value.
 
@@ -1066,28 +1066,262 @@ stack.
 
     Example C signature: ``handle_t new_thread(agent_t *ca, handle_t stack)``
 
+The ``kill_stack`` message
+--------------------------
+
+- receiver: Client Agent
+- message: ``kill_stack``
+- parameters:
+
+  + ``sta``: A handle of a stack value.
+
+- return value: None
+
+The ``kill_stack`` message kills the stack.
+
+    For JVM users: The JVM does not distinguish stacks and threads. The closest
+    counterpart is the JVM TI function ``StopThread``, but the µVM
+    ``kill_stack`` message does not unwind the stack. It simply marks the whole
+    stack for deletion.
+
+..
+
+    For Lua users: Coroutines in Lua are garbage collected. The µVM will reclaim
+    unreachable stacks, too, but can also explicitly kill them.
+
+..
+
+    Example Java signature: ``void ClientAgent.killStack(Handle stack)``
+
+    Example C signature: ``void kill_stack(agent_t *ca, handle_t stack)``
+
 Stack Introspection and On-stack Replacement
 ============================================
+
+The ``current_func_ver`` message
+--------------------------------
+
+- receiver: Client Agent
+- message: ``current_func_ver``
+- parameters:
+
+  + ``stack``: A handle of a stack.
+  + ``frame``: An integer: The number of frames below the top. 0 means top.
+
+- return value: The ID of the version of function of the current frame.
+
+The ``current_func_ver`` message returns the id of the current function version
+of a frame in ``stack``.
+
+The frame is the ``frame``-th frame below the top frame.  (If ``frame`` is 0, it
+is the top frame. 1 is the frame below the top. 2 is the one below 1, and so
+on.)
+
+    For JVM users: The closest JVM TI function is ``GetFrameLocation``.
+
+..
+
+    Example Java signature: ``Handle ClientAgent.currentInstruction(Handle stack, int frame)``
+
+    Example C signature: ``handle_t current_instruction(agent_t *ca, handle_t stack, int frame)``
+
 
 The ``current_instruction`` message
 -----------------------------------
 
-TODO
+- receiver: Client Agent
+- message: ``current_instruction``
+- parameters:
+
+  + ``stack``: A handle of a stack.
+  + ``frame``: An integer: The number of frames below the top. 0 means top.
+
+- return value: A handle of a thread value: the newly created thread.
+
+The ``current_instruction`` message returns the id of the current instruction of
+a frame in ``stack``. Return 0 if the frame is the "stack-bottom frame" of a
+newly created stack.
+
+See ``current_func_ver`` about how the frame is selected.
+
+    For JVM users: The closest JVM TI function is ``GetFrameLocation``.
+
+..
+
+    Example Java signature: ``Handle ClientAgent.currentInstruction(Handle stack, int frame)``
+
+    Example C signature: ``handle_t current_instruction(agent_t *ca, handle_t stack, int frame)``
 
 The ``dump_keepalives`` message
 -------------------------------
 
-TODO
+- receiver: Client Agent
+- message: ``dump_keepalives``
+- parameters:
+
+  + ``stack``: A handle of a stack.
+  + ``frame``: An integer: The number of frames below the top. 0 means top.
+
+- return value: A list of handles, each has the value of a local variable in the
+  keep-alive clause of the current instruction in the selected frame.
+
+The ``dump_keepalives`` dumps the values of the keep-alive variables of the
+current instruction in the selected frame. Returns a list of handles.
+
+See ``current_func_ver`` about how the frame is selected.
+
+    For JVM users: The closest JVM TI function is ``GetLocalVariable``. The µVM
+    will not keep all local variables alive. It does not allow setting the value
+    of local variables, either. However, if an internal reference to a stack
+    memory cell is kept alive, the Client can access that memory using the
+    memory accessing API messages.
+
+..
+
+    Example Java signature: ``List<Handle> ClientAgent.dumpKeepalives(Handle stack, int frame)``
+
+    Example C signature: ``void current_instruction(agent_t *ca, handle_t stack, int frame, handle_t* output_handles)``
 
 The ``pop_frame`` message
 -------------------------
 
-TODO
+- receiver: Client Agent
+- message: ``pop_frame``
+- parameters:
+
+  + ``stack``: A handle of a stack.
+
+- return value: None
+
+The ``pop_frame`` message pops the top frame of the stack.
+
+    For JVM users: This is the counterpart of the ``PopFrame`` frame.
+
+..
+
+    Example Java signature: ``void ClientAgent.popFrame(Handle stack)``
+
+    Example C signature: ``void pop_frame(agent_t *ca, handle_t stack)``
 
 The ``push_frame`` message
 --------------------------
 
-TODO
+    TODO. See discussion https://github.com/microvm/microvm-meta/issues/22
+
+Tagged Reference Messages
+=========================
+
+The ``tr64_is_fp``, ``tr64_is_int`` and ``tr64_is_ref`` messages
+----------------------------------------------------------------
+
+- receiver: Client Agent
+- messages: ``tr64_is_fp``, ``tr64_is_int``, ``tr64_is_ref``
+- parameters:
+
+  + ``handle``: A handle of a ``tagref64`` value.
+
+- return value: A Boolean value: True if the tagged reference contains the
+  expected type.
+
+The ``tr64_is_fp``, ``tr64_is_int`` and ``tr64_is_ref`` messages test if the
+tagged reference ``handle`` currently holds a floating point, integer or
+reference value, respectively.
+
+    Example Java signatures::
+
+        boolean ClientAgnet.tr64IsFP (Handle handle)
+        boolean ClientAgnet.tr64IsInt(Handle handle)
+        boolean ClientAgnet.tr64IsRef(Handle handle)
+
+    Example C signatures::
+
+        bool tr64_is_fp (agent_t *ca, handle_t handle)
+        bool tr64_is_int(agent_t *ca, handle_t handle)
+        bool tr64_is_ref(agent_t *ca, handle_t handle)
+
+The ``tr64_to_fp``, ``tr64_to_int``, ``tr64_to_ref`` and ``tr64_to_tag`` messages
+---------------------------------------------------------------------------------
+
+- receiver: Client Agent
+- messages: ``tr64_to_fp``, ``tr64_to_int``, ``tr64_to_ref``, ``tr64_to_tag``
+- parameters:
+
+  + ``handle``: A handle of a ``tagref64`` value.
+
+- return value: A handle to a µVM value extracted from the tagged reference.
+
+  * ``tr64_to_fp`` : A handle of a ``double`` value.
+  * ``tr64_to_int``: A handle of a ``int<52>`` value.
+  * ``tr64_to_ref``: A handle of a ``ref<void>`` value.
+  * ``tr64_to_tag``: A handle of a ``int<6>`` value.
+
+The ``tr64_to_fp``, ``tr64_to_int``, ``tr64_to_ref`` and ``tr64_to_tag``
+messages extract the value from the tagged reference ``handle``.
+
+``tr64_to_fp``  expects ``handle`` to hold a floating point value.
+
+``tr64_to_int`` expects ``handle`` to hold an integer value.
+
+``tr64_to_ref`` expects ``handle`` to hold a reference. Extract the reference.
+
+``tr64_to_tag`` expects ``handle`` to hold a reference. Extract the ``int<6>``
+tag stored together with the reference.
+
+    Example Java signatures::
+
+        Handle ClientAgnet.tr64ToFP (Handle handle)
+        Handle ClientAgnet.tr64ToInt(Handle handle)
+        Handle ClientAgnet.tr64ToRef(Handle handle)
+        Handle ClientAgnet.tr64ToTag(Handle handle)
+
+    Example C signatures::
+
+        handle_t tr64_to_fp (agent_t *ca, handle_t handle)
+        handle_t tr64_to_int(agent_t *ca, handle_t handle)
+        handle_t tr64_to_ref(agent_t *ca, handle_t handle)
+        handle_t tr64_to_tag(agent_t *ca, handle_t handle)
+
+The ``tr64_from_fp``, ``tr64_from_int`` and ``tr64_from_ref`` messages
+----------------------------------------------------------------------
+
+- receiver: Client Agent
+- messages: ``tr64_from_fp``, ``tr64_from_int``, ``tr64_from_ref``
+- parameters for ``tr64_from_fp``:
+
+  + ``handle``: A handle of a ``double`` value.
+
+- parameters for ``tr64_from_int``:
+
+  + ``handle``: A handle of an ``int<52>`` value.
+
+- parameters for ``tr64_from_ref``:
+
+  + ``ref``: A handle of a ``ref<void>`` value.
+  + ``tag``: A handle of a ``int<6>`` value.
+
+- return value: A handle of the constructed ``tagref64`` value.
+
+The ``tr64_from_fp``, ``tr64_from_int`` and ``tr64_from_ref`` messages construct
+new ``tagref64`` values from their component(s).
+
+``tr64_from_fp`` constructs a ``tagref64`` from a ``double`` value.
+
+``tr64_from_int`` constructs a ``tagref64`` from an ``int<52>`` value.
+
+``tr64_from_fp`` constructs a ``tagref64`` from a ``ref<void>`` reference and an
+integer tag of type ``int<6>``.
+
+    Example Java signatures::
+
+        Handle ClientAgnet.tr64FromFP (Handle handle)
+        Handle ClientAgnet.tr64FromInt(Handle handle)
+        Handle ClientAgnet.tr64FromRef(Handle ref, Handle tag)
+
+    Example C signatures::
+
+        handle_t tr64_from_fp (agent_t *ca, handle_t handle)
+        handle_t tr64_from_int(agent_t *ca, handle_t handle)
+        handle_t tr64_from_ref(agent_t *ca, handle_t ref, handle_t tag)
 
 Trap and Undefined Function Handling
 ====================================
@@ -1181,14 +1415,18 @@ all of them handled, sequentially or parallelly.
 Signal Handling
 ===============
 
+The concrete call-back for the Client to handle signals is
+implementation-specific. 
+
 In an environment where the µVM is present, the Client should not register
-signal handlers. The µVM should register signal handlers. On receiving the
-signal, the µVM shall check if it designates a run-time error in any µVM IR
-code. If so, it shall be handled within the µVM. If it does not occur in any µVM
-IR code, it shall be forwarded to the Client via a call-back. Errors within the
-µVM runtime are fatal and will not be handled. The previous signal handler
-registered by external libraries shall be preserved by the µVM in case the
-external library shall take the responsibility of handling the signal.
+signal handlers. The µVM should register signal handlers for itself or the
+Client. On receiving the signal, the µVM shall check if it designates a run-time
+error in any µVM IR code. If so, it shall be handled within the µVM. If it does
+not occur in any µVM IR code, it shall be forwarded to the Client via a
+call-back. Errors within the µVM runtime are fatal and will not be handled. The
+previous signal handler registered by external libraries shall be preserved by
+the µVM in case the external library shall take the responsibility of handling
+the signal.
 
     NOTE: Both the Client and the µVM may need to handle signals. The µVM needs
     to handle some hardware traps including divide-by-zero errors and floating

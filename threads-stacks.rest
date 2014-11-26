@@ -47,6 +47,11 @@ instructions, pushing or popping frames and allocating memory on the stack.
 
 A stack can be bound to at most one thread at any moment.
 
+A thread is always bound to one stack, with one exception: when executing a
+``TRAP`` or ``WATCHPOINT`` instruction, it is temporarily unbound from its
+current stack. It either rebinds to a stack (may be the old stack or another
+stack) or terminates after returning from the trap handler.
+
 States of Stacks
 ================
 
@@ -189,10 +194,29 @@ Stack Destruction
 The ``SWAPSTACK`` and the ``@uvm.kill_stack`` instruction may perform unbinding
 operations and kill the stack. A destroyed stack enters the **DEAD** state. 
 
-A stack can be killed by the Client, too, via the `µVM-Client Interface
-<uvm-client-interface>`__. 
+A stack can be killed by the Client, too, via the ``kill_stack`` message. See
+`µVM-Client Interface <uvm-client-interface>`__. 
+
+If a stack becomes unreachable from roots, the garbage collector may kill the
+stack.
 
 The µVM may change the value of ``stack`` type to ``NULL`` if the stack it
 refers to is in the **DEAD** state.
+
+On-stack Replacement
+====================
+
+The Client can pop and push frames from or to a stack.
+
+After popping a frame from a stack, the next stack below the top becomes the new
+top frame and its current instruction must be a ``CALL`` instruction. The stack
+now enters the ``READY<T>`` state where *T* is the return type of the ``CALL``
+instruction (may be ``void``). The value or exception passed to such a stack
+will be received by the ``CALL`` instruction as if its callee returned the value
+or threw an exception.
+
+After pushing a frame to a stack, it enters the ``READY<void>`` state and will
+continue from just before the new "current instruction". Throwing an exception
+to such a stack will throw the exception out of its top frame.
 
 .. vim: tw=80
