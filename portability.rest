@@ -169,8 +169,8 @@ and ``thread`` are required for ``CMPXCHG`` and the ``XCHG`` operation of the
 
 ``int<32>`` and ``int<64>`` are required for all ``ATOMICRMW`` operations.
 
-If ``tagref64`` is implemented, it is required for the ``XCHG`` operation of the
-``ATOMICRMW`` instruction.
+If ``tagref64`` is implemented, it is required for the ``LOAD``, ``STORE``, and
+the ``XCHG`` operation of the ``ATOMICRMW`` instruction.
 
 Other types are optional for ``CMPXCHG`` and any subset of ``ATOMICRMW``
 operations.
