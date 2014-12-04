@@ -160,8 +160,10 @@ expected by the instruction gives undefined behaviour.
 The following types are required for both non-atomic and atomic ``LOAD`` and
 ``STORE`` for all implemented ``T`` and ``Sig``: ``int<8>``, ``int<16>``,
 ``int<32>``, ``int<64>``, ``float``, ``double``, ``ref<T>``, ``iref<T>``,
-``weakref<T>``, ``func<Sig>``, ``thread`` and ``stack``. Other types and
-atomicity combinations are optional for ``LOAD`` and ``STORE``.
+``weakref<T>``, ``func<Sig>``, ``thread`` and ``stack``.
+
+The following types are required for non-atomic ``LOAD`` and ``STORE``:
+``vector<int<32> 4>``, ``vector<float 4>`` and ``vector<double 2>``.
 
 ``int<32>``, ``int<64>``, ``ref``, ``iref``, ``weakref``, ``func``, ``stack``
 and ``thread`` are required for ``CMPXCHG`` and the ``XCHG`` operation of the
@@ -169,8 +171,9 @@ and ``thread`` are required for ``CMPXCHG`` and the ``XCHG`` operation of the
 
 ``int<32>`` and ``int<64>`` are required for all ``ATOMICRMW`` operations.
 
-If ``tagref64`` is implemented, it is required for the ``LOAD``, ``STORE``, and
-the ``XCHG`` operation of the ``ATOMICRMW`` instruction.
+If ``tagref64`` is implemented, it is required for both atomic and non-atomic
+``LOAD`` and ``STORE``, and the ``XCHG`` operation of the ``ATOMICRMW``
+instruction.
 
 Other types are optional for ``CMPXCHG`` and any subset of ``ATOMICRMW``
 operations.
@@ -188,7 +191,7 @@ The availability of ``COMMINST`` is specified in the next section.
 
 In any cases when an error occurs and the control flow is expected to transfer
 to the exceptional control flow, but the exception clause is not supplied, then
-it is an undefined behaviour.
+it gives undefined behaviours.
 
 All instructions whose availability is not explicitly specified above are
 required for all types and signatures that are implemented and suitable.
