@@ -702,7 +702,7 @@ must have the same length and the conversion is done element-wise.
 
   + *T1* is an integer type and *T2* is a floating point type of the same number
     of bits.
-  + *T2* is a floating point type and *T1* is an integer type of the same number
+  + *T1* is a floating point type and *T2* is an integer type of the same number
     of bits.
 
 * For REFCAST, *T1* and *T2* must be one of the following combinations:
