@@ -1229,7 +1229,7 @@ by the ``CALL`` instruction.
     Example Java signature: ``void ClientAgent.pushFrame(Handle stack, Handle
     func, List<Handle> argList)``
 
-    Example C signature: ``void pop_frame(agent_t *ca, handle_t stack, handle_t
+    Example C signature: ``void push_frame(agent_t *ca, handle_t stack, handle_t
     func, handle_t *arg_list, int nargs)``
 
 Tagged Reference Messages
