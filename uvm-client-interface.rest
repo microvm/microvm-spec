@@ -1206,7 +1206,31 @@ The ``pop_frame`` message pops the top frame of the stack.
 The ``push_frame`` message
 --------------------------
 
-    TODO. See discussion https://github.com/microvm/microvm-meta/issues/22
+- receiver: Client Agent
+- message: ``push_frame``
+- parameters:
+
+  + ``stack``: A handle of a stack.
+  + ``func``: A handle of a µVM function.
+  + ``arg_list``: A list of handles. Each handle is an argument to ``func``.
+
+- return value: None
+
+The ``push_frame`` message creates a new frame on the top of ``stack`` for
+function ``func``, using the values in ``arg_list`` as its arguments.
+
+The previous stack top frame must be pausing on the ``CALL`` instruction. The
+return type of ``func`` must be the same as return type of the ``CALL``
+instruction of the previous top. After ``push_frame``, the stack enters the
+``READY<void>`` state. When the stack is rebound, it continues from the
+beginning of ``func``. The return value or exceptions from ``func`` are received
+by the ``CALL`` instruction.
+
+    Example Java signature: ``void ClientAgent.pushFrame(Handle stack, Handle
+    func, List<Handle> argList)``
+
+    Example C signature: ``void pop_frame(agent_t *ca, handle_t stack, handle_t
+    func, handle_t *arg_list, int nargs)``
 
 Tagged Reference Messages
 =========================
