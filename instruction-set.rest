@@ -2395,7 +2395,24 @@ continues normally, it branches to the destination *ena* and the return value of
 this instruction is decided by the client; if an exception is generated, it will
 be caught in the *exc* destination if the *exc* destination is present, or the
 exception will be thrown out of the current function activation if the *exc*
-destination is absent.
+destination is absent. If the watch point is disabled before the current stack
+is rebound, the current ``WATCHPOINT`` instruction continues as if it is still
+enabled.
+
+    NOTE: Both ``TRAP`` and enabled ``WATCHPOINT`` imply unbinding the current
+    stack from the current thread and executing the trap handler in the Client.
+    The Client may disable the watch point when handling an enabled watch point,
+    but it does not affect any watch points that are being executed.
+
+    Consider the following example::
+    
+        %wp = WATCHPOINT 42 <@void> %dis %ena %exc
+
+    If the Client disabled watch point 42 when handling this watchpoint and
+    rebinds the current stack passing VOID (see `Threads and Stacks
+    <threads-stacks>`__ for stack/thread rebinding), then it will branch to
+    ``%ena``. The ``%wp`` instruction will branch to ``%dis`` if and only if
+    watch point 42 is disabled when it is executed.
 
 In the binary form, an absent *exc* destination is expressed as the ID of *exc*
 being 0.

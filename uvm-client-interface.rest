@@ -2,8 +2,6 @@
 µVM-Client Interface
 ====================
 
-    NOTE: Cleaning-up in progress...
-
 Overview
 ========
 
@@ -1356,6 +1354,37 @@ function that is declared but not defined, the µVM also asks the Client to
 define the function. In both cases, the µVM pauses the running µVM thread,
 preserves the stack state and execute the corresponding call-backs.
 
+Watch points can be enabled or disabled by the Client via Client Agents.
+
+The ``enable_watchpoint`` and ``disable_watchpoint`` messages
+-------------------------------------------------------------
+
+- receiver: Client Agent
+- messages: ``enable_watchpoint`` and ``disable_watchpoint``
+- parameters:
+
+  + ``wpid``: A 32-bit integer. The ID of the watch point.
+
+- returns: None
+
+The ``enable_watchpoint`` message enables the watch point ``wpid``.
+
+The ``disable_watchpoint`` message disables the watch point ``wpid``.
+
+Enabling or disabling any watch points that are not defined has undefined
+behaviour. A specific watch point is defined by the first occurrence of a
+``WATCHPOINT`` instruction with the specific watch point ID.
+
+    Example Java signatures::
+
+        void ClientAgnet.enableWatchPoint (int wpID)
+        void ClientAgnet.disableWatchPoint(int wpID)
+
+    Example C signatures::
+
+        void enable_watchpoint (agent_t *ca, int wpid)
+        void disable_watchpoint(agent_t *ca, int wpid)
+
 The ``handle_trap`` call-back
 -----------------------------
 
@@ -1418,7 +1447,7 @@ The ``handle_undefined_function`` call-back
 - name: ``handle_undefined_function``
 - parameters:
 
-    - ``function_id``: The ID of the undefined function.
+  + ``function_id``: The ID of the undefined function.
 
 - returns: nothing
 
