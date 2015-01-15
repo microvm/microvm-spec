@@ -185,8 +185,8 @@ that thread to a new stack. In a swap-stack operation, the stack to unbind from
 is called the **swapper** and the stack to bind to is called the **swappee**.
 
 Swap-stack can be performed by executing the ``SWAPSTACK`` instruction (see
-`<instruction-set>`__) or using the µVM-Client API. It can happen during normal
-µVM program execution or during on-stack replacement.
+`<instruction-set>`__) or using the µVM-Client API during traps. It can happen
+during normal µVM program execution or during on-stack replacement.
 
 Stack Destruction
 =================
@@ -218,5 +218,32 @@ or threw an exception.
 After pushing a frame to a stack, it enters the ``READY<void>`` state and will
 continue from just before the new "current instruction". Throwing an exception
 to such a stack will throw the exception out of its top frame.
+
+Futex
+=====
+
+The µVM provides a mechanism similar to the Futex in the Linux kernel for
+implementing blocking locks and other synchronisation primitives.
+
+There is a waiting queue for all memory locations that has some integer types.
+(See `<portability>`__ for valid candidate types for Futex.)
+
+The ``@uvm.futex.wait`` and the ``@uvm.futex.wait_timeout`` instructions put the
+current thread into the waiting queue of a memory location. Both
+``@uvm.futex.wake`` and ``@uvm.futex.cmp_requeue`` wakes up threads in a waiting
+queue of a memory location.
+
+    NOTE: The term *memory location* is defined in the µVM's sense and is
+    abstract over physical memory or the virtual memory space given by the
+    operating system. Even if a µVM implementation uses copying or replicating
+    garbage collectors, the memory location in a heap object remains the same
+    until the object is collected.
+
+    The µVM Futex is designed to be easy to map to the ``futex`` system call on
+    Linux. With the presence of copying garbage collector, the µVM may
+    internally perform ``FUTEX_REQUEUE`` or ``FUTEX_CMP_REQUEUE`` operations to
+    compensate the effect of object movements. It may put barriers around
+    Futex-related µVM instructions when the GC is concurrently re-queuing
+    threads.
 
 .. vim: tw=80

@@ -144,41 +144,71 @@ Math Instructions
 Futex Instructions
 ==================
 
+See `<threads-stacks>`__ for high-level descriptions about Futex.
+
 Wait
 ----
 
-- ``[0x220]@uvm.futex.wait <T> (%loc: iref<T>, %val: T) -> int<64>``
-- ``[0x221]@uvm.futex.wait_timeout <T> (%loc: iref<T>, %val: T, %timeout: int<64>) -> int<64>``
+- ``[0x220]@uvm.futex.wait <T> (%loc: iref<T>, %val: T) -> int<32>``
+- ``[0x221]@uvm.futex.wait_timeout <T> (%loc: iref<T>, %val: T, %timeout: int<64>) -> int<32>``
 
 ``T`` must be an integer type.
 
 The ``@uvm.futex.wait`` and the ``@uvm.futex.wait_timeout`` instructions verify
-if the memory location ``%loc`` still contains the value ``%val`` and then wait
-on the memory location ``%loc`` until being woken. If ``%loc`` does not
-contain ``%val``, return immediately.
+if the memory location ``%loc`` still contains the value ``%val`` and then put
+the current thread to the waiting queue of memory location ``%loc``. If ``%loc``
+does not contain ``%val``, return immediately. These instructions are atomic.
 
 The ``@uvm.futex.wait`` instruction waits indefinitely.
 
 The ``@uvm.futex.wait_timeout`` instruction has an extra ``%timeout`` parameter
 which is a 64-bit unsigned integer that represents a time in nanoseconds. It
-specifies the duration of the wait. This instruction is allowed to spuriously
-wake up before timeout.
+specifies the duration of the wait.
 
-It returns a integer which indicates the result of this call:
+Both instructions are allowed to spuriously wake up.
+
+It returns a signed integer which indicates the result of this call:
 
 * 0: the current thread is woken.
-* 1: the memory location ``%loc`` does not contain the value ``%val``.
-* 2: spurious wakeup.
-* 3: timeout during waiting (``@uvm.futex.wait_timeout`` only).
+* -1: the memory location ``%loc`` does not contain the value ``%val``.
+* -2: spurious wakeup.
+* -3: timeout during waiting (``@uvm.futex.wait_timeout`` only).
 
 Wake
 ----
 
-- ``[0x222]@uvm.futex.wake <T> (%loc: iref<T>, %nthread: int<64>) -> int<64>``
+- ``[0x222]@uvm.futex.wake <T> (%loc: iref<T>, %nthread: int<32>) -> int<32>``
 
 ``T`` must be an integer type.
 
-The ``@uvm.futex.wake`` instruction wakes at most ``%nthread`` threads waiting
-on memory location ``%loc``. Return the number of threads woken up.
+The ``@uvm.futex.wake`` instruction wakes *N* threads in the waiting queue of
+the memory location ``%loc``. This instruction is atomic.
+
+*N* is the minimum value of ``%nthread`` and the actual number of threads in the
+waiting queue of ``%loc``. ``%nthread`` is signed. Negative ``%nthread`` has
+undefined behaviour.
+
+It returns the number of threads woken up.
+
+Requeue
+-------
+
+- ``[0x222]@uvm.futex.cmp_requeue <T> (%loc_src: iref<T>, %loc_dst: iref<T>, %expected: T, %nthread: int<32>) -> int<32>``
+
+``T`` must be an integer type.
+
+The ``@uvm.futex.cmp_requeue`` instruction verifies if the memory location
+``%loc_src`` still contains the value ``%expected`` and then wakes up *N*
+threads from the waiting queue of ``%loc_src`` and move all other threads in the
+waiting queue of ``%loc_src`` to the waiting queue of ``%loc_dst``. If
+``%loc_src`` does not contain the value ``%expected``, return immediately. This
+instruction is atomic.
+
+*N* is the minimum value of ``%nthread`` and the actual number of threads in the
+waiting queue of ``%loc``. ``%nthread`` is signed. Negative ``%nthread`` has
+undefined behaviour.
+
+It returns a signed integer. When the ``%loc_src`` contains the value of
+``%expected``, return the number of threads woken up; otherwise return -1.
 
 .. vim: tw=80

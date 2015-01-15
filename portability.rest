@@ -205,8 +205,8 @@ Required:
 + @uvm.current_stack
 + @uvm.kill_stack
 + @uvm.thread_exit
-+ @uvm.futex.wait for ``int<32>`` and ``int<64>`` memory locations
-+ @uvm.futex.wake for ``int<32>`` and ``int<64>`` memory locations
++ @uvm.futex.wait for ``int<32>`` memory locations
++ @uvm.futex.wake for ``int<32>`` memory locations
 
 Required when ``tagref64`` is implemented:
 
