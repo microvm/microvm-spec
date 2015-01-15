@@ -77,10 +77,10 @@ Operation               Current Stack                   New/Destination Stack
 ======================= =============================== =======================
 create new stack        N/A                             READY<void>
 create new thread       N/A                             READY<void> -> ACTIVE
-swap-stack              ACTIVE -> READY<T>              READY<T> -> ACTIVE
+swap-stack              ACTIVE -> READY<T> or DEAD      READY<U> -> ACTIVE
 @uvm.kill_stack         N/A                             READY<T> -> DEAD
 @uvm.thread_exit        ACTIVE -> DEAD                  N/A
-TRAP                    ACTIVE -> READY<T>              N/A
+trap to Client          ACTIVE -> READY<T>              N/A
 undefined function      ACTIVE                          N/A
 stack-related errors    ACTIVE                          N/A
 ======================= =============================== =======================
@@ -89,8 +89,8 @@ Stack and Thread Creation
 =========================
 
 µVM stacks and µVM threads can be created by µVM instructions ``NEWSTACK`` and
-``@uvm.new_thread``, or via the µVM-Client interface described in
-`<uvm-client-interface>`__.
+``@uvm.new_thread``, or the µVM-Client interface messages ``new_stack`` and
+``new_thread``.
 
 When a stack is created, a µVM function and all of its parameter must be
 provided. The stack will contain a frame created for this function. This frame
@@ -109,16 +109,17 @@ initial stack must be in the **READY<void>** state and will enter the **ACTIVE**
 state after the thread is created. A newly created thread can execute
 immediately.
 
-    NOTE: There is not a separate step to "start" a thread as in Java—it starts
-    when it is created.
+    NOTE: There is not a separate step to "start" a thread as in Java. A thread
+    starts when it is created.
 
 Thread Termination
 ==================
 
-A thread is terminated when it executes the ``@uvm.thread_exit`` instruction.
+A thread is terminated when it executes the ``@uvm.thread_exit`` instruction, or
+the Client orders the current thread to terminate in a trap handler.
 
-Terminating a thread performs an unbinding operation from its stack and kills
-the stack.
+The ``@uvm.thread_exit`` instruction kills the current stack of the current
+thread.
 
 The µVM may change the value of ``thread`` type to ``NULL`` if the thread it
 refers to is terminated.
@@ -130,7 +131,8 @@ Binding
 -------
 
 Some actions, including the ``@uvm.new_thread`` and the ``SWAPSTACK``
-instruction and some µVM-Client API messages, can bind a thread to a stack.
+instruction, the ``new_thread`` API message and the trap handler, can bind a
+thread to a stack.
 
 When **binding** a thread to a stack, the state of the stack changes from
 **READY<T>** to **ACTIVE**. In this process, one of the following three actions
@@ -157,11 +159,16 @@ binds to the provided initial stack and *passes void* to it. When a newly
 created stack is bound to a thread and *receives void*, it continues execution
 from the beginning of the stack-bottom function.
 
+The state of a stack is **READY<void>** after the ``push_frame`` API message.
+When such a stack is rebound receiving void, it continues from the beginning of
+the function. When such a stack is rebound receiving exception, the exception is
+thrown out of the top frame.
+
 Unbinding
 ---------
 
-Some actions, including the ``@uvm.thread_exit`` and the ``SWAPSTACK``
-instruction and some µVM-Client API messages, can unbind a thread from a stack.
+Some actions, including the ``@uvm.thread_exit``, ``TRAP``, ``WATCHPOINT`` the
+``SWAPSTACK`` instruction, can unbind a thread from a stack.
 
 When **unbinding** a thread from a stack, one of the following two actions shall
 be performed on the stack:
@@ -184,18 +191,18 @@ Swap-stack
 that thread to a new stack. In a swap-stack operation, the stack to unbind from
 is called the **swapper** and the stack to bind to is called the **swappee**.
 
-Swap-stack can be performed by executing the ``SWAPSTACK`` instruction (see
-`<instruction-set>`__) or using the µVM-Client API during traps. It can happen
-during normal µVM program execution or during on-stack replacement.
+The ``SWAPSTACK`` instruction (see `<instruction-set>`__) performs a
+*swap-stack* operation.
+
+A trap handler can do similar things as *swap-stack* by re-binding the current
+thread to a different stack.
 
 Stack Destruction
 =================
 
-The ``SWAPSTACK`` and the ``@uvm.kill_stack`` instruction may perform unbinding
-operations and kill the stack. A destroyed stack enters the **DEAD** state. 
-
-A stack can be killed by the Client, too, via the ``kill_stack`` message. See
-`µVM-Client Interface <uvm-client-interface>`__. 
+The ``@uvm.kill_stack`` instruction, the ``kill_stack`` API message and all
+operations that perform unbinding operations can destroy a stack. A destroyed
+stack enters the **DEAD** state. 
 
 If a stack becomes unreachable from roots, the garbage collector may kill the
 stack.
@@ -206,7 +213,9 @@ refers to is in the **DEAD** state.
 On-stack Replacement
 ====================
 
-The Client can pop and push frames from or to a stack.
+The Client can pop and push frames from or to a stack. The ``pop_frame`` API
+message pops the top frame from a stack. The ``push_frame`` message creates a
+new frame for a given function and its arguments on the top of a stack.
 
 After popping a frame from a stack, the next stack below the top becomes the new
 top frame and its current instruction must be a ``CALL`` instruction. The stack
@@ -216,8 +225,25 @@ will be received by the ``CALL`` instruction as if its callee returned the value
 or threw an exception.
 
 After pushing a frame to a stack, it enters the ``READY<void>`` state and will
-continue from just before the new "current instruction". Throwing an exception
-to such a stack will throw the exception out of its top frame.
+continue from the beginning of the function of the frame. Throwing an exception
+to such a stack will throw the exception out of the top frame.
+
+    NOTE: For the ease of µVM implementation, the new function must continue
+    from the beginning rather than an arbitrary instruction in the middle.
+    Continuing from the middle of a function demands too much power from the
+    code generator.
+    
+    However, in most OSR scenarios, the desired behaviour is to continue from
+    the point where the program left out for optimisation. The Client can
+    emulate the behaviour of continuing from the middle of a function by
+    inserting a "prologue" in the high-level language in the beginning of the
+    function. For example, in C, the Client can add extra assignment expressions
+    to initialise local variables to the previous context and use a goto
+    statement to jump to the location to continue. Then the optimising compiler
+    can remove unreachable code. As another example, if the Client implements a
+    JVM, it can insert ``Xstore`` instructions and a ``goto`` instruction to
+    continue from the appropriate bytecode instruction. The optimising compiler
+    can handle the rest.
 
 Futex
 =====
