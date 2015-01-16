@@ -193,7 +193,7 @@ It returns the number of threads woken up.
 Requeue
 -------
 
-- ``[0x222]@uvm.futex.cmp_requeue <T> (%loc_src: iref<T>, %loc_dst: iref<T>, %expected: T, %nthread: int<32>) -> int<32>``
+- ``[0x223]@uvm.futex.cmp_requeue <T> (%loc_src: iref<T>, %loc_dst: iref<T>, %expected: T, %nthread: int<32>) -> int<32>``
 
 ``T`` must be an integer type.
 
