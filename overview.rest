@@ -1,46 +1,90 @@
-================
-MicroVM Overview
-================
+============
+µVM Overview
+============
 
-µVM is a low-level virtual machine (not to be confused with the existing LLVM
-project). It is a thin layer over the OS level. It has a low-level type system
-and instruction set, but has native support for three major functions:
+The µVM (a.k.a. MicroVM) is a micro virtual machine designed to support
+high-level programming languages. It focuses on three basic concerns: 
 
 - garbage collection
 - concurrency
 - just-in-time compiling
 
-Traditional virtual machines must implement them in addition to implementing the
-high-level programming language. When a programming language is implemented on
-top of the µVM, it can depend on the µVM for proper GC, JIT and concurrency
-support.
+The Concept of Micro Virtual Machines
+=====================================
 
-Take Java as an example. If Java were implemented on top of µVM, it only needs
-to handle JVM-specific features, including the byte-code format, class loading
-and aspects of object-oriented programming.
+Many programming languages are implemented on virtual machines.
+
+There are many aspects in a language implementation. There are high-level
+aspects which are usually language-specific, including:
+
+* parsing high-level language programs, or loading high-level byte codes
+* object oriented programming, including classes, inheritance and polymorphism
+  (if applicable)
+* functional programming, including high-order functions, pattern matching, etc.
+  (if applicable)
+* eager or lazy code/class loading
+* high-level optimisation
+* a comprehensive standard library
+
+as well as low-level aspects which are usually language-neutral, including:
+
+* an execution engine (for example, JIT compiling)
+* a model of threads and a memory model
+* garbage collection
+
+A "monolithic" VM implements everything listed above. JVM is one of such VMs.
+Creating such a VM is a huge amount of work. It takes two decades and billions
+of dollars for the JVM to have a high-quality implementation. Such man-power and
+investment is usually unavailable for other languages.
+
+We coined the term "**micro virtual machine**". It is an analogue to the term
+"microkernel" in the operating system context. A micro virtual machine, like a
+micro kernel, only does what absolutely needs to be done in the micro virtual
+machine, and pushes most high-level aspects to its client, the counterpart of
+the "services" of a microkernel.
+
+In a language implementation with the presence of a micro virtual machine, the
+micro virtual machine shall handle those three low-level aspects, namely
+concurrency, JIT and GC, and the client handles all other high-level aspects.
+
+Take JVM as an example. If JVM were implemented as a client of a micro virtual
+machine, it only needs to handle JVM-specific features, including the byte-code
+format, class loading and aspects of object-oriented programming.
 
 ::
 
     Traditional JVM
-    +-------------------+           +-----------------------+
-    |                   |           |                       |
-    |  *JVM*            |           |  *Java Client*        |
-    | byte code format  |           | byte-code format      |
-    | class loading     |           | class loading         |
-    | OOP               |           | OOP                   |
-    | GC                |           |                       |
-    | concurrenty       |           +-----------------------+
-    | JIT compiling     |           |  *µVM*                |
-    |                   |           | GC,concurrency,JIT    |
-    +-------------------+           +-----------------------+
-    |  *OS*             |           |  *OS*                 |
-    +-------------------+           +-----------------------+
+    +-------------------+           +---------------------------+
+    |                   |           |                           |
+    |  *JVM*            |           |  *Java Client*            |
+    | byte code format  |           | byte-code format          |
+    | class loading     |           | class loading             |
+    | OOP               |           | OOP                       |
+    | GC                |           |                           |
+    | concurrenty       |           +---------------------------+
+    | JIT compiling     |           |  *micro virtual machine*  |
+    |                   |           | GC,concurrency,JIT        |
+    +-------------------+           +---------------------------+
+    |  *OS*             |           |  *OS*                     |
+    +-------------------+           +---------------------------+
 
-How It Works
-============
+The µVM
+=======
+
+The µVM is a concrete micro virtual machine.
+
+The main part of this project is this specification which defines the behaviour
+of the µVM and the interaction with the client. This allows multiple compliant
+implementations.
+
+The specification mainly includes the type system, the instruction set and the
+µVM-client interface (sometimes called "the API").
+
+The µVM Architecture
+--------------------
 
 The whole system is divided into a language-specific **client** and a
-language-neutral **Micro Virtual Machine**, a.k.a. **µVM**.
+language-neutral **µVM**.
 
 ::
 
@@ -50,40 +94,194 @@ language-neutral **Micro Virtual Machine**, a.k.a. **µVM**.
     | client          |
     +-----------------+
               |   ^
-    µVM IR /  |   | trap/watchpoints
+    µVM IR /  |   | traps/watchpoints/
     API call  |   | other events
               v   |
     +-----------------+  manages   +----------+
     | µVM             |----------->| µVM heap |
     +-----------------+            +----------+
 
-A typical client implements a high-level language (*e.g.,* Python or
-Lua). Such a client would be responsible for loading, parsing and
-executing the source code.  The client may implement execution by
-interpreting and using µVM only when JIT-compiling is needed for hot
-code. It may also totally depend on the µVM as the execution engine.
+A typical client implements a high-level language (e.g. Python or Lua). Such a
+client would be responsible for loading, parsing and executing the source code
+or byte code.
 
-The client presents programs to the µVM in a language called **µVM Intermediate
-Representation**, a.k.a. **µVM IR**. µVM IR can define the following things
+The client submits programs to the µVM in a language called **µVM Intermediate
+Representation**, a.k.a. **µVM IR**. The µVM IR code is then executed on the
+µVM.
 
-- types
-- function signatures
-- constants
-- global data
-- functions (declare or define)
+The client can directly manipulate the states of the µVM using the **µVM-client
+Interface**, a.k.a. **the API**. The API can access the µVM memory (including
+the heap), create µVM threads, stacks and so on. The µVM IR code mentioned above
+is submitted via the API, too.
 
-But µVM IR alone is not sufficient for implementing a language. A specific µVM
-implementation provides APIs for the clients to do more things, including:
+There are occasions which the µVM cannot handle alone. These include lazy code
+loading, requesting for optimisation/deoptimisation and so on. In these cases,
+the µVM generates events to be handled by the client.
 
-- load µVM IR code
-- start executing a function
-- allocate objects and perform load/store on the heap. This allows
-  pre-allocating objects before the main function runs.
-- handle traps and do on-stack replacement (OSR)
-- handle the calls to functions which are declared but not defined
-- handle the event when an object referred by a weak reference is about to be
-  garbage-collected.
+The µVM handles garbage collection internally. The µVM can identify all
+references held inside the µVM and also tracks all references held by the
+client. So exact GC is possible in the µVM without the intervention from the
+Client.
 
-See `µVM IR <uvm-ir>`__ for an overview of the µVM IR.
+The µVM Type System
+-------------------
+
+The µVM type system has scalar and vector integer and floating point types,
+aggregate types including structs, arrays and hybrids, as well as reference
+types. The type system is low level, similar to the level of C, but natively
+supports reference types.
+
+The µVM is agnostic of the type hierarchy in high-level languages, but the
+client can implement its language-specific type system and run-time type
+information on top of the µVM type system.
+
+See `µVM Type System <type-system>`__ for more details.
+
+The µVM Instruction Set
+-----------------------
+
+The µVM instruction set is similar to (and is actually inspired by) the `LLVM
+<http://llvm.org/>`__'s instruction set. There are primitive
+arithmetic/logical/relational/conversion operations and control flow
+instructions.
+
+The µVM has its own exception handling, not depending on system libraries as C++
+does. µVM IR programs can throw and catch exceptions, but the client needs to
+implement its own exception type hierarchy if applicable.
+
+There are garbage-collection-aware memory operations, including memory
+allocation, addressing and accessing. The client does not need to implement
+garbage collection algorithms; it only needs to use reference types and related
+instructions and the µVM handles the rest.
+
+Trap instructions let µVM IR programs talk back to the client for events it
+cannot handle.
+
+There are also instructions for handling stack and threads.
+
+See `µVM Instruction Set <instruction-set>`__ and `Common Instructions
+<common-insts>`__ for more details.
+
+The µVM-Client Interface
+------------------------
+
+The µVM-client interface (API) allows the client to directly manipulate the
+state of the µVM.
+
+The API can load µVM IR code.
+
+The API can create threads and stacks. The usual way to start a µVM program is
+to create a new stack with a function on the bottom of the stack and create a
+new thread on it to start execution. (The concept of threads and stacks are
+discussed later.)
+
+The API can directly allocate and access the µVM memory. References are
+indirectly exposed to the client as handles rather than raw pointers for the
+ease of garbage collection. (The JVM takes the same approach.)
+
+The client also handles trap events generated by the µVM IR code. The client can
+introspect the selected local variables on the stack and perform on-stack
+replacement (i.e. OSR. Discussed later.)
+
+See `µVM-Client Interface <uvm-client-interface>`__ for more details.
+
+Multi-Threading
+---------------
+
+The µVM supports threads. µVM threads are usually implemented with native OS
+threads, but this specification does not enforce this. Multiple µVM threads may
+execute simultaneously.
+
+The µVM has a C11/C++11-like memory model. There are atomic memory access with
+different memory orders. The client should generate code with the appropriate
+memory order for its high-level language.
+
+The µVM provides a Futex-like mechanism similar to the counterpart provided by
+the Linux kernel. It is the client's responsibility to implement mutex locks,
+semaphores, conditions, barriers and so on using atomic memory accesses and the
+futex.
+
+See `Threads and Stacks <threads-stacks>`__ for details about threads and
+`Memory Model <memory-model>`__ for the µVM memory model.
+
+The Swap-stack Operation
+------------------------
+
+The µVM distinguishes between threads and stack. In the µVM, a thread is the
+unit of CPU scheduling and a stack is the context in which a thread executes. An
+analogy is "workers and jobs".
+
+A stack has multiple frames, each of which is a context of a function
+activation, including local variables and the current instruction.
+
+A *swap-stack* operation unbinds a thread from a stack (the old context) and
+bind to another stack (the new context). As a result, the old context of
+execution is paused and can be continued when another swap-stack operation binds
+another thread (may not be the same old thread) to that stack. This is similar
+to letting a worker stop doing one job and continue with another job.
+
+The swap-stack operation is essentially a model of symmetric coroutines.  It
+allows the client to implement coroutines in high-level languages (e.g. Ruby,
+Lua, Go as well as Python and ECMAScript 6).
+
+It also allows the client to implement its own light-weight
+thread. This is particularly useful for languages with massively many threads
+(e.g. Erlang).
+
+See `Threads and Stacks <threads-stacks>`__ for details.
+
+Function Redefinition
+---------------------
+
+It is a common strategy to use a fast compiler to compile high-level programs to
+suboptimal low-level code, and only optimise when the implementation decided at
+run time that a function (or loop) is hot. Then an optimised version is
+compiled. Optimising compilation usually takes longer, but the code runs faster.
+
+In the µVM, a function can have zero or more versions. When a function is
+called, it always calls the newest version.
+
+The semantic of *function definition* in the µVM is to create a new version of a
+function. What the client should do is to generate an optimised version of the
+high-level code in µVM IR and submit it to the µVM. All call sites and function
+references are automatically updated.
+
+If a function has zero versions, it is "undefined". Calling such a function will
+"trap" to the client. Such functions behave like "stubs" and this gives the
+client a chance to implement lazy code/class loading.
+
+See `µVM IR <uvm-ir.rest>`__ for the definition of functions and versions, and 
+see `µVM-Client Interface <uvm-client-interface>`__ for the code loading
+interface.
+
+On-stack Replacement
+--------------------
+
+At the same time when an optimised version of a function is compiled, there are
+existing activations on the stack still running the old version.  On-stack
+Replacement (OSR) is the operation to replace an existing stack frame with
+another frame.
+
+The µVM provides two primitives in its API:
+
+1. Pop the top frame of a stack.
+2. Given a function and its arguments, create a new frame and push it on the top
+   of a stack.
+
+Note that the µVM is oblivious about whether the new version is "equivalent to"
+or "better than" the old version. The responsibility of optimisation is pushed
+to the client.
+
+See `µVM-Client Interface <uvm-client-interface>`__ for more details.
+
+Miscellaneous Topics
+--------------------
+
+The `µVM Memory <uvm-memory>`__ chapter provides more detail about garbage
+collection and memory allocation/accessing.
+
+The `Portability <portability.rest>`__ chapter describes the requirements of
+implementations. It summarises corner cases which may result in different or
+undefined behaviours in different platforms.
 
 .. vim: tw=80
