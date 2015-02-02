@@ -19,4 +19,9 @@ Contents:
 - `µVM-Client Interface <uvm-client-interface>`__
 - `Portability and Implementation Advices <portability>`__
 
+Working in progress:
+
+- `Refined Memory Model <memory-model-refined>`__ Address some problems not
+  addressed by the current µVM memory model or the C/C++11 memory model.
+
 .. vim: tw=80
