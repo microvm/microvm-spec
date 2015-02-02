@@ -80,7 +80,14 @@ memory, initial value, load, store, access and conflict
 
 thread
     A thread is the unit of CPU scheduling. In this memory model, threads
-    include but are not limited to µVM threads.
+    include but are not limited to µVM threads. See `<threads-stacks>`__ for the
+    definition of µVM threads.
+
+stack, stack binding, stack unbinding, swap-stack
+    See `<threads-stacks>`__
+
+futex, futex_wait, futex_wake
+    See `<threads-stacks>`__
 
 Comparison of Terminology
 -------------------------
@@ -93,29 +100,85 @@ C                   µVM
 value               data value
 expression          SSA variable
 object              memory location
+memory location     (N/A)
 (N/A)               object
 read                load
 modify              store
 =================== ============================
 
+Operations
+==========
+
+Operations include (but are not limited to) the following:
+
+load
+    A memory load. May be atomic or not.
+
+store
+    A memory store. May be atomic or not.
+
+atomic read-modify-write
+    A load and (maybe conditionally) a store as one atomic action. It has both a
+    load and a store operation, but may have special atomic properties.
+    
+fence
+    A fence introduces memory orders.
+
+stack binding
+    Binding a thread to a stack.
+
+stack unbinding
+    Unbinding a thread from a stack.
+
+swap-stack
+    Unbinding a thread from a stack and bind that thread to another stack.
+
+futex wait
+    Waiting on a memory location.
+
+futex wake
+    Wake up threads waiting on a memory location.
+
+external operation
+    Any other operation that may affect the state outside the µVM.
+
+..
+
+    NOTE: Unlike the Java Memory Model, the µVM memory model does not contain
+    locks. 
+
 Memory Operations
 =================
 
-The following µVM instructions access their specified memory location: LOAD,
-STORE, CMPXCHG and ATOMICRMW. Specifically,
+Some instructions and API messages perform memory operations. Specifically,
 
-- LOAD performs a load operation.
-- STORE performs a store operation.
-- CMPXCHG performs a load operation. It also performs a store operation on
-  success.
-- ATOMICRMW performs both a load and a store operation.
+- The ``LOAD`` instruction and the ``load`` API message perform a load
+  operation.
+- The ``STORE`` instruction and the ``store`` API message perform a store
+  operation.
+- The ``CMPXCHG`` instruction and the ``cmpxchg`` API message perform a
+  compare-exchange operation, which is a kind of atomic read-modify-write
+  operation.
+- The ``ATOMICRMW`` instruction and the ``atomicrmw`` API message perform an
+  atomic read-modify-write operation.
+- The ``FENCE`` instruction and the ``fence`` API message are a fence.
+- A concrete implementation may have other ways to perform those instructions.
 
-The FENCE instruction is a fence.
+..
 
-    NOTE: Non-µVM code may also perform memory access operations.
+    NOTE: Native programs via the Foreign Function Interface can synchronise
+    with the µVM in an implementation-specific way. But the implementation must
+    guarantee that the foreign language perform those operations in a way
+    compatible with the µVM.
 
-Memory accessing instructions and fences have memory orders, which are the
-following:
+    For example, there are more than one way to implement loads and stores of
+    the SEQ_CST order (either put fences in the load or in the store). If the
+    implementation interfaces with a C implementation (e.g.
+    gcc+glibc+Linux+x86_64), then the µVM should do the same thing as (or be
+    compatible with) the C program.
+
+Load, store, atomic read-modify-write operations and fences have memory orders,
+which are the following:
 
 - NOT_ATOMIC
 - RELAXED
@@ -125,18 +188,17 @@ following:
 - ACQ_REL (acquire and release)
 - SEQ_CST (sequentially consistent)
 
-TODO: fix the `instruction set <instruction-set>`_ page.
-
 All accesses that are not NOT_ATOMIC are atomic. Using both non-atomic
 operations and atomic operations on the same memory location is an undefined
 behaviour.
 
-- LOAD shall have NOT_ATOMIC, RELAXED, CONSUME, ACQUIRE or SEQ_CST order.
-- STORE shall have NOT_ATOMIC, RELAXED, RELEASE or SEQ_CST order.
-- CMPXCHG shall have RELAXED, ACQUIRE, RELEASE, ACQ_REL or SEQ_CST on success
-  and RELAXED, ACQUIRE or SEQ_CST on failure.
-- ATOMICRMW shall have RELAXED, ACQUIRE, RELEASE, ACQ_REL or SEQ_CST order.
-- FENCE shall have ACQUIRE, RELEASE, ACQ_REL or SEQ_CST order.
+- Load shall have NOT_ATOMIC, RELAXED, CONSUME, ACQUIRE or SEQ_CST order.
+- Store shall have NOT_ATOMIC, RELAXED, RELEASE or SEQ_CST order.
+- Compare-exchange shall have RELAXED, ACQUIRE, RELEASE, ACQ_REL or SEQ_CST on
+  success and RELAXED, ACQUIRE or SEQ_CST on failure.
+- Other atomic read-modify-write operations shall have RELAXED, ACQUIRE,
+  RELEASE, ACQ_REL or SEQ_CST order.
+- Fence shall have ACQUIRE, RELEASE, ACQ_REL or SEQ_CST order.
 
 =========== ======= ======= =============== =============== =========== =====
 Order       LOAD    STORE   CMPXCHG(succ)   CMPXCHG(fail)   ATOMICRMW   FENCE
@@ -159,30 +221,33 @@ SEQ_CST     yes     yes     yes             yes             yes         yes
 - A fence with ACQUIRE, ACQ_REL or SEQ_CST order is a **acquire fence**.
 - A fence with RELEASE, ACQ_REL or SEQ_CST order is a **release fence**.
 
-Acquire operation, consume operation, release operation and fences are
-collectively called **synchronisation operations**.
-
-Both CMPXCHG and ATOMICRMW are **atomic read-modify-write operations**.
-
-    NOTE: A synchronisation operation can be both acquire and release
-    operations.  A fence can be both an acquire and release fence. RELAXED and
-    NOT_ATOMIC means not performing synchronisation operations.
-
-TODO: The word "synchronisation operation" is not used elsewhere.
-
 Orders
 ======
 
 Program Order
 -------------
 
-An evaluation A is **sequenced before** another evaluation B if A and B are in
-the same thread and A is performed before B. All evaluations performed by a
-particular µVM thread together with their "sequenced before" relations form a
-total order, called the **program order**.
+All evaluations performed by a µVM thread form a total order, in which the
+operations performed by each evaluation are **sequenced before** operations
+performed by its successor.
 
-    NOTE: In C, there is only a partial order because of unspecified order of
-    evaluations.
+All operations performed by a µVM Client via a particular Client Agent form a
+total order, in which each operation is **sequenced before** its successor.
+
+Specifically, operations performed by trap handlers and undefined function
+handlers in the Client are ordered with other operations performed by the µVM
+thread as if they are performed by the ``TRAP``, ``WATCHPOINT``, ``CALL``,
+``NEWSTACK`` or other instructions that transfers the control to the handler. 
+
+The **program order** contains operations and their "sequenced before"
+relations.
+
+    NOTE: This means all µVM instructions plus all Client operations done by
+    the trap handler and undefined function handler in a µVM thread still forms
+    a total order.
+
+    In C, the program order is a partial order even in a single thread because
+    of unspecified order of evaluations.
 
 Modification Order
 ------------------
@@ -217,9 +282,9 @@ The Synchronises With Relation
 
 An evaluation A **synchronises with** another evaluation B if:
 
-- A performs a release operation on object M, and, B performs an acquire
-  operation on M, and, sees a value stored by an operation in the release
-  sequence headed by A, or
+- A performs a release operation on memory location M, and, B performs an
+  acquire operation on M, and, sees a value stored by an operation in the
+  release sequence headed by A, or
 - A is a release fence, and, B is an acquire fence, and, there exist atomic
   operations X and Y, both operating on some memory location M, such that A is
   sequenced before X, X store into M, Y is sequenced before B, and Y sees the
@@ -236,19 +301,47 @@ An evaluation A **synchronises with** another evaluation B if:
   side effect in the release sequence headed by A, or
 - A is the creation of a thread and B is the beginning of the execution of the
   new thread.
+- A is a futex wake operation and B is the next operation after the futex wait
+  operation of the thread woken up by A.
 
 ..
 
     NOTE: A thread can be created by the ``@uvm.new_thread`` common instruction
-    or its equivalent Client API.
+    or the ``new_thread`` API message.
 
     NOTE: Since there is no explicit heap memory management in µVM, the
     "synchronises with" relation in C involving ``free`` and ``realloc`` does
     not apply in the µVM.
 
-    NOTE: The µVM provides very primitive threading support. The "synchronizes
+    NOTE: The µVM provides very primitive threading support. The "synchronises
     with" relations involving ``call_once`` and ``thrd_join`` are not in the
     µVM.
+
+    NOTE: The "synchronises with" relation between the futex wake and wait is
+    necessary to ensure the visibility of values written by one thread to be
+    visible immediately by the woken thread. If such relation does not exist,
+    the woken thread may never see the memory change made by the other thread.
+    For example::
+
+        // C pseudo code
+        int        shared_var = 42;
+        atomic_int futex      = 0;
+
+        thread1 {
+            shared_var = 43;
+            futex = 1;              // Op1
+            futex_wake(&futex);     // Op2
+        }
+
+        thread2 {
+            while(futex == 0) {         // Op4
+                futex_wait(&futex, 0);  // Op3
+            }
+            int local_var = shared_var;
+        }
+
+    If the "synchronises with" between Op2 and Op3 does not exist, then Op4 may
+    never see the value written by Op1, and thread2 will loop indefinitely.
 
 Dependency
 ----------
@@ -265,8 +358,8 @@ a dependency from* A, if:
   * B is a ``PHI`` instruction, and A is not the variable selected by the
     incoming control flow, or
   * A is a comparing or ``INSERTVALUE`` instruction, or
-  * B is a ``KILLDEPENDENCY``, ``CALL``, ``INVOKE``, ``EXTRACTVALUE`` or
-    ``CCALL`` instruction, or
+  * B is a ``@uvm.kill_dependency``, ``CALL``, ``EXTRACTVALUE`` or ``CCALL``
+    instruction, or
 
 - there is a store operation X such that A is sequenced before X and X is
   sequenced before B, and, X stores the value of A to a memory location M, and,
@@ -326,6 +419,13 @@ the following is true:
     consume sees the value of (or "later than") the release operation, then
     subsequent loads that depends on the consume operation should also see
     values stored before the release operation.
+
+..
+
+    TODO: The "carries a dependency to" relation is not well-defined for the
+    Client since it may be written in a different language.
+
+    TODO: Define the "@kill_dependency" instruction in the instruction set.
 
 The Happens Before Relation
 ---------------------------
@@ -438,6 +538,29 @@ Special Rules for Atomic Read-modify-write Operations
 Atomic read-modify-write operations shall always see the last value (in the
 modification order) stored before the store operation associated with the
 read-modify-write operation.
+
+Special Rules for Stack Operations
+==================================
+
+A swap-stack operation performs an unbinding operation followed by a binding
+operation. The former is sequenced before the latter.
+
+In the evaluation of a ``TRAP`` or ``WATCHPOINT`` instruction, the implied stack
+unbinding operation is sequenced before any operations performed by the client.
+If the client chooses to return and rebind the stack, the stack binding
+operation is sequenced after all operations performed by the Client and the
+implied stack unbinding operation.
+
+Stack binding and unbinding operations are not atomic. If there is a pair of
+stack binding or unbinding operations on the same stack, but do not have a
+"happens before" relation, it has undefined behaviour.
+
+Special Rules for Futex
+=======================
+
+The load operations performed by the ``@uvm.futex.wait``,
+``@uvm.futex.wait_timeout`` and ``@uvm.futex.cmp_requeue`` on the memory
+location given by its argument are atomic.
 
 Out-of-thin-air or Speculative stores
 =====================================

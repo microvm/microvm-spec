@@ -133,6 +133,12 @@ other loads from or stores to the same memory location.
 The result of µVM memory access operations are defined by the µVM memory model.
 See `<memory-model>`__.
 
+Semantics of Memory Operations
+------------------------------
+
+    TODO: The semantics should be defined in one place and shared between the
+    instruction set and the API.
+
 Memory Data Layout
 ==================
 
