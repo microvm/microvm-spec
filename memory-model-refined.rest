@@ -425,8 +425,6 @@ the following is true:
     TODO: The "carries a dependency to" relation is not well-defined for the
     Client since it may be written in a different language.
 
-    TODO: Define the "@kill_dependency" instruction in the instruction set.
-
 The Happens Before Relation
 ---------------------------
 

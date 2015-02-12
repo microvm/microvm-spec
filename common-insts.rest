@@ -211,4 +211,15 @@ undefined behaviour.
 It returns a signed integer. When the ``%loc_src`` contains the value of
 ``%expected``, return the number of threads woken up; otherwise return -1.
 
+Miscellaneous Instructions
+==========================
+
+- ``[0x230]@uvm.kill_dependency <T> (%val: T) -> T``
+
+Return the same value as ``%val``, but ``%val`` does not carry a dependency to
+the return value.
+
+    NOTE: This is supposed to free the compiler from keeping dependencies in
+    some performance-critical cases.
+
 .. vim: tw=80
