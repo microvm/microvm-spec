@@ -21,7 +21,7 @@ Contents:
 
 Working in progress:
 
-- `Refined Memory Model <memory-model-refined>`__ Address some problems not
-  addressed by the current µVM memory model or the C/C++11 memory model.
+(If there is any documents too experimental to be put into the content, it will
+be listed here.)
 
 .. vim: tw=80
