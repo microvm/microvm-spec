@@ -2,18 +2,18 @@
 Threads and Stacks
 ==================
 
-One unique feature of the µVM is the flexible relation between stacks and
-threads. A thread can swap between multiple stacks to achieve light-weighted
-context switch. This provides support for language features like co-routines
-and green threads.
+One unique feature of Mu is the flexible relation between stacks and threads. A
+thread can swap between multiple stacks to achieve light-weighted context
+switch. This provides support for language features like co-routines and green
+threads.
 
-On the other hand, µVM does allow multiple simultaneous threads. µVM threads, by
+On the other hand, Mu does allow multiple simultaneous threads. Mu threads, by
 design, can be implemented as native OS threads and make use of parallel CPU
-resources. µVM also has a memory model. See the `Memory Model <memory-model>`__
+resources. Mu also has a memory model. See the `Memory Model <memory-model>`__
 chapter for more information.
 
-This chapter discusses µVM threads and µVM stacks. In this chapter, "thread"
-means "µVM thread".
+This chapter discusses Mu threads and Mu stacks. In this chapter, "thread"
+means "Mu thread".
 
 Concepts
 ========
@@ -24,19 +24,19 @@ activation. A frame contains the states of all local variables (parameters and
 instructions), the program counter and alloca cells (see `<uvm-memory>`__). Each
 frame is associated to a version of a function.
 
-    NOTE: Because the µVM allows function redefinition, a function may be
-    redefined and newly created function activations (newly called functions)
-    use the new definition. But any existing function activations still use the
-    old definition, thus a frame is only bound to a particular version of a
-    function, not just a function. This is very important because the µVM cannot
+    NOTE: Because Mu allows function redefinition, a function may be redefined
+    and newly created function activations (newly called functions) use the new
+    definition. But any existing function activations still use the old
+    definition, thus a frame is only bound to a particular version of a
+    function, not just a function. This is very important because Mu cannot
     magically translate the state of any old function activation to a new one. A
     redefined function may even have completely different meaning from the old
-    one. µVM allows crazy things like redefining a factorial function to a
+    one. Mu allows crazy things like redefining a factorial function to a
     Fibonacci function.
 
-    During on-stack replacement, the µVM can tell the Client which version of
-    which function any frame is executing and the value of KEEPALIVE variables.
-    The client is responsible for translating the states.
+    During on-stack replacement, Mu can tell the client which version of which
+    function any frame is executing and the value of KEEPALIVE variables.  The
+    client is responsible for translating the states.
 
 A **thread** is the unit of CPU scheduling. A thread can be **bound** to a
 stack, in which case the thread executes using the stack as its context.
@@ -80,7 +80,7 @@ create new thread       N/A                             READY<void> -> ACTIVE
 swap-stack              ACTIVE -> READY<T> or DEAD      READY<U> -> ACTIVE
 @uvm.kill_stack         N/A                             READY<T> -> DEAD
 @uvm.thread_exit        ACTIVE -> DEAD                  N/A
-trap to Client          ACTIVE -> READY<T>              N/A
+trap to client          ACTIVE -> READY<T>              N/A
 undefined function      ACTIVE                          N/A
 stack-related errors    ACTIVE                          N/A
 ======================= =============================== =======================
@@ -88,17 +88,17 @@ stack-related errors    ACTIVE                          N/A
 Stack and Thread Creation
 =========================
 
-µVM stacks and µVM threads can be created by µVM instructions ``NEWSTACK`` and
-``@uvm.new_thread``, or the µVM-Client interface messages ``new_stack`` and
+Mu stacks and Mu threads can be created by Mu instructions ``NEWSTACK`` and
+``@uvm.new_thread``, or the Mu client interface messages ``new_stack`` and
 ``new_thread``.
 
-When a stack is created, a µVM function and all of its parameter must be
+When a stack is created, a Mu function and all of its parameter must be
 provided. The stack will contain a frame created for this function. This frame
 is called the **stack-bottom frame** and the function is called the
 **stack-bottom function**.
 
-    NOTE: The stack-bottom frame is conceptually the last frame in a µVM stack
-    and returning from that frame has undefined behaviour. But a concrete µVM
+    NOTE: The stack-bottom frame is conceptually the last frame in a Mu stack
+    and returning from that frame has undefined behaviour. But a concrete Mu
     implementation can still have its own frames or useful data below the
     stack-bottom frame. They are implementation-specific details.
 
@@ -116,12 +116,12 @@ Thread Termination
 ==================
 
 A thread is terminated when it executes the ``@uvm.thread_exit`` instruction, or
-the Client orders the current thread to terminate in a trap handler.
+the client orders the current thread to terminate in a trap handler.
 
 The ``@uvm.thread_exit`` instruction kills the current stack of the current
 thread.
 
-The µVM may change the value of ``thread`` type to ``NULL`` if the thread it
+Mu may change the value of ``thread`` type to ``NULL`` if the thread it
 refers to is terminated.
 
 Binding of Stack and Thread
@@ -207,13 +207,13 @@ stack enters the **DEAD** state.
 If a stack becomes unreachable from roots, the garbage collector may kill the
 stack.
 
-The µVM may change the value of ``stack`` type to ``NULL`` if the stack it
+The Mu may change the value of ``stack`` type to ``NULL`` if the stack it
 refers to is in the **DEAD** state.
 
 On-stack Replacement
 ====================
 
-The Client can pop and push frames from or to a stack. The ``pop_frame`` API
+The client can pop and push frames from or to a stack. The ``pop_frame`` API
 message pops the top frame from a stack. The ``push_frame`` message creates a
 new frame for a given function and its arguments on the top of a stack.
 
@@ -228,19 +228,19 @@ After pushing a frame to a stack, it enters the ``READY<void>`` state and will
 continue from the beginning of the function of the frame. Throwing an exception
 to such a stack will throw the exception out of the top frame.
 
-    NOTE: For the ease of µVM implementation, the new function must continue
+    NOTE: For the ease of Mu implementation, the new function must continue
     from the beginning rather than an arbitrary instruction in the middle.
     Continuing from the middle of a function demands too much power from the
     code generator.
     
     However, in most OSR scenarios, the desired behaviour is to continue from
-    the point where the program left out for optimisation. The Client can
+    the point where the program left out for optimisation. The client can
     emulate the behaviour of continuing from the middle of a function by
     inserting a "prologue" in the high-level language in the beginning of the
-    function. For example, in C, the Client can add extra assignment expressions
+    function. For example, in C, the client can add extra assignment expressions
     to initialise local variables to the previous context and use a goto
     statement to jump to the location to continue. Then the optimising compiler
-    can remove unreachable code. As another example, if the Client implements a
+    can remove unreachable code. As another example, if the client implements a
     JVM, it can insert ``Xstore`` instructions and a ``goto`` instruction to
     continue from the appropriate bytecode instruction. The optimising compiler
     can handle the rest.
@@ -248,7 +248,7 @@ to such a stack will throw the exception out of the top frame.
 Futex
 =====
 
-The µVM provides a mechanism similar to the Futex in the Linux kernel for
+Mu provides a mechanism similar to the Futex in the Linux kernel for
 implementing blocking locks and other synchronisation primitives.
 
 There is a waiting queue for all memory locations that has some integer types.
@@ -259,17 +259,16 @@ current thread into the waiting queue of a memory location. Both
 ``@uvm.futex.wake`` and ``@uvm.futex.cmp_requeue`` wakes up threads in a waiting
 queue of a memory location.
 
-    NOTE: The term *memory location* is defined in the µVM's sense and is
-    abstract over physical memory or the virtual memory space given by the
-    operating system. Even if a µVM implementation uses copying or replicating
-    garbage collectors, the memory location in a heap object remains the same
-    until the object is collected.
+    NOTE: The term *memory location* is defined in Mu's sense and is abstract
+    over physical memory or the virtual memory space given by the operating
+    system. Even if a Mu implementation uses copying or replicating garbage
+    collectors, the memory location in a heap object remains the same until the
+    object is collected.
 
-    The µVM Futex is designed to be easy to map to the ``futex`` system call on
-    Linux. With the presence of copying garbage collector, the µVM may
-    internally perform ``FUTEX_REQUEUE`` or ``FUTEX_CMP_REQUEUE`` operations to
-    compensate the effect of object movements. It may put barriers around
-    Futex-related µVM instructions when the GC is concurrently re-queuing
-    threads.
+    The Mu Futex is designed to be easy to map to the ``futex`` system call on
+    Linux. With the presence of copying garbage collector, Mu may internally
+    perform ``FUTEX_REQUEUE`` or ``FUTEX_CMP_REQUEUE`` operations to compensate
+    the effect of object movements. It may put barriers around Futex-related Mu
+    instructions when the GC is concurrently re-queuing threads.
 
 .. vim: tw=80

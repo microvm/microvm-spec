@@ -1,9 +1,9 @@
-============
-µVM Overview
-============
+========
+Overview
+========
 
-The µVM (a.k.a. MicroVM) is a micro virtual machine designed to support
-high-level programming languages. It focuses on three basic concerns: 
+Mu is a micro virtual machine designed to support high-level programming
+languages. It focuses on three basic concerns: 
 
 - garbage collection
 - concurrency
@@ -68,23 +68,23 @@ format, class loading and aspects of object-oriented programming.
     |  *OS*             |           |  *OS*                     |
     +-------------------+           +---------------------------+
 
-The µVM
-=======
+The Mu Project
+==============
 
-The µVM is a concrete micro virtual machine.
+Mu is a concrete micro virtual machine.
 
 The main part of this project is this specification which defines the behaviour
-of the µVM and the interaction with the client. This allows multiple compliant
+of Mu and the interaction with the client. This allows multiple compliant
 implementations.
 
 The specification mainly includes the type system, the instruction set and the
-µVM-client interface (sometimes called "the API").
+Mu client interface (sometimes called "the API").
 
-The µVM Architecture
---------------------
+The Mu Architecture
+-------------------
 
 The whole system is divided into a language-specific **client** and a
-language-neutral **µVM**.
+language-neutral **micro virtual machine** (in this case, it is Mu).
 
 ::
 
@@ -94,122 +94,120 @@ language-neutral **µVM**.
     | client          |
     +-----------------+
               |   ^
-    µVM IR /  |   | traps/watchpoints/
+    Mu IR /   |   | traps/watchpoints/
     API call  |   | other events
               v   |
-    +-----------------+  manages   +----------+
-    | µVM             |----------->| µVM heap |
-    +-----------------+            +----------+
+    +-------------------+  manages   +---------+
+    | Mu (the micro VM) |----------->| Mu heap |
+    +-------------------+            +---------+
 
 A typical client implements a high-level language (e.g. Python or Lua). Such a
 client would be responsible for loading, parsing and executing the source code
 or byte code.
 
-The client submits programs to the µVM in a language called **µVM Intermediate
-Representation**, a.k.a. **µVM IR**. The µVM IR code is then executed on the
-µVM.
+The client submits programs to Mu in a language called **Mu Intermediate
+Representation**, a.k.a. **Mu IR**. The Mu IR code is then executed on Mu.
 
-The client can directly manipulate the states of the µVM using the **µVM-client
-Interface**, a.k.a. **the API**. The API can access the µVM memory (including
-the heap), create µVM threads, stacks and so on. The µVM IR code mentioned above
-is submitted via the API, too.
+The client can directly manipulate the states of Mu using the **Mu client
+Interface**, a.k.a. **the API**. The API can access the Mu memory (including the
+heap), create Mu threads, stacks, introspect stack states and so on. The Mu IR
+code mentioned above is submitted via the API, too.
 
-There are occasions which the µVM cannot handle alone. These include lazy code
-loading, requesting for optimisation/deoptimisation and so on. In these cases,
-the µVM generates events to be handled by the client.
+There are events which Mu cannot handle alone. These include lazy code loading,
+requesting for optimisation/deoptimisation and so on. In these cases, Mu
+generates events to be handled by the client.
 
-The µVM handles garbage collection internally. The µVM can identify all
-references held inside the µVM and also tracks all references held by the
-client. So exact GC is possible in the µVM without the intervention from the
-Client.
+Mu handles garbage collection internally. Mu can identify all references held
+inside Mu and also tracks all references held by the client. So exact GC is
+possible in Mu without the intervention from the client.
 
-The µVM Type System
+The Mu Type System
 -------------------
 
-The µVM type system has scalar and vector integer and floating point types,
+The Mu type system has scalar and vector integer and floating point types,
 aggregate types including structs, arrays and hybrids, as well as reference
 types. The type system is low level, similar to the level of C, but natively
 supports reference types.
 
-The µVM is agnostic of the type hierarchy in high-level languages, but the
-client can implement its language-specific type system and run-time type
-information on top of the µVM type system.
+Mu is agnostic of the type hierarchy in high-level languages, but the client can
+implement its language-specific type system and run-time type information on top
+of the Mu type system.
 
-See `µVM Type System <type-system>`__ for more details.
+See `Type System <type-system>`__ for more details.
 
-The µVM Instruction Set
+The Mu Instruction Set
 -----------------------
 
-The µVM instruction set is similar to (and is actually inspired by) the `LLVM
+The Mu instruction set is similar to (and is actually inspired by) the `LLVM
 <http://llvm.org/>`__'s instruction set. There are primitive
 arithmetic/logical/relational/conversion operations and control flow
 instructions.
 
-The µVM has its own exception handling, not depending on system libraries as C++
-does. µVM IR programs can throw and catch exceptions, but the client needs to
+Mu has its own exception handling, not depending on system libraries as C++
+does. Mu IR programs can throw and catch exceptions, but the client needs to
 implement its own exception type hierarchy if applicable.
 
 There are garbage-collection-aware memory operations, including memory
 allocation, addressing and accessing. The client does not need to implement
 garbage collection algorithms; it only needs to use reference types and related
-instructions and the µVM handles the rest.
+instructions and Mu handles the rest.
 
-Trap instructions let µVM IR programs talk back to the client for events it
+Trap instructions let Mu IR programs talk back to the client for events it
 cannot handle.
 
 There are also instructions for handling stack and threads.
 
-See `µVM Instruction Set <instruction-set>`__ and `Common Instructions
+See `Instruction Set <instruction-set>`__ and `Common Instructions
 <common-insts>`__ for more details.
 
-The µVM-Client Interface
+The Mu Client Interface
 ------------------------
 
-The µVM-client interface (API) allows the client to directly manipulate the
-state of the µVM.
+The Mu client interface (API) allows the client to directly manipulate the state
+of Mu.
 
-The API can load µVM IR code.
+The API can load Mu IR code.
 
-The API can create threads and stacks. The usual way to start a µVM program is
+The API can create threads and stacks. The usual way to start a Mu program is
 to create a new stack with a function on the bottom of the stack and create a
 new thread on it to start execution. (The concept of threads and stacks are
 discussed later.)
 
-The API can directly allocate and access the µVM memory. References are
+The API can directly allocate and access the Mu memory. References are
 indirectly exposed to the client as handles rather than raw pointers for the
 ease of garbage collection. (The JVM takes the same approach.)
 
-The client also handles trap events generated by the µVM IR code. The client can
+The client also handles trap events generated by the Mu IR code. The client can
 introspect the selected local variables on the stack and perform on-stack
 replacement (i.e. OSR. Discussed later.)
 
-See `µVM-Client Interface <uvm-client-interface>`__ for more details.
+See `Client Interface <uvm-client-interface>`__ for more details.
 
 Multi-Threading
 ---------------
 
-The µVM supports threads. µVM threads are usually implemented with native OS
-threads, but this specification does not enforce this. Multiple µVM threads may
-execute simultaneously.
+Mu supports threads. Mu threads are usually implemented with native OS threads,
+but this specification does not enforce this. Multiple Mu threads may execute
+simultaneously.
 
-The µVM has a C11/C++11-like memory model. There are atomic memory access with
+Mu has a C11/C++11-like memory model. There are atomic memory access with
 different memory orders. The client should generate code with the appropriate
 memory order for its high-level language.
 
-The µVM provides a Futex-like mechanism similar to the counterpart provided by
-the Linux kernel. It is the client's responsibility to implement mutex locks,
+Mu provides a Futex-like mechanism similar to the counterpart provided by the
+Linux kernel. It is the client's responsibility to implement mutex locks,
 semaphores, conditions, barriers and so on using atomic memory accesses and the
 futex.
 
 See `Threads and Stacks <threads-stacks>`__ for details about threads and
-`Memory Model <memory-model>`__ for the µVM memory model.
+`Memory Model <memory-model>`__ for the Mu memory model.
 
 The Swap-stack Operation
 ------------------------
 
-The µVM distinguishes between threads and stack. In the µVM, a thread is the
-unit of CPU scheduling and a stack is the context in which a thread executes. An
-analogy is "workers and jobs".
+Mu distinguishes between threads and stack. In Mu, a thread is the unit of CPU
+scheduling and a stack is the context in which a thread executes. An analogy is
+"workers and jobs".
 
 A stack has multiple frames, each of which is a context of a function
 activation, including local variables and the current instruction.
@@ -238,21 +236,21 @@ suboptimal low-level code, and only optimise when the implementation decided at
 run time that a function (or loop) is hot. Then an optimised version is
 compiled. Optimising compilation usually takes longer, but the code runs faster.
 
-In the µVM, a function can have zero or more versions. When a function is
-called, it always calls the newest version.
+In Mu, a function can have zero or more versions. When a function is called, it
+always calls the newest version.
 
-The semantic of *function definition* in the µVM is to create a new version of a
+The semantic of *function definition* in Mu is to create a new version of a
 function. What the client should do is to generate an optimised version of the
-high-level code in µVM IR and submit it to the µVM. All call sites and function
+high-level code in Mu IR and submit it to Mu. All call sites and function
 references are automatically updated.
 
 If a function has zero versions, it is "undefined". Calling such a function will
 "trap" to the client. Such functions behave like "stubs" and this gives the
 client a chance to implement lazy code/class loading.
 
-See `µVM IR <uvm-ir.rest>`__ for the definition of functions and versions, and 
-see `µVM-Client Interface <uvm-client-interface>`__ for the code loading
-interface.
+See `Intermediate Representation <uvm-ir.rest>`__ for the definition of
+functions and versions, and see `Client Interface <uvm-client-interface>`__ for
+the code loading interface.
 
 On-stack Replacement
 --------------------
@@ -262,22 +260,22 @@ existing activations on the stack still running the old version.  On-stack
 Replacement (OSR) is the operation to replace an existing stack frame with
 another frame.
 
-The µVM provides two primitives in its API:
+Mu provides two primitives in its API:
 
 1. Pop the top frame of a stack.
 2. Given a function and its arguments, create a new frame and push it on the top
    of a stack.
 
-Note that the µVM is oblivious about whether the new version is "equivalent to"
-or "better than" the old version. The responsibility of optimisation is pushed
-to the client.
+Note that Mu is oblivious about whether the new version is "equivalent to" or
+"better than" the old version. The responsibility of optimisation is pushed to
+the client.
 
-See `µVM-Client Interface <uvm-client-interface>`__ for more details.
+See `Client Interface <uvm-client-interface>`__ for more details.
 
 Miscellaneous Topics
 --------------------
 
-The `µVM Memory <uvm-memory>`__ chapter provides more detail about garbage
+The `Memory <uvm-memory>`__ chapter provides more detail about garbage
 collection and memory allocation/accessing.
 
 The `Portability <portability.rest>`__ chapter describes the requirements of

@@ -5,10 +5,10 @@ Type System
 Overview
 ========
 
-The µVM has a comprehensive type system. It is close to the machine level, but
-also has reference types for exact garbage collection.
+Mu has a comprehensive type system. It is close to the machine level, but also
+has reference types for exact garbage collection.
 
-In the µVM IR, a type is created by a (possibly recursive) combination of type
+In the Mu IR, a type is created by a (possibly recursive) combination of type
 constructors.
 
 By convention, types are written in lower cases. Parameters to types are written
@@ -20,7 +20,7 @@ constructor.
 Type and Data Value
 ===================
 
-A µVM **type** defines a set where a **data value**, or **value** when
+A Mu **type** defines a set where a **data value**, or **value** when
 unambiguous, is one of its elements.
 
 A type also has an in-memory format by which its data values can be represented
@@ -34,7 +34,7 @@ Types and Type Constructors
 
 A **type constructor** represents an **abstract type**. A **concrete type** is
 created by applying a type constructor and supplying necessary **parameters**.
-The following type constructors are available in the µVM:
+The following type constructors are available in Mu:
 
 - int < length >
 - float
@@ -211,11 +211,11 @@ object or memory location.
 
 ..
 
-    For LLVM users: there is no equivalence in LLVM. µVM guarantees that
-    all references are identified both in the heap and in the stack and are
-    subject to garbage collection. The closest counterpart in LLVM is the
-    pointer type. The µVM does not encourage the use of pointers, though pointer
-    types will be introduced in µVM in the future.
+    For LLVM users: there is no equivalence in LLVM. Mu guarantees that all
+    references are identified both in the heap and in the stack and are subject
+    to garbage collection. The closest counterpart in LLVM is the pointer type.
+    Mu does not encourage the use of pointers, though pointer types will be
+    introduced in Mu in the future.
 
 ..
 
@@ -308,7 +308,7 @@ of the array.
 ..
 
     For LLVM users: **An array always has a fixed length**. There is no type for
-    "array of run-time-determined length" in the µVM type system. The closest
+    "array of run-time-determined length" in the Mu type system. The closest
     counterpart is the ``hybrid`` type.
 
 ..
@@ -400,7 +400,7 @@ Function Types
 | 0x0B | sig |
 +------+-----+
 
-``func`` is a function reference type. It is an opaque reference to a µVM
+``func`` is a function reference type. It is an opaque reference to a Mu
 function and is not interchangeable with reference types. *sig* is the signature
 of the function it refers to.
 
@@ -414,14 +414,14 @@ A ``NULL`` value of a ``func`` type does not refer to any function.
 
     NOTE: The difference between a function signature and the ``func`` is that a
     signature can be used in many scenarios, including the foreign function
-    interface, but a value of the ``func`` type must refer to a µVM function,
-    not a C function, a Client function, an interpreted high-level language
+    interface, but a value of the ``func`` type must refer to a Mu function,
+    not a C function, a client function, an interpreted high-level language
     function or anything else.
 
 ..
 
-    For LLVM users: the ``func`` type in µVM is not a pointer (it may be
-    implemented under the hood as a pointer to a function, but the Client should
+    For LLVM users: the ``func`` type in Mu is not a pointer (it may be
+    implemented under the hood as a pointer to a function, but the client should
     not depend on that). It is opaque.
 
 ..
@@ -456,7 +456,7 @@ Opaque Types
 | 0x0D |
 +------+
 
-``thread`` and ``stack`` are opaque reference types to µVM threads and µVM
+``thread`` and ``stack`` are opaque reference types to Mu threads and Mu
 stacks, respectively. They are not interchangeable with reference types. Only
 some special instructions (e.g. ``NEWSTACK``) or common instructions (e.g.
 ``@uvm.new_thread``) can operate on them.

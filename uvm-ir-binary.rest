@@ -1,14 +1,14 @@
-==================
-µVM IR Binary Form
-==================
+=========================================
+Intermediate Representation (Binary Form)
+=========================================
 
-This document describes the binary form of the µVM intermediate representation.
+This document describes the binary form of the Mu intermediate representation.
 For the text form, see `<uvm-ir>`__.
 
 Overview
 ========
 
-The µVM IR Binary Form is similar to the `Text Form <uvm-ir>`__ in structure,
+The Mu IR Binary Form is similar to the `Text Form <uvm-ir>`__ in structure,
 but has notable differences.
 
 Numerical IDs are used exclusively instead of textual names. The binary form

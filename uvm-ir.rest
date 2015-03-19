@@ -1,16 +1,16 @@
-===============================
-µVM Intermediate Representation
-===============================
+============================
+Intermediate Representation
+============================
 
-µVM Intermediate Representation, or (µVM IR), is the language used by µVM to
-represent a µVM program. It is the input from the client and can be executed on
-the µVM.
+Mu Intermediate Representation, or (Mu IR), is the language used by Mu to
+represent a Mu program. It is the input from the client and can be executed on
+Mu.
 
-The µVM can execute the program in any way, including interpretation, JIT
-compiling or even Ahead-of-time compiling.
+Mu can execute the program in any way, including interpretation, JIT compiling
+or even Ahead-of-time compiling.
 
-µVM IR itself has two defined representations: a text form for human readability
-and a binary form for compact encoding. Concrete µVM implementations may
+Mu IR itself has two defined representations: a text form for human readability
+and a binary form for compact encoding. Concrete Mu implementations may
 introduce their own formats as long as they are equivalent.
 
 This document describes the text form and the aspects not specific to the binary
@@ -24,7 +24,7 @@ For the documents of the type system and the instruction set, see:
 Example
 =======
 
-Here is an example of µVM IR in the text form::
+Here is an example of Mu IR in the text form::
 
     .typedef @i64 = int<64>
     .typedef @double = double
@@ -76,7 +76,7 @@ function or a new version of a function that replaces the old version::
 Top-level Structure
 ===================
 
-A **bundle** is the unit of code the client sends to the µVM. It contains many
+A **bundle** is the unit of code the client sends to Mu. It contains many
 **top-level definitions**. A top-level definition shall be a **type
 definition**, **function signature definition**, **constant definition**,
 **global cell definition**, **function definition** or **function declaration**.
@@ -86,7 +86,7 @@ definition**, **function signature definition**, **constant definition**,
 Identifiers and Names
 ---------------------
 
-Many entities in the µVM are **identified**. An identified entity has an
+Many entities in Mu are **identified**. An identified entity has an
 identifiers (ID) and optionally a name. An identifier (ID) is a 32-bit integer.
 A name is a string starting with a ``@`` or a ``%`` and followed by many
 characters in the set: ``[0-9a-zA-Z_-.]``. An ID uniquely identifies an
@@ -96,7 +96,7 @@ characters in the set: ``[0-9a-zA-Z_-.]``. An ID uniquely identifies an
     dictionary would define "entity" as "a thing with distinct and independent
     existence".
 
-In the µVM IR text form, names are exclusively used and IDs are automatically
+In the Mu IR text form, names are exclusively used and IDs are automatically
 generated. In the binary form, IDs are exclusively generated and names can be
 introduced via name-binding.
 
@@ -106,18 +106,18 @@ introduced via name-binding.
         .typedef @i64  = int<64>
         .typedef @long = int<64>
 
-    In the µVM IR, if ``@i64`` and ``@long`` are declared this way, they can be
+    In the Mu IR, if ``@i64`` and ``@long`` are declared this way, they can be
     used interchangeably. For example, an ``ADD``  instruction can add an
     ``@i64`` value to a ``@long`` value because both are ``int<64>``.
 
     NOTE: Just because some kinds of entities are identified does not mean all
-    entities of that kind in a concrete µVM implementation must have IDs and
-    names. Types are one example. Type definitions in the µVM IR are always
-    identified, but some µVM instructions may yield values of types that are not
+    entities of that kind in a concrete Mu implementation must have IDs and
+    names. Types are one example. Type definitions in the Mu IR are always
+    identified, but some Mu instructions may yield values of types that are not
     defined in the IR. For example, the ``CMPXCHG`` instruction on type *T*
     yields a value of type ``struct<T int<1>>`` where the second field indicates
     whether the ``CMPXCHG`` operation is successful. The struct type may not be
-    defined in the IR, but the µVM IR program cannot make use of the result
+    defined in the IR, but the Mu IR program cannot make use of the result
     unless it defines a type for the struct type because the ``EXTRACTVALUE``
     instruction takes a type parameter which is the type of the struct value
     parameter. For example::
@@ -140,7 +140,8 @@ Names
 
 A **global name** begins with ``@``. All identified entities can use global
 names. Top-level definitions and the version name of functions must use global
-names. Global names are valid in the whole µVM, not limited to a single bundle.
+names. Global names are valid in a whole Mu instance, not limited to a single
+bundle.
 
     Example::
 
@@ -211,10 +212,10 @@ Identifiers
 ~~~~~~~~~~~
 
 All identifiers are global. Every ID must uniquely identify one entity in the
-whole µVM.
+whole Mu instance.
 
-0 is an invalid ID. IDs in the range of 1-65535 are reserved by the µVM. This
-µVM specification only uses 1-32767. 32768-65535 can be used by the µVM
+0 is an invalid ID. IDs in the range of 1-65535 are reserved by Mu. The Mu
+specification only uses 1-32767. 32768-65535 can be used by the Mu
 implementation for extension purposes.
 
 Type Definition
@@ -364,7 +365,7 @@ A **constant constructor** can be the following:
 
 ..
 
-    NOTE: The Client must ensure the number (integer or floating point) can be
+    NOTE: The client must ensure the number (integer or floating point) can be
     represented by the type, or it is an error.
 
 ..
@@ -375,10 +376,10 @@ A **constant constructor** can be the following:
 
 ..
 
-    NOTE: The only constant of reference types is ``NULL``. The reason why µVM
+    NOTE: The only constant of reference types is ``NULL``. The reason why Mu
     forbids constant object references is manifold:
 
-    * To define a constant heap reference, the Client must provide a reference
+    * To define a constant heap reference, the client must provide a reference
       to a heap object, which itself is recursively a constant heap reference.
       Even if such a reference is created, it renders a heap object immortal (as
       immortal as a global cell), which defeated the purpose of garbage
@@ -393,7 +394,7 @@ A **constant constructor** can be the following:
     data structure in the global memory or allocate it in the heap and assign
     its reference to a global cell. In fact, the ID or the name of any global
     cell is a constant SSA variable of an internal reference to it. The ID or
-    the name of a µVM function is a constant SSA variable of a ``func``.
+    the name of a Mu function is a constant SSA variable of a ``func``.
 
 ..
 
@@ -500,7 +501,7 @@ A global cell definition has the form::
 Function Definition and Declaration
 ===================================
 
-**Functions** represent executable code in the µVM.
+**Functions** represent executable code in Mu.
 
 A **function definition** defines a **version of function**. It has the
 following form::
@@ -551,7 +552,7 @@ It is an error to have multiple function declarations and/or function
 definitions of the same name in the same bundle.
 
 The semantic of defining an previously undefined function and redefining
-existing functions is described in `uVM-Client Interface
+existing functions is described in `Client Interface
 <uvm-client-interface>`__.
 
 Function Body

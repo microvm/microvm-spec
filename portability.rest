@@ -3,41 +3,40 @@ Portability
 ==============
 
 As both a thin layer over the hardware and an abstraction over concurrency, JIT
-compiling and GC, the µVM must strike a balance between portability and the
-ability to exploit platform-specific features. Thus the µVM is designed in such
-a way that
+compiling and GC, Mu must strike a balance between portability and the ability
+to exploit platform-specific features. Thus Mu is designed in such a way that
 
 1. There is a basic set of types and instructions that have common and defined
    behaviours and reasonably good performance on all platforms.
-2. The µVM also includes platform-specific instructions. These instructions are
-   either defined by this µVM specification or extended by µVM implementations.
+2. Mu also includes platform-specific instructions. These instructions are
+   either defined by this Mu specification or extended by Mu implementations.
 
-In this chapter, **required** features must be implemented by the µVM
+In this chapter, **required** features must be implemented by Mu
 implementation and **optional** features may or may not be implemented. However,
 if an optional feature is implemented, it must behave as specified.
 
     NOTE: Although "behaving as specified", the implementation can still reject
     some inputs in a compliant way. For example, if an array type is too large,
-    the µVM still needs to accept the µVM IR that contains such a type, but may
-    always refuse to allocate such a type in the memory.
+    Mu still needs to accept the Mu IR that contains such a type, but may always
+    refuse to allocate such a type in the memory.
 
 Type System
 ===========
 
 The ``int`` type of lengths 1, 8, 16, 32, and 64 are required. ``int`` of 6 and
-52 bits are required if the µVM also implements the ``tagref64`` type. Other
-lengths are optional.
+52 bits are required if Mu also implements the ``tagref64`` type. Other lengths
+are optional.
 
 Both ``float`` and ``double`` are required.
 
 The vector types ``vector<int<32> 4>``, ``vector<float 4>`` and ``vector<double
 2>`` are required. Other vector types are optional.
 
-    NOTE: Even though required to be accepted by the µVM, they are not required
-    to be implemented using hardware-provided vector instructions or vector
-    registers of the exact same length. They can be implemented totally with
-    scalar operations and general-purpose registers or memory, or implemented
-    using different hardware vector sizes, larger or smaller.
+    NOTE: Even though required to be accepted by Mu, they are not required to be
+    implemented using hardware-provided vector instructions or vector registers
+    of the exact same length. They can be implemented totally with scalar
+    operations and general-purpose registers or memory, or implemented using
+    different hardware vector sizes, larger or smaller.
 
 Reference types ``ref<T>``, ``iref<T>`` and ``weakref<T>`` are required if ``T``
 is implemented. Otherwise optional.
@@ -45,10 +44,10 @@ is implemented. Otherwise optional.
 A struct type ``struct<...>`` are required if it has at most 256 fields and all
 of its field types are implemented. Otherwise optional.
 
-An array type ``array<T n>`` is required if T is implemented and n is at most
-2^64 Otherwise optional.
+An array type ``array<T n>`` is required if T is implemented and n is less than
+2^64. Otherwise optional.
 
-    NOTE: This implies the µVM must accept arrays of up to 2^64 elements.
+    NOTE: This implies Mu must accept array types of up to 2^64-1 elements.
     However, arrays must be in the memory. Whether such an array can be
     successfully allocated is a different story.
 
@@ -107,7 +106,7 @@ For shifting instructions ``SHL``, ``LSHR`` and ``ASHR`` for integer type
 Conversions instructions are required between any two implemented types that can
 be converted. Specifically, given two types T1 and T2 and a conversion operation
 CONVOP, if both T1 and T2 are implemented and they satisfied the requirement of
-the ``T1`` and ``T2`` parameters of CONVOP (see `instruction-set`__), then the
+the ``T1`` and ``T2`` parameters of CONVOP (see `<instruction-set>`__), then the
 CONVOP operation converting from T1 to T2 is required.
 
 Binary floating point operations round to nearest and round ties to even.
@@ -178,7 +177,7 @@ instruction.
 Other types are optional for ``CMPXCHG`` and any subset of ``ATOMICRMW``
 operations.
 
-One atomic µVM instruction does not necessarily correspond to exactly one
+One atomic Mu instruction does not necessarily correspond to exactly one
 machine instruction. So some atomic read-modify-write operations can be
 implemented using ``CMPXCHG`` or load-link store-conditional constructs.
 
@@ -221,6 +220,6 @@ Required when ``tagref64`` is implemented:
 * @uvm.tr64.from_int
 * @uvm.tr64.from_ref
 
-The µVM implementation may add common instructions.
+The Mu implementation may add common instructions.
 
 .. vim: tw=80

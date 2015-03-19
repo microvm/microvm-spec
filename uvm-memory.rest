@@ -1,11 +1,11 @@
-==============
-The µVM Memory
-==============
+=============
+The Mu Memory
+=============
 
 Overview
 ========
 
-The µVM supports automatic memory management via garbage collection. There is a
+Mu supports automatic memory management via garbage collection. There is a
 **heap** which contains garbage-collected **objects** as well as many **stacks**
 and a **global memory** which contain data that are not garbage-collected.
 
@@ -13,7 +13,7 @@ The heap memory is managed by the garbage collector.
 
 Unlike C or C++, local SSA variables are not bound to memory locations. Stack
 memory must be allocated by the ``ALLOCA`` or ``ALLOCAHYBRID`` instructions or
-using the µVM-Client interface.
+using the Mu client interface.
 
 This specification does not mandate any object layout, but it is recommended to
 layout common data types as in the platform application binary interface (ABI)
@@ -22,8 +22,8 @@ so that the C foreign function interface is easier to implement.
 Basic Concepts
 ==============
 
-There are three kinds of memory in the µVM, namely the **heap memory**, the
-**stack memory** and the **global memory**.
+There are three kinds of memory in Mu, namely the **heap memory**, the **stack
+memory** and the **global memory**.
 
 Memory is allocated in their respective **allocation units**. Every allocation
 unit has a **lifetime** which begins when the allocation unit is created and
@@ -34,9 +34,9 @@ represent a data value. The **lifetime** of a memory location is the same as the
 allocation unit that contains it.
 
     NOTE: The "object" in the C language is the counterpart of "memory location"
-    in µVM. The µVM does not have bit fields and a memory location is always an
+    in Mu. Mu does not have bit fields and a memory location is always an
     "object" in C's sense. The word "object" is a synonym of "heap object" or
-    "garbage-collected object" in the µVM context.
+    "garbage-collected object" in the Mu context.
 
 When an allocation unit is destroyed and another allocation unit occupied the
 same or overlapping space as the former, they are different allocation units.
@@ -44,8 +44,8 @@ Different allocation units contain no common memory locations. When a heap
 object is moved by the garbage collector, it is still the same object. Any
 memory locations within the same object remain the same.
 
-    NOTE: This means the memory of the µVM is an abstraction over the memory
-    space of the process. 
+    NOTE: This means the memory of Mu is an abstraction over the memory space of
+    the process. 
 
 Memory Allocation and Deallocation
 ==================================
@@ -61,8 +61,8 @@ on-stack replacement using API messages. It is destroyed when the stack frame
 containing it is destroyed.
 
 An allocation unit in the global memory is called a **global cell**. One global
-cell is created for every ``.const`` declaration in a bundle submitted to the
-µVM. Global cells are never destroyed.
+cell is created for every ``.const`` declaration in a bundle submitted to Mu.
+Global cells are never destroyed.
 
 Initial Values
 --------------
@@ -86,8 +86,8 @@ Garbage Collection
 A **root** is an object reference or internal reference in:
 
 * any global cell, or
-* any bound µVM stacks, or
-* the registry in any Client Agent.
+* any bound Mu stacks, or
+* the registry in any client agent.
 
 A live stack contains references in its alloca cells and live local SSA
 variables. A dead stack contains no references. A thread can strongly reach its
@@ -118,19 +118,19 @@ value it copied.
     access. The CMPXCHG instruction and the ATOMICRMW instruction may perform
     both a load and a store operation.
 
-Memory access operations can be performed by some µVM instructions (see
-`<instruction-set>`__, the µVM-Client API messages (see
-`<uvm-client-interface>`__) or other implementation-specific ways.
+Memory access operations can be performed by some Mu instructions (see
+`<instruction-set>`__, API messages (see `<uvm-client-interface>`__) or other
+implementation-specific ways.
 
-    NOTE: Since the µVM may interoperate with external entities, including
-    external libraries, the operating system or other non-µVM threads, the
+    NOTE: Since the Mu may interoperate with external entities, including
+    external libraries, the operating system or other non-Mu threads, the
     memory model (see `<memory-model>`__) should be extended by a concrete
     implementation to make meaningful programs that include external entities.
 
 Two memory accesses **conflict** if one stores to a memory location and the
 other loads from or stores to the same memory location.
 
-The result of µVM memory access operations are defined by the µVM memory model.
+The result of Mu memory access operations are defined by the Mu memory model.
 See `<memory-model>`__.
 
 Semantics of Memory Operations
@@ -147,8 +147,8 @@ implementation-defined. It is recommended to use the layout defined by the
 application binary interface of the platform in order to allow data exchange via
 the foreign function interface implementation.
 
-The µVM has some reference rules introduced later, which may affect the memory
-data layout.
+Mu has some reference rules introduced later, which may affect the memory data
+layout.
 
 Reference Rules
 ===============
@@ -158,7 +158,7 @@ created and cannot be changed. The memory location can only hold values of that
 type.
 
     NOTE: The association between memory location and type is conceptual. This
-    does not mean the µVM implementation has to keep a metadata of the type of
+    does not mean the Mu implementation has to keep a metadata of the type of
     all memory locations at runtime. The implementation only needs to keep
     enough metadata to implement its garbage collector.
 
@@ -264,7 +264,7 @@ the element type.
 Internal references to an element of a memory array can be shifted to other
 elements in the same memory array using the ``SHIFTIREF`` instruction.
 
-    NOTE: ``SHIFTREF`` may cross the boundary of µVM types, but still remain in
+    NOTE: ``SHIFTREF`` may cross the boundary of Mu types, but still remain in
     the memory array. For example, an internal reference to the first ``float``
     in the ``array<array<float 10> 10>`` array, which is a 10x10 matrix of
     float, can be shifted to other rows using the ``SHIFTIREF`` instruction and

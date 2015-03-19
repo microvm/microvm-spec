@@ -13,12 +13,12 @@ used with the ``COMMINST`` super instruction. They have:
 4. An optional exception clause.
 5. A possibly empty (which means optional) keep-alive clause.
 
-*Common instructions* are a mechanism to extend the µVM IR without adding new
+*Common instructions* are a mechanism to extend the Mu IR without adding new
 instructions or changing the grammar.
 
     NOTE: *Common instructions* were named "intrinsic function" in previous
     versions of this document. The name was borrowed from the LLVM. However, the
-    common instructions in µVM are quite different from the usual concept of
+    common instructions in Mu are quite different from the usual concept of
     intrinsic functions.
 
     Intrinsic functions usually mean a kind a function that is understood
@@ -30,19 +30,19 @@ instructions or changing the grammar.
     tasks that cannot be expressed by the high-level programming language,
     including direct raw memory access in Java.
 
-    Common instructions only differ from ordinary µVM instructions in that they
+    Common instructions only differ from ordinary Mu instructions in that they
     have a common format and are called by the ``COMMINST`` super instruction.
-    The purpose is to add more instructions to the µVM IR without having to
+    The purpose is to add more instructions to the Mu IR without having to
     modify the parser.
 
-    Common instructions are not µVM functions and cannot be called by the
+    Common instructions are not Mu functions and cannot be called by the
     ``CALL`` instruction, nor can it be directly used from the high-level
-    language that the Client implements. The µVM Client must understand common
-    instructions because it is the only source of IR code of the µVM. For
+    language that the client implements. The Mu client must understand common
+    instructions because it is the only source of IR code of Mu. For
     special high-level language functions that cannot be directly implemented in
     the high-level programming language, like the methods in the
-    ``java.lang.Thread`` class, the Client must translate those things that are
-    special in the high-level language to appropriate µVM IR code, which may or
+    ``java.lang.Thread`` class, the client must translate those things that are
+    special in the high-level language to appropriate Mu IR code, which may or
     may not involve common instructions.
 
 This document uses the following notation:

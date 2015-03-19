@@ -2,19 +2,19 @@
 Memory Model
 ============
 
-The µVM memory model basically follows the C11 memory model with a few
-modifications to make it suitable for the µVM.
+The Mu memory model basically follows the C11 memory model with a few
+modifications to make it suitable for Mu.
 
 Overview
 ========
 
-The µVM does not enforce any strong order, but trusts the Client to correctly
-use the atomic and ordering mechanisms provided by the µVM. Many choices of
-ordering, from relaxed to sequentially consistent, on each memory operation are
-given to the Client. The Client has the freedom to make its choice and has the
-responsibility to synchronise their multi-threaded programs.
+Mu does not enforce any strong order, but trusts the client to correctly use the
+atomic and ordering mechanisms provided by Mu. Many choices of ordering, from
+relaxed to sequentially consistent, on each memory operation are given to the
+client. The client has the freedom to make its choice and has the responsibility
+to synchronise their multi-threaded programs.
 
-The most restricted form of memory accesses are sequentially consistent. The µVM
+The most restricted form of memory accesses are sequentially consistent. Mu
 guarantees that they are atomic. They follow the well-known acquire-release
 memory model and there is a total order of all such memory accesses in all
 threads.
@@ -30,22 +30,22 @@ synchronisation requirements more efficiently than the "acquire" order.
 
 The "relaxed" order only guarantees atomicity but does not enforce any order.
 The most unrestricted form of memory access is not atomic. These operations
-allows the µVM implementation and the processor to maximise the throughput while
+allows the Mu implementation and the processor to maximise the throughput while
 relying on the programmer to correctly synchronise their programs.
 
 Notable differences from C11
 ----------------------------
 
-The program order in the µVM is a total order while the sequenced-before
-relationship in C is a partial order, because there are unspecified order of
-evaluations in C.
+The program order in Mu is a total order while the sequenced-before relationship
+in C is a partial order, because there are unspecified order of evaluations in
+C.
 
-There is no "atomic type" in µVM. Only operations make a difference between
+There is no "atomic type" in Mu. Only operations make a difference between
 atomic and non-atomic accesses. Using both atomic and non-atomic operations on
-the same memory location is an undefined behaviour in the µVM.
+the same memory location is an undefined behaviour in Mu.
 
 The primitives for atomic accesses and fences are provided by the instruction
-set of µVM rather than the library. Mutex locks, however, have to be implemented
+set of Mu rather than the library. Mutex locks, however, have to be implemented
 on top of this memory model.
 
 Notable differences from LLVM
@@ -77,8 +77,8 @@ memory, initial value, load, store, access and conflict
 
 thread
     A thread is the unit of CPU scheduling. In this memory model, threads
-    include but are not limited to µVM threads. See `<threads-stacks>`__ for the
-    definition of µVM threads.
+    include but are not limited to Mu threads. See `<threads-stacks>`__ for the
+    definition of Mu threads.
 
 stack, stack binding, stack unbinding, swap-stack
     See `<threads-stacks>`__
@@ -92,7 +92,7 @@ Comparison of Terminology
 The following table is a approximate comparison and may not strictly apply.
 
 =================== ============================
-C                   µVM
+C                   Mu
 =================== ============================
 value               data value
 expression          SSA variable
@@ -137,12 +137,11 @@ futex wake
     Wake up threads waiting on a memory location.
 
 external operation
-    Any other operation that may affect the state outside the µVM.
+    Any other operation that may affect the state outside Mu.
 
 ..
 
-    NOTE: Unlike the Java Memory Model, the µVM memory model does not contain
-    locks. 
+    NOTE: Unlike the Java Memory Model, Mu memory model does not contain locks. 
 
 Memory Operations
 =================
@@ -164,14 +163,14 @@ Some instructions and API messages perform memory operations. Specifically,
 ..
 
     NOTE: Native programs via the Foreign Function Interface can synchronise
-    with the µVM in an implementation-specific way. But the implementation must
+    with Mu in an implementation-specific way. But the implementation must
     guarantee that the foreign language perform those operations in a way
-    compatible with the µVM.
+    compatible with Mu.
 
     For example, there are more than one way to implement loads and stores of
     the SEQ_CST order (either put fences in the load or in the store). If the
     implementation interfaces with a C implementation (e.g.
-    gcc+glibc+Linux+x86_64), then the µVM should do the same thing as (or be
+    gcc+glibc+Linux+x86_64), then Mu should do the same thing as (or be
     compatible with) the C program.
 
 Load, store, atomic read-modify-write operations and fences have memory orders,
@@ -224,23 +223,23 @@ Orders
 Program Order
 -------------
 
-All evaluations performed by a µVM thread form a total order, in which the
+All evaluations performed by a Mu thread form a total order, in which the
 operations performed by each evaluation are **sequenced before** operations
 performed by its successor.
 
-All operations performed by a µVM Client via a particular Client Agent form a
+All operations performed by a Mu client via a particular client agent form a
 total order, in which each operation is **sequenced before** its successor.
 
 Specifically, operations performed by trap handlers and undefined function
-handlers in the Client are ordered with other operations performed by the µVM
+handlers in the client are ordered with other operations performed by the Mu
 thread as if they are performed by the ``TRAP``, ``WATCHPOINT``, ``CALL``,
 ``NEWSTACK`` or other instructions that transfers the control to the handler. 
 
 The **program order** contains operations and their "sequenced before"
 relations.
 
-    NOTE: This means all µVM instructions plus all Client operations done by
-    the trap handler and undefined function handler in a µVM thread still forms
+    NOTE: This means all Mu instructions plus all client operations done by
+    the trap handler and undefined function handler in a Mu thread still forms
     a total order.
 
     In C, the program order is a partial order even in a single thread because
@@ -266,7 +265,7 @@ order M, where the first operation is A and every subsequent operation either is
 performed by the same thread that performed the release or is an atomic
 read-modify-write operation.
 
-    NOTE: In µVM, when a memory location is accessed by both atomic and
+    NOTE: In Mu, when a memory location is accessed by both atomic and
     non-atomic operations, it is an undefined behaviour. So the release sequence
     only apply for memory locations only accessed by atomic operations.
 
@@ -306,13 +305,12 @@ An evaluation A **synchronises with** another evaluation B if:
     NOTE: A thread can be created by the ``@uvm.new_thread`` common instruction
     or the ``new_thread`` API message.
 
-    NOTE: Since there is no explicit heap memory management in µVM, the
+    NOTE: Since there is no explicit heap memory management in Mu, the
     "synchronises with" relation in C involving ``free`` and ``realloc`` does
-    not apply in the µVM.
+    not apply in Mu.
 
-    NOTE: The µVM provides very primitive threading support. The "synchronises
-    with" relations involving ``call_once`` and ``thrd_join`` are not in the
-    µVM.
+    NOTE: Mu only provides very primitive threading support. The "synchronises
+    with" relations involving ``call_once`` and ``thrd_join`` are not in Mu.
 
     NOTE: The "synchronises with" relation between the futex wake and wait is
     necessary to ensure the visibility of values written by one thread to be
@@ -379,7 +377,7 @@ a dependency from* A, if:
     would end up that the result is control-dependent on the argument rather
     than data dependent.
 
-    NOTE: Operations involving ``struct`` types in the µVM may be implemented as
+    NOTE: Operations involving ``struct`` types in Mu may be implemented as
     no-ops. Consider the following::
 
         .typedef @i64 = int<64>
@@ -393,8 +391,8 @@ a dependency from* A, if:
         %y = EXTRACTVALUE <@A 0> %x             // %v
         %z = EXTRACTVALUE <@A 1> %x             // 0
 
-    The µVM can alias ``%y`` with ``%v`` in the machine code, but ``%z`` is
-    always a constant zero.
+    Mu can alias ``%y`` with ``%v`` in the machine code, but ``%z`` is always a
+    constant zero.
 
     NOTE: Dependencies may not always be carried across function calls. A
     function may return a constant and it is uncertain if any processor respect
@@ -420,7 +418,7 @@ the following is true:
 ..
 
     TODO: The "carries a dependency to" relation is not well-defined for the
-    Client since it may be written in a different language.
+    client since it may be written in a different language.
 
 The Happens Before Relation
 ---------------------------
@@ -543,7 +541,7 @@ operation. The former is sequenced before the latter.
 In the evaluation of a ``TRAP`` or ``WATCHPOINT`` instruction, the implied stack
 unbinding operation is sequenced before any operations performed by the client.
 If the client chooses to return and rebind the stack, the stack binding
-operation is sequenced after all operations performed by the Client and the
+operation is sequenced after all operations performed by the client and the
 implied stack unbinding operation.
 
 Stack binding and unbinding operations are not atomic. If there is a pair of

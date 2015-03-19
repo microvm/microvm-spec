@@ -1,22 +1,22 @@
-============================
-MicroVM Design documentation
-============================
+================
+Mu Specification
+================
 
-This document aims to provide a detailed description to the MicroVM project,
-including its architecture, instruction set and type system.
+This document aims to provide a detailed description of Mu, a micro virtual
+machine, including its architecture, instruction set and type system.
 
 Contents:
 
 - `Overview <overview>`__
-- `µVM Intermediate Representation <uvm-ir>`__
-- `µVM IR Binary Form <uvm-ir-binary>`__
+- `Intermediate Representation <uvm-ir>`__
+- `Intermediate Representation (Binary Form) <uvm-ir-binary>`__
 - `Type System <type-system>`__
 - `Instruction Set <instruction-set>`__
 - `Common Instructions <common-insts>`__
 - `Threads and Stacks <threads-stacks>`__
-- `µVM Memory and Garbage Collection <uvm-memory>`__
+- `Memory and Garbage Collection <uvm-memory>`__
 - `Memory Model <memory-model>`__
-- `µVM-Client Interface <uvm-client-interface>`__
+- `Client Interface <uvm-client-interface>`__
 - `Portability and Implementation Advices <portability>`__
 
 Working in progress:

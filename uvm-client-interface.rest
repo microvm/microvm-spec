@@ -1,142 +1,140 @@
-====================
-µVM-Client Interface
-====================
+===================
+Mu Client Interface
+===================
 
 Overview
 ========
 
-This chapter defines the **µVM-Client API**, or "the API", the abstract
-interface between the µVM and the Client. This API is defined in an
+This chapter defines the **Mu Client Interface**, or "the API", the abstract
+interface between Mu and the client. This API is defined in an
 object-oriented style using *receivers*, *messages*, *parameters* and *return
-values*. The concrete µVM implementation can implement this API using the
+values*. The concrete Mu implementation can implement this API using the
 preferred style (procedural, functional, object-oriented, message passing and so
-on) of the language the Client is implemented in.
+on) of the language the client is implemented in.
 
 To reduce confusion, in this chapter, "**message**" means a message sent from
-the Client to the µVM. "**call-back**" means a message sent from the µVM to the
-Client. Both are synchronous, means the sender should wait for the receiver to
-finish, unless explicitly specified as "asynchronous".
+the client to Mu. "**call-back**" means a message sent from Mu to the client.
+Both are synchronous, means the sender should wait for the receiver to finish,
+unless explicitly specified as "asynchronous".
 
 Although call-backs are defined in this chapter, how to register those
-call-backs to the µVM is implementation-specific. How messages and call-backs
-are represented is implementation-specific. How parameters and return values are
+call-backs to Mu is implementation-specific. How messages and call-backs are
+represented is implementation-specific. How parameters and return values are
 represented is implementation-specific. Parameters may not literally match the
 parameters defined in this chapter.
 
-    NOTE: For example, if a message expects a list as an argument, a Client in
+    NOTE: For example, if a message expects a list as an argument, a client in
     the C language can pass a pointer and a length to indicate a slice of an
-    array while a Client in Haskell can pass a List which is a linked list.
+    array while a client in Haskell can pass a List which is a linked list.
 
-The µVM provides interfaces for the Client to load bundles and manipulate the
-state of the µVM, including creating stacks and threads, allocating objects,
-accessing memory and manipulating stacks and frames.
+Mu provides interfaces for the client to load bundles and manipulate the state
+of Mu, including creating stacks and threads, allocating objects, accessing
+memory and manipulating stacks and frames.
 
 Starting Up and Shutting Down
 =============================
 
-How to start a µVM and/or a Client is implementation-specific.
+How to start a Mu and/or a client is implementation-specific.
 
 In the beginning, whether there are existing types, signatures, constants,
-global cells or functions already defined or declared, or µVM stacks or µVM
+global cells or functions already defined or declared, or Mu stacks or Mu
 threads already created is implementation-specific.
 
-How to stop a µVM and/or a Client is implementation-specific. Stopping a µVM
-implies stopping all µVM threads in it.
+How to stop a Mu and/or a client is implementation-specific. Stopping a Mu
+implies stopping all Mu threads in it.
 
 Client Agents
 =============
 
-The Client interacts with the µVM for almost all tasks through **Client
-Agents**.
+The client interacts with Mu for almost all tasks through **client agents**.
 
-A Client Agent maintains a registry that holds µVM values for the Client. The
-values are referred by the Client via opaque **handles**. The representation of
-handles is implementation-specific. µVM references held in Client Agents are
+A client agent maintains a registry that holds Mu values for the client. The
+values are referred by the client via opaque **handles**. The representation of
+handles is implementation-specific. Mu references held in client agents are
 part of the garbage collection roots.
 
     NOTE: This design serves two purposes. Both purposes are inspired by the Lua
     C API and JNI.
     
-    1. To segregate the type system of µVM and the Client. The Client may be
-       very different from the µVM. For example, C and Java does not have
+    1. To segregate the type system of Mu and the client. The client may be
+       very different from Mu. For example, C and Java does not have
        portable vector types. Lua does not have integer types. Python's ``int``
-       type has arbitrary precision while µVM ``int`` is fixed. None have the
-       equivalent µVM ``ref``, ``iref``, ``func``, ``thread`` and ``stack``
-       transparent or opaque reference types. Handling µVM values opaquely
-       allows the Client to **precisely** express their desired µVM types and
+       type has arbitrary precision while Mu ``int`` is fixed. None have the
+       equivalent Mu ``ref``, ``iref``, ``func``, ``thread`` and ``stack``
+       transparent or opaque reference types. Handling Mu values opaquely
+       allows the client to **precisely** express their desired Mu types and
        values.
 
     2. To simplify garbage collection. By recording all references held by the
-       Client, the µVM can easily identify all roots. Making the representation
-       of handles implementation-specific gives the Client several choices:
+       client, Mu can easily identify all roots. Making the representation
+       of handles implementation-specific gives the client several choices:
 
-       1. Handles can be raw pointers and all Client-held references are pinned.
+       1. Handles can be raw pointers and all client-held references are pinned.
        2. Handles are indices in an indirection table. Since all memory accesses
-          are done via one indirection, the µVM GC can still move objects.
+          are done via one indirection, the Mu GC can still move objects.
 
     Since Lua 4.0, it introduced a stack-based API to pass values to/from the C
-    program. That stack is unnecessary for the µVM because the µVM is not
-    designed as an embedded language or supposed to exchange data frequently
-    with the Client. However, a concrete µVM implementation can use a stack as
-    the registry and use the indices as handles, but this should not be known to
-    the Client.
+    program. That stack is unnecessary for Mu because Mu is not designed as an
+    embedded language or supposed to exchange data frequently with the client.
+    However, a concrete Mu implementation can use a stack as the registry and
+    use the indices as handles, but this should not be known to the client.
 
-Client Agents are supposed to be used by a single Client thread at a time, but
-the Client can have multiple Client Agents at the same time and use them
+Client agents are supposed to be used by a single client thread at a time, but
+the client can have multiple client agents at the same time and use them
 concurrently.
 
-    NOTE: Since a Client Agent is used by one thread, implementations may
-    reserve blocks of heap memory in Client Agents so that memory allocation
+    NOTE: Since a client agent is used by one thread, implementations may
+    reserve blocks of heap memory in client agents so that memory allocation
     will not always require global locks. This trick is used by many garbage
     collectors that support parallel mutators, for example,
     [Immix](http://users.cecs.anu.edu.au/~steveb/downloads/pdf/immix-pldi-2008.pdf).
 
 ..
 
-    For Lua users: The Client Agent is the counterpart of ``lua_State``. Both
-    maintain a registry of values in order to segregate Lua or µVM types and
-    garbage collection from the C or Client world. However, µVM Client Agents
-    can also access the µVM memory (heap, stack or global) which is shared
-    between multiple Client Agents as well as multiple µVM Threads running
-    concurrently in the same µVM instance. In Lua, ``lua_State`` instances are
+    For Lua users: The client agent is the counterpart of ``lua_State``. Both
+    maintain a registry of values in order to segregate Lua or Mu types and
+    garbage collection from the C or client world. However, Mu client agents
+    can also access the Mu memory (heap, stack or global) which is shared
+    between multiple client agents as well as multiple Mu Threads running
+    concurrently in the same Mu instance. In Lua, ``lua_State`` instances are
     isolated.
 
 ..
 
-    For JNI users: The Client Agent is the counterpart of the context of a JNI
+    For JNI users: The client agent is the counterpart of the context of a JNI
     invocation or an "attached" native thread, where there is a registry of Java
     references.
 
 The ``new_agent`` Message
 -------------------------
 
-A Client Agent can be created using the ``new_agent`` message to the µVM.
+A client agent can be created using the ``new_agent`` message to Mu.
 
-- receiver: µVM
+- receiver: Mu
 - message: ``new_agent``
 - parameters: None
-- return value: A Client Agent
+- return value: A client agent
 
-This message creates a Client Agent.
+This message creates a client agent.
 
-    For Lua users: This is similar to ``lua_newstate``, but multiple Client
-    Agents share the µVM memory and can be used concurrently.
+    For Lua users: This is similar to ``lua_newstate``, but multiple client
+    agents share the Mu memory and can be used concurrently.
 
 ..
 
     Example Java signature: ``ClientAgent MicroVM.newAgent()``
 
-    Example C signature: ``int new_agent()`` where the µVM instance is implicit
-    and the return value is an integer identifier of a particular Client Agent
-    of the global µVM instance.
+    Example C signature: ``int new_agent()`` where the Mu instance is implicit
+    and the return value is an integer identifier of a particular client agent
+    of the global Mu instance.
 
     Example C signature: ``client_agent *new_agent(microvm *vm)`` where the
-    µVM instance and the Client Agent are represented as pointers.
+    Mu instance and the client agent are represented as pointers.
 
 The ``close_agent`` Message
 ---------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``close_agent``
 - parameters:
 
@@ -144,9 +142,9 @@ The ``close_agent`` Message
 
 - return value: None
 
-This message closes a Client Agent, destroying the Client Agent and all handles
-created by it. The µVM implementation may release resources reserved by the
-Client Agent. Closed Client Agents cannot be used again.
+This message closes a client agent, destroying the client agent and all handles
+created by it. The Mu implementation may release resources reserved by the
+client agent. Closed client agents cannot be used again.
 
     For Lua users: This is similar to ``lua_close``.
 
@@ -161,18 +159,18 @@ Client Agent. Closed Client Agents cannot be used again.
 Bundle Loading
 ==============
 
-The Client delivers µVM IR code in the unit of **bundles** (see `<uvm-ir>`__).
+The client delivers Mu IR code in the unit of **bundles** (see `<uvm-ir>`__).
 
 The API provides a ``load_bundle`` message, but the concrete way how a bundle is
-delivered from the Client to the µVM is implementation-specific.
+delivered from the client to Mu is implementation-specific.
 
     NOTE: this means it can be delivered by text files, binary files, char
     buffers, strings or directly as built AST in the implementation's internal
     format.
 
-Multiple bundles can be sequentially delivered to the µVM. If the µVM implements
-parallel bundle delivery, the result must be equivalent to as if they were
-delivered in a specific sequence.
+Multiple bundles can be sequentially delivered to Mu. If a Mu implementation
+implements parallel bundle delivery, the result must be equivalent to as if they
+were delivered in a specific sequence.
 
 In a bundle, if any identified entity except function definition has the same ID
 or name as any existing identified entities defined in previous bundles, it is
@@ -194,22 +192,22 @@ to be the old versions of the functions.
 
     NOTE: Specifically, existing traps in older versions of functions remain
     valid. During OSR, redefining a function will not affect any existing
-    function activations unless they are explicitly popped by the Client.
+    function activations unless they are explicitly popped by the client.
 
 The ``load_bundle`` Message
 ---------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``load_bundle``
 - parameters:
 
-  + ``bundle``: µVM IR bundle
+  + ``bundle``: Mu IR bundle
 
 - return value: None
 
-Load the µVM IR bundle ``bundle`` into the µVM.
+Load the Mu IR bundle ``bundle`` into Mu.
 
-    For Lua users: This is similar to ``lua_load``, but a µVM bundle itself is
+    For Lua users: This is similar to ``lua_load``, but a Mu bundle itself is
     not an executable thing like a Lua top-level function.
 
 ..
@@ -239,19 +237,19 @@ Client Agent Regisry Operations
 Details About Handles
 ---------------------
 
-A handle refers to a value in the registry of a Client Agent. In the Client, a
-handle can have any type determined by the µVM implementation. A handle is only
-valid for the Client Agent that created it.
+A handle refers to a value in the registry of a client agent. In the client, a
+handle can have any type determined by the Mu implementation. A handle is only
+valid for the client agent that created it.
 
-The registry of a Client Agent is initially empty.
+The registry of a client agent is initially empty.
 
-All handles that are returned from a Client Agent are new handles created by
-that Client Agent.
+All handles that are returned from a client agent are new handles created by
+that client agent.
 
-The ``put_xxx`` messages introduce new handles to various µVM values. The
+The ``put_xxx`` messages introduce new handles to various Mu values. The
 ``delete_handle`` message destroys handles.  The ``to_client_value`` message
-converts values of µVM to Client types. Other messages may manipulate µVM values
-and return handles to the new results of µVM types.
+converts values of Mu to client types. Other messages may manipulate Mu values
+and return handles to the new results of Mu types.
 
 Handles can be deleted by the ``delete_handle`` message. Using a deleted handles
 has undefined behaviour.
@@ -259,35 +257,35 @@ has undefined behaviour.
 The ``put_primitive`` Message
 -----------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``put_primitive``
 - parameters:
 
-  + ``uvm_type``: the µVM type of the value
-  + ``val``: the value represented in the Client language.
+  + ``uvm_type``: the Mu type of the value
+  + ``val``: the value represented in the client language.
 
-- return value: A handle to the converted µVM value. It has the µVM type of
+- return value: A handle to the converted Mu value. It has the Mu type of
   ``uvm_type``.
 
 This message is only applicable for **integer types**, **floating point types**
 and **vector types**.
 
-Convert a Client value ``val`` to a µVM value of type ``uvm_type``.
+Convert a client value ``val`` to a Mu value of type ``uvm_type``.
 
-For the case where the value is integer or integer vector, if the Client value
-``val`` is shorter than the µVM type ``uvm_type``, the API implementation should
+For the case where the value is integer or integer vector, if the client value
+``val`` is shorter than the Mu type ``uvm_type``, the API implementation should
 provide two versions of this message for zero extension and sign extension. If
-the Client value ``val`` is longer than the µVM type ``uvm_type``, it will be
+the client value ``val`` is longer than the Mu type ``uvm_type``, it will be
 truncated.
 
     For Lua users: This is the counterpart of ``lua_pushnumber``,
     ``lua_pushboolean``, ``lua_pushinteger``, ``lua_pushstring`` and so on. But
-    the µVM has much fewer primitive data types.
+    Mu has much fewer primitive data types.
 
 ..
 
     For JNI users: This is similar to the ``NewLocalReference`` function, but
-    µVM handles can refer to not just reference types.
+    Mu handles can refer to not just reference types.
 
 ..
 
@@ -355,16 +353,16 @@ truncated.
 The ``put_constant`` message
 ----------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``put_constant``
 - parameters:
 
-  + ``id``: the ID of the µVM constant
+  + ``id``: the ID of the Mu constant
 
 - return value: A handle of the constant value. It has the same type as the SSA
   variable of ``id``.
 
-The ``put_constant`` message creates a handle to a µVM constant value.
+The ``put_constant`` message creates a handle to a Mu constant value.
 
     For Lua users: Lua does not have declared constants, but this is similar to
     the ``lua_getglobal`` function where the global value is considered a
@@ -373,7 +371,7 @@ The ``put_constant`` message creates a handle to a µVM constant value.
 ..
 
     For JNI users: This is similar to the ``GetStaticObjectField`` routine when
-    the field is final. But µVM constants are never references.
+    the field is final. But Mu constants are never references.
 
 ..
 
@@ -384,7 +382,7 @@ The ``put_constant`` message creates a handle to a µVM constant value.
 The ``put_global`` message
 --------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``put_global``
 - parameters:
 
@@ -398,12 +396,12 @@ The ``put_global`` message creates a handle whose value is the internal
 reference to a global cell.
 
     For Lua users: This is the counterpart of the ``lua_getglobal`` function,
-    but "global cells" in the µVM are memory locations while Lua global values
-    are values.
+    but "global cells" in Mu are memory locations while Lua global values are
+    values.
 
 ..
 
-    For JNI users: This is similar to the ``GetStaticFieldID`` routine, but µVM
+    For JNI users: This is similar to the ``GetStaticFieldID`` routine, but Mu
     internal reference values are first-class values.
 
 ..
@@ -415,26 +413,25 @@ reference to a global cell.
 The ``put_function`` message
 -----------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``put_function``
 - parameters:
 
-  + ``id``: the ID of the µVM function
+  + ``id``: the ID of the Mu function
 
-- return value: A handle to a function value of the µVM function. It
+- return value: A handle to a function value of the Mu function. It
   has the same type as the SSA variable of ``id``.
 
 The ``put_function`` message creates a handle whose value is a function value
-that refers to the µVM function.
+that refers to the Mu function.
 
     For Lua users: This is the counterpart of the ``lua_getglobal`` function
-    where the global value is a Lua function, but "functions" in the µVM are
-    special.
+    where the global value is a Lua function, but "functions" in Mu are special.
 
 ..
 
-    For JNI users: This is similar to the ``GetStaticMethodID`` routine, but µVM
-    function values are first-class values.
+    For JNI users: This is similar to the ``GetStaticMethodID`` routine, but Mu
+    function reference values are first-class values.
 
 ..
 
@@ -445,7 +442,7 @@ that refers to the µVM function.
 The ``delete_handle`` message
 -----------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``delete_handle``
 - parameters:
 
@@ -479,29 +476,29 @@ Delete the handle.
 The ``to_client_value`` message
 -------------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``to_client_value``
 - parameters:
 
   + ``handle``: a handle
 
-- return value: The µVM value represented as a value in the Client language.
+- return value: The Mu value represented as a value in the client language.
 
 This message is only applicable for **integer types** and **floating point
 types**.
 
-Convert the µVM value of ``handle`` to a Client value.
+Convert the Mu value of ``handle`` to a client value.
 
-For the case where the µVM value is an integer, if the Client type has fewer
-bits than the µVM type, the value will be truncated. If the Client type has more
-bits than the µVM type, the API implementation should provide two versions of
+For the case where the Mu value is an integer, if the client type has fewer
+bits than the Mu type, the value will be truncated. If the client type has more
+bits than the Mu type, the API implementation should provide two versions of
 this message for zero extension and sign extension.
 
-If the µVM type cannot be converted to the Client type, it has undefined
+If the Mu type cannot be converted to the client type, it has undefined
 behaviour.
 
     For Lua users: This is the counterpart of ``lua_tonumber``,
-    ``lua_toboolean``, ``lua_tostring`` and so on. But the µVM has much fewer
+    ``lua_toboolean``, ``lua_tostring`` and so on. But Mu has much fewer
     primitive data types.
 
 ..
@@ -516,7 +513,7 @@ behaviour.
         double  ClientAgent.toDouble(Handle handle)
         BigInteger ClientAgent.toBigInt(Handle handle)
 
-        // dump µVM vectors to arrays
+        // dump Mu vectors to arrays
         int[]   ClientAgent.toInts  (Handle handle)
         float[] ClientAgent.toFloats(Handle handle)
         ...
@@ -549,7 +546,7 @@ behaviour.
         
         __m128        to_m128  (client_agent_t *ca, handle_t handle)
 
-        // dump µVM vector to an int array
+        // dump Mu vector to an int array
         void          to_ints  (client_agent_t *ca, handle_t handle, int *result)
 
     Example C usage::
@@ -568,7 +565,7 @@ Struct Operations
 The ``extract_value`` message
 -----------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``extract_value``
 - parameters:
 
@@ -580,12 +577,12 @@ The ``extract_value`` message
 The ``extract_value`` message extracts the ``index``-th field from struct value
 of ``str``.
 
-    For Lua users: This is similar to the ``lua_getfield``, but µVM struct
+    For Lua users: This is similar to the ``lua_getfield``, but Mu struct
     fields are statically typed.
 
 ..
 
-    For JNI users: This is similar to the ``Get<type>Field`` routine, but µVM
+    For JNI users: This is similar to the ``Get<type>Field`` routine, but Mu
     allows structs as values rather than heap objects.
 
 ..
@@ -597,7 +594,7 @@ of ``str``.
 The ``insert_value`` message
 ----------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``insert_value``
 - parameters:
 
@@ -622,7 +619,7 @@ same as ``str`` except the ``index``-th field become ``newval``.
 
 ..
 
-    For JNI users: This is similar to the ``Set<type>Field`` routine, but µVM
+    For JNI users: This is similar to the ``Set<type>Field`` routine, but Mu
     allows structs as values rather than heap objects.
 
 ..
@@ -646,28 +643,27 @@ Memory Operations
 The ``new`` message
 -------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``new``
 - parameters:
 
-  + ``type``: The ID of the µVM type of the allocated object. Must not be
+  + ``type``: The ID of the Mu type of the allocated object. Must not be
     ``hybrid``.
 
 - return value: A handle of an object reference of the object.
 
-The ``new`` message allocates a µVM object of a fixed-length type in the µVM
+The ``new`` message allocates a Mu object of a fixed-length type in the Mu
 heap.
 
     For Lua users: This is similar to the ``lua_newtable`` or
-    ``lua_createtable`` function, but the µVM can allocate many types on the
-    heap. In this sense, it is also similar to ``lua_newuserdata``, but the
-    allocated µVM object has associated metadata to identify references in the
-    object.
+    ``lua_createtable`` function, but Mu can allocate many types on the heap. In
+    this sense, it is also similar to ``lua_newuserdata``, but the allocated Mu
+    object has associated metadata to identify references in the object.
 
 ..
 
-    For JNI users: This is similar to the ``AllocObject`` routine. The µVM is
-    not aware of "initialiser".
+    For JNI users: This is similar to the ``AllocObject`` routine. Mu is not
+    aware of "initialiser".
 
 ..
 
@@ -681,27 +677,27 @@ heap.
 The ``new_hybrid`` message
 --------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``new_hybrid``
 - parameters:
 
-  + ``type``: The ID of the µVM type of the allocated object. Must be
+  + ``type``: The ID of the Mu type of the allocated object. Must be
     ``hybrid``.
-  + ``length``: A handle to a µVM integer value.
+  + ``length``: A handle to a Mu integer value.
 
 - return value: A handle to an object reference of the allocated array.
 
 ``length`` is treated as unsigned.
 
-The ``new_hybrid`` message allocates a µVM object of ``hybrid`` type with a
-variable part of length ``length`` in the µVM heap.
+The ``new_hybrid`` message allocates a Mu object of ``hybrid`` type with a
+variable part of length ``length`` in the Mu heap.
 
     For Lua users: This is similar to the ``lua_newtable`` or
     ``lua_createtable`` function which is used to allocate an array.
 
 ..
 
-    For JNI users: This is similar to the ``New<xxx>Array`` routine, but the µVM
+    For JNI users: This is similar to the ``New<xxx>Array`` routine, but the Mu
     type ``hybrid`` is different from Java arrays.
 
 ..
@@ -713,7 +709,7 @@ variable part of length ``length`` in the µVM heap.
 The ``refcast`` message
 -----------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``refcast``
 - parameters:
 
@@ -738,7 +734,7 @@ the type parameters *T1* and *T2* of the ``REFCAST`` instruction (see
 The ``get_iref`` message
 ------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``get_iref``
 - parameters:
 
@@ -756,12 +752,12 @@ reference to the same object.
 The ``get_field_iref`` message
 ------------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``get_field_iref``
 - parameters:
 
   + ``handle``: A handle to an internal reference of a struct.
-  + ``index``: An integer of the Client type: the index of the field.
+  + ``index``: An integer of the client type: the index of the field.
 
 - return value: A handle to the field.
 
@@ -775,12 +771,12 @@ internal reference to the ``index``-th field of the struct.
 The ``get_elem_iref`` message
 -----------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``get_elem_iref``
 - parameters:
 
   + ``handle``: A handle to an internal reference of an array or vector.
-  + ``index``: A handle of a µVM integer: the index of the element.
+  + ``index``: A handle of a Mu integer: the index of the element.
 
 - return value: A handle to an internal reference of an array or vector element.
 
@@ -796,12 +792,12 @@ an internal reference to the ``index``-th element of the array or vector.
 The ``shift_iref`` message
 --------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``shift_iref``
 - parameters:
 
   + ``handle``: A handle to an internal reference.
-  + ``offset``: A handle of a µVM integer: the offset.
+  + ``offset``: A handle of a Mu integer: the offset.
 
 - return value: A handle to the shifted internal reference.
 
@@ -817,7 +813,7 @@ The ``shift_iref`` message shifts the internal reference ``handle`` forward by
 The ``get_fixed_part_iref`` and the ``get_var_part_iref`` message
 -----------------------------------------------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``get_fixed_part_iref``, ``get_var_part_iref``
 - parameters:
 
@@ -846,7 +842,7 @@ undefined behaviour if the variable part has 0 elements.
 The ``load`` message
 --------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``load``
 - parameters:
 
@@ -870,7 +866,7 @@ This operation has the memory order ``ord``.
 The ``store`` message
 ---------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``store``
 - parameters:
 
@@ -897,20 +893,20 @@ This operation has the memory order ``ord``.
 The ``cmpxchg`` message
 -----------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``cmpxchg``
 - parameters:
 
   + ``ord_succ``: The memory order when successful.
   + ``ord_fail``: The memory order when failed.
-  + ``weak``: A Client Boolean value: Weak if true. Strong if false.
+  + ``weak``: A client Boolean value: Weak if true. Strong if false.
   + ``loc``: A handle of an internal reference: the memory location.
   + ``expected``: A handle: the expected value.
   + ``desired``: A handle: the desired value.
 
 - return value: A pair of values:
   
-  + ``is_succ``: A Client Boolean value: true if successful, false otherwise.
+  + ``is_succ``: A client Boolean value: true if successful, false otherwise.
   + ``oldval``: A handle of the old value.
 
 ``expected`` and ``desired`` must have the unmarked type of the referent type of
@@ -947,7 +943,7 @@ This operation has the memory order ``ord_succ`` when successful and
 The ``atomicrmw`` message
 -------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``atomicrmw``
 - parameters:
 
@@ -976,7 +972,7 @@ This operation has the memory order ``ord``.
 The ``fence`` message
 ---------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``fence``
 - parameters:
 
@@ -998,7 +994,7 @@ Stack and Thread Creation
 The ``new_stack`` message
 -------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``new_stack``
 - parameters:
 
@@ -1007,15 +1003,15 @@ The ``new_stack`` message
 
 - return value: A handle of stack: the new stack.
 
-The ``new_stack`` message creates a new µVM stack, using ``func`` as the
+The ``new_stack`` message creates a new Mu stack, using ``func`` as the
 stack-bottom function and ``arg_list`` as its arguments.
 
-    For Lua users: This is similar to the ``lua_call`` function, but µVM
-    functions execute on µVM stacks instead of Client Agent stacks.
+    For Lua users: This is similar to the ``lua_call`` function, but Mu
+    functions execute on Mu stacks instead of client stacks.
 
     This is also similar to the ``coroutine.create`` Lua function followed by
-    ``coroutine.resume`` supplying its initial arguments. But a µVM stack cannot
-    run until it is bound to a µVM thread.
+    ``coroutine.resume`` supplying its initial arguments. But a Mu stack cannot
+    run until it is bound to a Mu thread.
 
 ..
 
@@ -1042,7 +1038,7 @@ stack-bottom function and ``arg_list`` as its arguments.
 The ``new_thread`` message
 --------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``new_thread``
 - parameters:
 
@@ -1050,13 +1046,13 @@ The ``new_thread`` message
 
 - return value: A handle of a thread value: the newly created thread.
 
-The ``new_thread`` message creates a new µVM thread with ``sta`` as its initial
+The ``new_thread`` message creates a new Mu thread with ``sta`` as its initial
 stack.
 
     For Lua users: When used together with ``new_stack``, this is similar to
-    ``coroutine.create`` and ``coroutine.resume``. But µVM threads are
+    ``coroutine.create`` and ``coroutine.resume``. But Mu threads are
     concurrent. There are patterns to implement Lua-like coroutines using the
-    ``SWAPSTACK`` µVM instruction.
+    ``SWAPSTACK`` Mu instruction.
 
 ..
 
@@ -1067,7 +1063,7 @@ stack.
 The ``kill_stack`` message
 --------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``kill_stack``
 - parameters:
 
@@ -1078,13 +1074,13 @@ The ``kill_stack`` message
 The ``kill_stack`` message kills the stack.
 
     For JVM users: The JVM does not distinguish stacks and threads. The closest
-    counterpart is the JVM TI function ``StopThread``, but the µVM
-    ``kill_stack`` message does not unwind the stack. It simply marks the whole
-    stack for deletion.
+    counterpart is the JVM TI function ``StopThread``, but the Mu ``kill_stack``
+    message does not unwind the stack. It simply marks the whole stack for
+    deletion.
 
 ..
 
-    For Lua users: Coroutines in Lua are garbage collected. The µVM will reclaim
+    For Lua users: Coroutines in Lua are garbage collected. Mu will reclaim
     unreachable stacks, too, but can also explicitly kill them.
 
 ..
@@ -1099,7 +1095,7 @@ Stack Introspection and On-stack Replacement
 The ``current_func_ver`` message
 --------------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``current_func_ver``
 - parameters:
 
@@ -1127,7 +1123,7 @@ on.)
 The ``current_instruction`` message
 -----------------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``current_instruction``
 - parameters:
 
@@ -1153,7 +1149,7 @@ See ``current_func_ver`` about how the frame is selected.
 The ``dump_keepalives`` message
 -------------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``dump_keepalives``
 - parameters:
 
@@ -1168,11 +1164,11 @@ current instruction in the selected frame. Returns a list of handles.
 
 See ``current_func_ver`` about how the frame is selected.
 
-    For JVM users: The closest JVM TI function is ``GetLocalVariable``. The µVM
-    will not keep all local variables alive. It does not allow setting the value
-    of local variables, either. However, if an internal reference to a stack
-    memory cell is kept alive, the Client can access that memory using the
-    memory accessing API messages.
+    For JVM users: The closest JVM TI function is ``GetLocalVariable``. Mu will
+    not keep all local variables alive. It does not allow setting the value of
+    local variables, either. However, if an internal reference to a stack memory
+    cell is kept alive, the client can access that memory using the memory
+    accessing API messages.
 
 ..
 
@@ -1183,7 +1179,7 @@ See ``current_func_ver`` about how the frame is selected.
 The ``pop_frame`` message
 -------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``pop_frame``
 - parameters:
 
@@ -1204,12 +1200,12 @@ The ``pop_frame`` message pops the top frame of the stack.
 The ``push_frame`` message
 --------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - message: ``push_frame``
 - parameters:
 
   + ``stack``: A handle of a stack.
-  + ``func``: A handle of a µVM function.
+  + ``func``: A handle of a Mu function.
   + ``arg_list``: A list of handles. Each handle is an argument to ``func``.
 
 - return value: None
@@ -1236,7 +1232,7 @@ Tagged Reference Messages
 The ``tr64_is_fp``, ``tr64_is_int`` and ``tr64_is_ref`` messages
 ----------------------------------------------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - messages: ``tr64_is_fp``, ``tr64_is_int``, ``tr64_is_ref``
 - parameters:
 
@@ -1251,9 +1247,9 @@ reference value, respectively.
 
     Example Java signatures::
 
-        boolean ClientAgnet.tr64IsFP (Handle handle)
-        boolean ClientAgnet.tr64IsInt(Handle handle)
-        boolean ClientAgnet.tr64IsRef(Handle handle)
+        boolean ClientAgent.tr64IsFP (Handle handle)
+        boolean ClientAgent.tr64IsInt(Handle handle)
+        boolean ClientAgent.tr64IsRef(Handle handle)
 
     Example C signatures::
 
@@ -1264,13 +1260,13 @@ reference value, respectively.
 The ``tr64_to_fp``, ``tr64_to_int``, ``tr64_to_ref`` and ``tr64_to_tag`` messages
 ---------------------------------------------------------------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - messages: ``tr64_to_fp``, ``tr64_to_int``, ``tr64_to_ref``, ``tr64_to_tag``
 - parameters:
 
   + ``handle``: A handle of a ``tagref64`` value.
 
-- return value: A handle to a µVM value extracted from the tagged reference.
+- return value: A handle to a Mu value extracted from the tagged reference.
 
   * ``tr64_to_fp`` : A handle of a ``double`` value.
   * ``tr64_to_int``: A handle of a ``int<52>`` value.
@@ -1291,10 +1287,10 @@ tag stored together with the reference.
 
     Example Java signatures::
 
-        Handle ClientAgnet.tr64ToFP (Handle handle)
-        Handle ClientAgnet.tr64ToInt(Handle handle)
-        Handle ClientAgnet.tr64ToRef(Handle handle)
-        Handle ClientAgnet.tr64ToTag(Handle handle)
+        Handle ClientAgent.tr64ToFP (Handle handle)
+        Handle ClientAgent.tr64ToInt(Handle handle)
+        Handle ClientAgent.tr64ToRef(Handle handle)
+        Handle ClientAgent.tr64ToTag(Handle handle)
 
     Example C signatures::
 
@@ -1306,7 +1302,7 @@ tag stored together with the reference.
 The ``tr64_from_fp``, ``tr64_from_int`` and ``tr64_from_ref`` messages
 ----------------------------------------------------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - messages: ``tr64_from_fp``, ``tr64_from_int``, ``tr64_from_ref``
 - parameters for ``tr64_from_fp``:
 
@@ -1335,9 +1331,9 @@ integer tag of type ``int<6>``.
 
     Example Java signatures::
 
-        Handle ClientAgnet.tr64FromFP (Handle handle)
-        Handle ClientAgnet.tr64FromInt(Handle handle)
-        Handle ClientAgnet.tr64FromRef(Handle ref, Handle tag)
+        Handle ClientAgent.tr64FromFP (Handle handle)
+        Handle ClientAgent.tr64FromInt(Handle handle)
+        Handle ClientAgent.tr64FromRef(Handle ref, Handle tag)
 
     Example C signatures::
 
@@ -1348,18 +1344,18 @@ integer tag of type ``int<6>``.
 Trap and Undefined Function Handling
 ====================================
 
-The ``TRAP`` and the ``WATCHPOINT`` instructions represent places that a µVM
-program requires assistance from the Client. When a µVM program calls a µVM
-function that is declared but not defined, the µVM also asks the Client to
-define the function. In both cases, the µVM pauses the running µVM thread,
-preserves the stack state and execute the corresponding call-backs.
+The ``TRAP`` and the ``WATCHPOINT`` instructions represent places that a Mu
+program requires assistance from the client. When a Mu program calls a Mu
+function that is declared but not defined, Mu also asks the client to define the
+function. In both cases, Mu pauses the running Mu thread, preserves the stack
+state and execute the corresponding call-backs.
 
-Watch points can be enabled or disabled by the Client via Client Agents.
+Watch points can be enabled or disabled by the client via client agents.
 
 The ``enable_watchpoint`` and ``disable_watchpoint`` messages
 -------------------------------------------------------------
 
-- receiver: Client Agent
+- receiver: client agent
 - messages: ``enable_watchpoint`` and ``disable_watchpoint``
 - parameters:
 
@@ -1377,8 +1373,8 @@ behaviour. A specific watch point is defined by the first occurrence of a
 
     Example Java signatures::
 
-        void ClientAgnet.enableWatchPoint (int wpID)
-        void ClientAgnet.disableWatchPoint(int wpID)
+        void ClientAgent.enableWatchPoint (int wpID)
+        void ClientAgent.disableWatchPoint(int wpID)
 
     Example C signatures::
 
@@ -1391,7 +1387,7 @@ The ``handle_trap`` call-back
 - name: ``handle_trap``
 - parameters:
 
-  + ``ca``: A Client Agent for this call.
+  + ``ca``: A client agent for this call.
   + ``thread``: A handle to the thread which hit the trap.
   + ``stack``: A handle to the stack which the thread was bound to.
   + ``watchpoin_id``: The watch point ID. 0 if it is ``TRAP``.
@@ -1424,20 +1420,20 @@ The ``handle_trap`` call-back
 This call-back is called when a trap (either a ``TRAP`` or an enabled
 ``WATCHPOINT``) is hit.
 
-A Client Agent ``ca`` is provided to the Client for this particular call. It
+A client agent ``ca`` is provided to the client for this particular call. It
 initially has two handles, namely ``thread`` and ``stack``. It is automatically
 closed after this handler returned.
 
 The ``thread`` and the ``stack`` are already unbound when entering this
 handler.
 
-The return value tells the µVM how the ``thread`` shall continue. It may
+The return value tells the Mu how the ``thread`` shall continue. It may
 terminate or bind to a stack to continue. In all cases, the ``new_stack`` field
 may or may not be the ``stack`` parameter. The ``stack`` will not be
 automatically killed even with ``EXIT``.
 
-When multiple µVM threads hit traps concurrently, the µVM guarantees that this
-call-back is called for each hit. However, the µVM implementation may decide
+When multiple Mu threads hit traps concurrently, Mu guarantees that this
+call-back is called for each hit. However, a Mu implementation may decide
 whether all calls to this call-back can be executed concurrently or only
 sequentially.
 
@@ -1453,49 +1449,47 @@ The ``handle_undefined_function`` call-back
 
 This call-back is called when an undefined function is called (by ``CALL``,
 ``INVOKE`` or ``TAILCALL``), used by ``NEWSTACK`` or any intrinsic functions
-that may call a µVM function. 
+that may call a Mu function. 
 
-``function_id`` is the ID of the callee function. After returning, the µVM
+``function_id`` is the ID of the callee function. After returning, the Mu
 program will re-execute the same instruction again.
 
-    NOTE: This means that the Client must define the undefined function, or the
-    µVM will keep calling this call-back again and again.
+    NOTE: This means that the client must define the undefined function, or Mu
+    will keep calling this call-back again and again.
 
-Since there may be multiple µVM threads running, more than one thread may call
+Since there may be multiple Mu threads running, more than one thread may call
 undefined functions simultaneously. The implementation is only required to have
 all of them handled, sequentially or parallelly.
 
 Signal Handling
 ===============
 
-The concrete call-back for the Client to handle signals is
+The concrete call-back for the client to handle signals is
 implementation-specific. 
 
-In an environment where the µVM is present, the Client should not register
-signal handlers. The µVM should register signal handlers for itself or the
-Client. On receiving the signal, the µVM shall check if it designates a run-time
-error in any µVM IR code. If so, it shall be handled within the µVM. If it does
-not occur in any µVM IR code, it shall be forwarded to the Client via a
-call-back. Errors within the µVM runtime are fatal and will not be handled. The
-previous signal handler registered by external libraries shall be preserved by
-the µVM in case the external library shall take the responsibility of handling
-the signal.
+In an environment where Mu is present, the client should not register signal
+handlers. Mu should register signal handlers for itself or the client. On
+receiving the signal, Mu shall check if it designates a run-time error in any Mu
+IR code. If so, it shall be handled within Mu. If it does not occur in any Mu IR
+code, it shall be forwarded to the client via a call-back. Errors within the Mu
+runtime are fatal and will not be handled. The previous signal handler
+registered by external libraries shall be preserved by Mu in case the external
+library shall take the responsibility of handling the signal.
 
-    NOTE: Both the Client and the µVM may need to handle signals. The µVM needs
-    to handle some hardware traps including divide-by-zero errors and floating
-    point exceptions. These should be implemented by signal handling in
-    UNIX-like operating systems. Meanwhile the Client may also need to handle
-    such erroneous cases, for example, when implementing an interpreter.
+    NOTE: Both the client and Mu may need to handle signals. Mu needs to handle
+    some hardware traps including divide-by-zero errors and floating point
+    exceptions. These should be implemented by signal handling in UNIX-like
+    operating systems. Meanwhile the client may also need to handle such
+    erroneous cases, for example, when implementing an interpreter.
     
     According to how the operating system works, only one signal handler can be
     registered by a process at the same time. This comes to a compromise in the
-    design: in the presence of the µVM, the signal flows from the µVM, the
-    Client and the external libraries.
+    design: in the presence of Mu, the signal flows from Mu, the client and the
+    external libraries.
 
-    Theoretically the µVM should be the only entity in the process that
-    registers signal handlers and all other entities, including the Client or
-    other libraries designed with the µVM in mind, when having the need to
-    handle signals, should use the call-back or message-passing mechanisms
-    provided by the µVM.
+    Theoretically Mu should be the only entity in the process that registers
+    signal handlers and all other entities, including the client or other
+    libraries designed with Mu in mind, when having the need to handle signals,
+    should use the call-back or message-passing mechanisms provided by Mu.
 
 .. vim: tw=80
