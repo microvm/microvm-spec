@@ -386,8 +386,8 @@ The ``void`` type has no value. It can only be used in the following ways:
 * As the type of instructions or the return type of functions that do not return
   values.
 
-Function Types
---------------
+Opaque Reference Type
+---------------------
 
 ``func < sig >``
 
@@ -412,11 +412,12 @@ A ``NULL`` value of a ``func`` type does not refer to any function.
 
 ..
 
-    NOTE: The difference between a function signature and the ``func`` is that a
-    signature can be used in many scenarios, including the foreign function
-    interface, but a value of the ``func`` type must refer to a Mu function,
-    not a C function, a client function, an interpreted high-level language
-    function or anything else.
+    For C users: The ``func`` type is a function **reference** type, but it is
+    not a function itself. It is similar to the "pointer to function" type in C.
+    In C, an expression of function type is always implicitly converted to a
+    "pointer to function" type unless appearing inside ``sizeof`` or
+    ``alignof``, in which case it is an error (see the "standard conversion"
+    rules of C11). There is no "function type" in Mu.
 
 ..
 
@@ -436,9 +437,6 @@ A ``NULL`` value of a ``func`` type does not refer to any function.
 
         .typedef @func1 = func<@sig1>
         .typedef @func2 = func<@sig2>
-
-Opaque Types
-------------
 
 ``thread``
 

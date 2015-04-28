@@ -162,10 +162,10 @@ Some instructions and API messages perform memory operations. Specifically,
 
 ..
 
-    NOTE: Native programs via the Foreign Function Interface can synchronise
-    with Mu in an implementation-specific way. But the implementation must
-    guarantee that the foreign language perform those operations in a way
-    compatible with Mu.
+    NOTE: Programs in other languages (e.g. native programs or any other
+    language a Mu implementation can interface with) can synchronise with Mu in
+    an implementation-specific way. But the implementation must guarantee that
+    those programs perform those operations in a way compatible with Mu.
 
     For example, there are more than one way to implement loads and stores of
     the SEQ_CST order (either put fences in the load or in the store). If the

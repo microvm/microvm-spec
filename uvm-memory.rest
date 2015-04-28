@@ -17,7 +17,7 @@ using the Mu client interface.
 
 This specification does not mandate any object layout, but it is recommended to
 layout common data types as in the platform application binary interface (ABI)
-so that the C foreign function interface is easier to implement.
+so that the native interface is easier to implement.
 
 Basic Concepts
 ==============
@@ -145,7 +145,7 @@ Memory Data Layout
 The way how data of any type are represented in the memory is
 implementation-defined. It is recommended to use the layout defined by the
 application binary interface of the platform in order to allow data exchange via
-the foreign function interface implementation.
+the native interface implementation.
 
 Mu has some reference rules introduced later, which may affect the memory data
 layout.

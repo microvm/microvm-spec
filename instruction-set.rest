@@ -1144,8 +1144,8 @@ function. After returning from the client, this instruction will be tried again.
     - The meaning of ``TAILCALL`` is similar to LLVM's ``musttail``: in Mu, a
       ``TAILCALL`` always replaces the current stack frame.
     - Calling conventions cannot be specified in Mu: Mu always uses its
-      internal calling conventions. The ``CCALL`` instruction is for foreign
-      function calls.
+      internal calling conventions. The ``CCALL`` instruction is for native
+      calls.
     - Arguments will not be automatically zero or sign-extended or truncated for
       the programmer. Conversions must be explicitly done before calling.  
     - The ``func`` type in Mu is a dedicated function reference, not a pointer. 
@@ -2540,8 +2540,22 @@ being 0.
             // %wp1 handles exception here when enabled
 
 
-C Foreign Function Interface
-============================
+Unsafe Native Call
+==================
+
+    NOTE: The term **foreign function interface** may have been used in many
+    other places by experienced VM engineers to mean a heavy-weighted complex
+    interface with another language. JikesRVM users use **foreign function
+    interface** to refer to JNI and use **syscall** to refer to a light-weight
+    unsafe mechanism to call arbitrary C functions with minimal overhead.
+    
+    The ``CCALL`` instruction is more similar to the latter. It has minimum
+    overhead, but provides no protection to malicious code. It may directly
+    expose pointers to the Mu memory to the native world. So it must be used
+    with care. 
+
+    To reduce confusion, we use the term **unsafe native interface** instead of
+    *foreign function interface*.
 
 ``CCALL`` Instruction
 ---------------------
@@ -2583,7 +2597,7 @@ The ``CCALL`` instruction calls a native function.
 *callconv* specifies the calling convention used by this instruction.
 
 The semantic of this instruction is highly implementation-dependent. See
-`<uvm-ffi>`__ for a detailed description of the foreign function interface.
+`<uvm-native>`__ for a detailed description of the native interface.
 
 ``CCALL`` cannot receive exceptions thrown by C++.
 
@@ -2595,23 +2609,45 @@ The semantic of this instruction is highly implementation-dependent. See
     operating systems since most operating systems are currently written in C
     and provide C interfaces.
 
+    For Java users: The ``CCALL`` instruction is not like JNI. JNI is a thick
+    layer between the JVM and the native world, but the ``CCALL`` intends to
+    introduce minimal overhead. However, `JEP191
+    <http://openjdk.java.net/jeps/191>`__ proposed a similar approach as C#'s
+    unsafe native function calls and it may be similar to Mu's ``CCALL``
+    instruction.
+
+    For JikesRVM users: This instruction is similar to the "syscall" mechanism
+    where the overhead is minimum and great freedom is provided to the user, but
+    the Mu VM provides no protection of abusing. This is the preferred way to
+    call native functions.
+
 ..
 
-    Example: This example uses the C function ``printf`` to print ``"Hello
+    Example: This example uses the C function ``write`` to print ``"Hello
     world!\n"``::
 
-        // The client loads libc and gets the address for printf.
+        // The client loads libc and gets the address for write.
         // Then the client defines a constant which hard-codes the address.
         .typedef @AddrType = int<64>
-        .const @printf_address <@AddrType> = 0x0011223344556600   // hard-coded address
+        .const @write_address <@AddrType> = 0x0011223344556600   // hard-coded address
 
-        // There must be a function signature defined for the printf function.
-        // However Mu does not support vararg functions, so just define it
-        // for a particular call site.
-        .typedef @iref_char = iref<@i8>
-        .funcsig @printf_sig = @i32 (@iref_char)
+        // A compatible signature must be provided to call this native function.
+        // Note: write's signature in C is:
+        // ssize_t write(int fildes, const void *buf, size_t nbytes);
+        // Assume x86_64 architecture.
+        .typedef @c_ssize_t = int<64>
+        .typedef @c_int     = int<32>
+        .typedef @c_void    = void
+        .typedef @c_ptrvoid = ptr<@c_void>  // the ptr type is still a planned feature
+        .typedef @c_size_t  = int<64>
+        .funcsig @write_sig = @c_ssize_t (@c_int @c_ptrvoid @c_size_t)
+
+        // Define necessary constants and types
+        .const @FD = 1      // 1 is for stdout
 
         .typedef @DynByteArray = hybrid<@void @i8>
+        .typedef @irefi8 = iref<@i8>
+        .typedef @ptri8  = ptr<@i8>
         .const @ARY_SZ <@i64> = 13
         .const @CHAR_H  <@i8> = 0x48    // 'H'
         .const @CHAR_e  <@i8> = 0x65    // 'e'
@@ -2621,12 +2657,13 @@ The semantic of this instruction is highly implementation-dependent. See
         .const @CHAR_w  <@i8> = 0x77    // 'w'
         .const @CHAR_r  <@i8> = 0x72    // 'r'
         .const @CHAR_d  <@i8> = 0x64    // 'd'
+        .const @CHAR_EX <@i8> = 0x21    // '!'
         .const @CHAR_NL <@i8> = 0x0a    // '\n'
-        .const @CHAR_nil <@i8> = 0      // '\0'
         
         // A Mu program allocates an array (represented as a hybrid)
-        %h = ALLOCAHYBRID <@DynByteArray @i64> @ARY_SZ
-        %v = GETVARPARTIREF <@DynByteArray> %h
+        %h  = NEWHYBRID <@DynByteArray @i64> @ARY_SZ
+        %hi = GETIREF <@DynByteArray> %h
+        %v  = GETVARPARTIREF <@DynByteArray> %hi
 
         // Then do something to fill %v with string "Hello world\n\0"
         STORE <@i8> %v @CHAR_H          // store 'H'
@@ -2634,13 +2671,21 @@ The semantic of this instruction is highly implementation-dependent. See
         STORE <@i8> %v1 @CHAR_e         // store 'e'
         ...
         %v12 = SHIFTIREF <@i8 @i64> %v11 %I64_1
-        STORE <@i8> %v12 @CHAR_nil      // store '\0'
+        STORE <@i8> %v12 @CHAR_NL       // store '\n'
 
-        // Then use the CCALL instruction to call the printf function.
+        // Before calling the C function, we need to pin the object 
+        %bufptr = PIN <@irefi8> %v      // pins the underlying object of %v. %bufptr is a ptr<@i8>
+        %bufptr_pv = BITCAST <@ptri8 @c_ptrvoid> %bufptr    // cast to the correct type
+
+        // Then use the CCALL instruction to call the write function.
         // This call depends on the mapping between Mu types and the C types
         // defined by the Mu implementation. In this case, the iref to @i8 is
         // converted to a C pointer.
-        CCALL DEFAULT <@AddrType @printf_sig> @printf_address (%v)
+        %bytes_written = CCALL DEFAULT <@AddrType @write_sig> @write_address (@FD %bufptr_pv @ARY_SZ)
+
+        // Unpin the object after calling to C so that the garbage collector
+        // can move the object again.
+        UNPIN <@ptri8> %v
 
 Thread and Stack
 ================
