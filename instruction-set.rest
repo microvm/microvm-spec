@@ -2597,7 +2597,7 @@ The ``CCALL`` instruction calls a native function.
 *callconv* specifies the calling convention used by this instruction.
 
 The semantic of this instruction is highly implementation-dependent. See
-`<uvm-native>`__ for a detailed description of the native interface.
+`<native-interface>`__ for a detailed description of the native interface.
 
 ``CCALL`` cannot receive exceptions thrown by C++.
 

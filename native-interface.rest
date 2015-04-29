@@ -1,0 +1,198 @@
+This chapter is currently a draft.
+
+================
+Native Interface
+================
+
+This chapter defines the Mu native interface.
+
+The **native interface** is a *light-weight* *unsafe* interface through which
+*Mu IR programs* communicate with *native programs*.
+
+    NOTE: This has no direct relationship with the Mu client interface. Native
+    programs are usually written in C, C++ or other low-level languages and
+    usually does not run on VMs. A Mu client is not necessary a native program.
+    The client can be written in a managed language, running in a VM, running in
+    the same Mu VM as user-level programs (i.e. a "metacircular" client), or
+    living in a different process or even a different computer, communicating
+    with Mu using sockets.
+
+The main purpose of the native interface is
+
+1. to interoperate with the operating system by invoking system libraries
+   (including system calls), and
+   
+2. to interoperate with libraries written in other programming languages.
+
+..
+
+    NOTE: The purpose of the Mu client interface is to let the client control
+    the Mu micro VM and handle events. The native interface does not directly
+    address giving native programs control over the Mu VM (which is unlikely to
+    happen in a usual scenario).
+
+It is not a purpose of this interface to interface with *arbitrary* native
+libraries. This interface should be minimal but just enough to handle most
+common system calls (e.g. ``open``, ``read``, ``write``, ``close``, ...).
+Complex data types and functions (e.g. those with unusual size/alignment
+requirements or calling conventions) may require wrapper code provided by the
+client.
+
+The native interface is not required to be *safe*. The overhead of this
+interface should be as low as possible. It is the client's responsibility to
+implement things like JNI on top of this interface.
+
+    For JikesRVM users: The native interface includes raw memory access which is
+    similar to "vmmagic" and the ``CCALL`` instruction is more like the
+    "syscall" mechanism. They are not safe, but highly efficient and should be
+    used with care.
+
+..
+
+    NOTE: Directly making system calls from Mu and bypassing the C library
+    (libc) is theoretically possible, but is not a mainstream way to do so. It
+    has a lower priority in the design.
+
+Outline
+=======
+
+This interface has several aspects:
+
+1. **Raw memory access**: This interface provides pointer types and directly
+   access the memory pointed by pointers.
+
+2. **Native function call**: This interface provides a mechanism to call a
+   native function using a native calling convention.
+
+3. **Callback from native programs**: This interface will enable calling back
+   from the native program.
+
+4. **Inline assembly**: Directly inserting machine-dependent instructions into
+   a Mu IR function.
+
+Raw Memory Access
+=================
+
+This section defines mechanisms for raw memory access.
+
+Pointers
+--------
+
+A **pointer** is an address in the memory space of the current process. A
+pointer can be a **data pointer** (type ``ptr<T>``) or **function pointer**
+(type ``funcptr<sig>``). The former assumes a data value is stored in a region
+beginning with the address. The latter assumes a piece of executable machine
+code is located at the address.
+
+``ptr<T>``, ``funcptr<sig>`` and ``int<ws>``, where ``T`` is a type, ``sig`` is
+a function signature and ``ws`` is the length of the machine's word size, can be
+cast to each other using the ``PTRCAST`` instruction. The address is preserved
+and the ``int<ws>`` type has the numerical value of the address. Type checking
+is not performed.
+
+    Potential problem: There may be machines where data pointers have a
+    different size from function pointers, but I have never seen one.
+
+    For C users: C spec never defined pointers as addresses. C pointers can
+    point to either objects (region of storage) or functions. Casting between
+    object pointers, function pointers and integers has implementation-defined
+    behaviours.
+
+Pinning
+-------
+
+A **pinning** operations takes either a ``ref<T>`` value or an ``iref<T>`` value
+as parameter. The result is a data pointer. If it is an ``iref``, the data
+pointer can be used to access the memory location referred by the ``iref``.
+Pinning a ``NULL`` ``iref`` returns a ``NULL`` pointer whose address is 0. If it
+is a ``ref``, it is equivalent to pin the ``iref`` of the memory location of
+the object itself, or 0 if the ``ref`` itself is ``NULL``.
+
+An **unpinning** operation also takes either a ``ref<T>`` value or an
+``iref<T>`` value as parameter, but returns ``void``.
+
+In each thread, there is a conceptual "pinning multi-set" (may contain repeated
+elements). A pinning operation adds a ``ref`` or ``iref`` into this multi-set,
+and an unpinning operation removes one instance of the ``ref`` or ``iref`` from
+this multi-set. A data pointer returned by pinning, as well as pointers to its
+components (fields, elements, fixed or variable part) or neighbouring array
+elements (when it is a array element), remain usable as long as the original
+``ref`` or ``iref`` is still in the pinning multi-set of the current thread.
+
+    NOTE: This requires the Mu micro VM to perform somewhat complex
+    book-keeping, but this gives Mu the opportunity for performance improvement
+    over global Boolean pinning, where a pinned object can be unpinned instantly
+    by an unpinning operation in any thread. The "pinning multi-thread" can be
+    implemented as a thread-local buffer. In this case, if GC never happens, no
+    expensive atomic memory access or inter-thread synchronisation is performed.
+
+..
+
+    NOTE: This section does not mention "object pinning". Actually "address" is
+    not a concept in the Mu memory (it only talks about abstract concepts like
+    "objects" and "memory locations"). Pinning plays the role of converting
+    between this two worlds.
+
+    It does not mention "copying", either, because it is a detail of garbage
+    collector. As long as the GC can cheat the user by providing the guarantees
+    above, it is a legal implementation.
+
+Memory Layout
+-------------
+
+The memory layout in both the Mu memory or the native memory is
+implementation-dependent.
+
+Derived Pointers
+----------------
+
+TODO
+
+Memory Access and Memory Model
+------------------------------
+
+TODO
+
+Extended Mu IR
+==============
+
+Types
+-----
+
+``ptr < T >``
+
+    ``T``
+        *type*: The referent type of this pointer.
+
+``ptr`` is a pointer type. A value of ``ptr`` type is an address in the memory
+space of the current process. The type parameter ``T`` is the assumed type of
+data stored in the memory address.
+
+TODO: funcptr
+
+Instructions
+------------
+
+TODO: PTRCAST, PIN, UNPIN
+
+TODO: GETFIELDIREF, GETELEMIREF, SHIFTIREF, GETFIXEDPARTIREF, GETVARPARTIREF
+
+TODO: LOAD, STORE, CMPXCHG, ATOMICRMW, FENCE
+
+TODO: CCALL
+
+Extended Mu Client API
+======================
+
+API Messages
+------------
+
+TODO: pin, unpin, ptrcast, assume the client can perform native memory access by
+itself.
+
+Other Mechanisms
+----------------
+
+TODO: callback, inline assembly
+
+.. vim: tw=80
