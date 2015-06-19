@@ -36,7 +36,7 @@ libraries. This interface should be minimal but just enough to handle most
 common system calls (e.g. ``open``, ``read``, ``write``, ``close``, ...).
 Complex data types and functions (e.g. those with unusual size/alignment
 requirements or calling conventions) may require wrapper code provided by the
-client.
+language implementer.
 
 The native interface is not required to be *safe*. The overhead of this
 interface should be as low as possible. It is the client's responsibility to
@@ -84,11 +84,10 @@ pointer can be a **data pointer** (type ``ptr<T>``) or **function pointer**
 beginning with the address. The latter assumes a piece of executable machine
 code is located at the address.
 
-``ptr<T>``, ``funcptr<sig>`` and ``int<ws>``, where ``T`` is a type, ``sig`` is
-a function signature and ``ws`` is the length of the machine's word size, can be
-cast to each other using the ``PTRCAST`` instruction. The address is preserved
-and the ``int<ws>`` type has the numerical value of the address. Type checking
-is not performed.
+``ptr<T>``, ``funcptr<sig>`` and ``int<n>``, where ``T`` is a type, ``sig`` is a
+function signature, can be cast to each other using the ``PTRCAST`` instruction.
+The address is preserved and the ``int<n>`` type has the numerical value of the
+address. Type checking is not performed.
 
     Potential problem: There may be machines where data pointers have a
     different size from function pointers, but I have never seen one.
@@ -97,6 +96,37 @@ is not performed.
     point to either objects (region of storage) or functions. Casting between
     object pointers, function pointers and integers has implementation-defined
     behaviours.
+
+Memory Layout
+-------------
+
+The bytes in the address space can be interpreted as Mu values in an
+implementation-dependent way. The bytes that represents a Mu value is the
+**bytes representation** of that Mu value.
+
+A memory location (in the Mu memory) can be **pinned**. In this state, it is
+mapped to a contiguous region of bytes in the address space which contains the
+bytes representation of the value the memory location holds. The beginning of
+the memory location is mapped to the lowest address of the region. Different
+components of a memory location which do not contain each other do not map to
+overlapping regions in the address space.
+
+    For C programmers:
+    
+    * Mu assumes 8-bit bytes. 
+
+    * Mu does not have the bit-field type, but a client can implement bit-fields
+      using integer types and bit operations. 
+
+    * Mu does not have union types. However, like C, directly casting an address
+      to a pointer has implementation-defined behaviours. If a Mu program
+      interfaces with native programs, it has to also depend on the platform.
+
+    * Unlike C, Mu operations work on SSA variables rather than memory locations
+      (the counterpart of objects in C).
+
+    * Mu forces the 2's complement representation, though the byte order and
+      alignment requirement are implementation-defined.
 
 Pinning
 -------
@@ -114,10 +144,8 @@ An **unpinning** operation also takes either a ``ref<T>`` value or an
 In each thread, there is a conceptual "pinning multi-set" (may contain repeated
 elements). A pinning operation adds a ``ref`` or ``iref`` into this multi-set,
 and an unpinning operation removes one instance of the ``ref`` or ``iref`` from
-this multi-set. A data pointer returned by pinning, as well as pointers to its
-components (fields, elements, fixed or variable part) or neighbouring array
-elements (when it is a array element), remain usable as long as the original
-``ref`` or ``iref`` is still in the pinning multi-set of the current thread.
+his multi-set. A memory location is pinned as long as there is at least one
+``iref`` to that memory location in the pinning multi-set of any thread.
 
     NOTE: This requires the Mu micro VM to perform somewhat complex
     book-keeping, but this gives Mu the opportunity for performance improvement
@@ -137,21 +165,21 @@ elements (when it is a array element), remain usable as long as the original
     collector. As long as the GC can cheat the user by providing the guarantees
     above, it is a legal implementation.
 
-Memory Layout
--------------
-
-The memory layout in both the Mu memory or the native memory is
-implementation-dependent.
-
-Derived Pointers
-----------------
-
-TODO
-
 Memory Access and Memory Model
 ------------------------------
 
-TODO
+    TODO:
+    
+    * How does the atomic/non-atomic load/store/atomicrmw operations to the
+      bytes in the address space relate to the atomic/non-atomic
+      load/store/atomicrmw operations described in the Mu memory model? How does
+      the modification of bytes affect the values?
+
+    * How to model the modification of bytes that spans over more than one
+      memory location (in the Mu memory's sense)?
+
+    * And the attempt to look into the bytes representation of references must
+      be forbidden.
 
 Extended Mu IR
 ==============

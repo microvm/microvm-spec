@@ -23,11 +23,8 @@ Type and Data Value
 A Mu **type** defines a set where a **data value**, or **value** when
 unambiguous, is one of its elements.
 
-A type also has an in-memory format by which its data values can be represented
-in bytes. That is described in `<uvm-memory>`__.
-
-    NOTE: The format mentioned above only applies to the memory. Values held by
-    SSA variables do not need to respect that format. See `<instruction-set>`__.
+Both SSA variables and the Mu memory can hold values in this type system. Some
+restrictions can limit what type a variable or a memory location can hold.
 
 Types and Type Constructors
 ===========================
@@ -82,6 +79,14 @@ A marked storage type cannot be the type of an SSA variable (defined in
 `<instruction-set>`__). Loading from a memory location of a marked storage type
 gets a value of its unmarked type. An unmarked type can be stored into a memory
 location of its marked storage type.
+
+A **member** of a composite type T is either a field of T if T is a struct, or
+an element of T if T is an array or a vector, or the fixed part or any element
+in the variable part if T is a hybrid. A **component** of type T is either
+itself or a member of any component of T.
+
+    NOTE: This means a component is anything in a type, including itself and any
+    arbitrarily nested members.
 
 Integer Type
 ------------

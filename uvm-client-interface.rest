@@ -719,7 +719,8 @@ The ``refcast`` message
 - return value: A handle to the converted general reference.
 
 The ``refcast`` message converts the value of ``hanlde`` of a general reference
-type (see `<type-system>`__) to a new type ``new_type``.
+type (see `<type-system>`__) to a new type ``new_type`` according to the rules
+of the ``REFCAST`` instruction.
 
 The type of ``handle`` and the type ``new_type`` must match the constraint of
 the type parameters *T1* and *T2* of the ``REFCAST`` instruction (see

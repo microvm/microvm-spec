@@ -750,6 +750,8 @@ REFCAST
       with the same beginning as *opnd*.
     * When converting between ``func``, the result refers to the same function
       as *opnd*, but may treat the function as having a different signature.
+    * In all cases, if the operand is ``NULL``, the result is the ``NULL`` value
+      of the result type.
 
 ..
 
@@ -1797,7 +1799,15 @@ opnd
     *variable* of type ``ref<T>``: The object reference to derive internal
     reference.
 return value
-    Type is ``iref<T>``: An internal reference to the memory location of *opnd*.
+    Type is ``iref<T>``: An internal reference of the memory location of type
+    *T* at the beginning of the memory location of object *opnd*.
+
+..
+
+    NOTE: The cryptic description of the return value means the referent type
+    ``T`` may be a prefix (see `<uvm-memory>`__) of the actual type represented
+    in the object. In this case, this instruction only provides access to the
+    prefix part.
 
 +------+-----+--------+
 | opct | idt | idt    |

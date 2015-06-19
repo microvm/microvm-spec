@@ -30,19 +30,24 @@ unit has a **lifetime** which begins when the allocation unit is created and
 ends when it is destroyed.
 
 A **memory location** is a region of data storage in the memory which can
-represent a data value. The **lifetime** of a memory location is the same as the
-allocation unit that contains it.
+represent a data value. For a memory location L that represents type T, if c is
+a member (if applicable) or a component of T, it also has a memory location
+which is a **member** or a **component** of the memory location L, respectively.
+Memory location L1 **contains** a memory location L2 if L2 is a component of L1.
+
+The **lifetime** of a memory location is the same as the allocation unit that
+contains it.
 
     NOTE: The "object" in the C language is the counterpart of "memory location"
     in Mu. Mu does not have bit fields and a memory location is always an
     "object" in C's sense. The word "object" is a synonym of "heap object" or
     "garbage-collected object" in the Mu context.
 
-When an allocation unit is destroyed and another allocation unit occupied the
-same or overlapping space as the former, they are different allocation units.
-Different allocation units contain no common memory locations. When a heap
-object is moved by the garbage collector, it is still the same object. Any
-memory locations within the same object remain the same.
+As implementation details, when an allocation unit is destroyed and another
+allocation unit occupied the same or overlapping space as the former, they are
+different allocation units.  Different allocation units contain no common memory
+locations. When a heap object is moved by the garbage collector, it is still the
+same object. Any memory locations within the same object remain the same.
 
     NOTE: This means the memory of Mu is an abstraction over the memory space of
     the process. 
@@ -139,15 +144,17 @@ Semantics of Memory Operations
     TODO: The semantics should be defined in one place and shared between the
     instruction set and the API.
 
-Memory Data Layout
-==================
+Memory Layout
+=============
 
 The way how data of any type are represented in the memory is
-implementation-defined. It is recommended to use the layout defined by the
+implementation-defined.
+
+For Mu implementers, it is recommended to use the layout defined by the
 application binary interface of the platform in order to allow data exchange via
 the native interface implementation.
 
-Mu has some reference rules introduced later, which may affect the memory data
+Mu has some reference rules which may affect the definition of the memory
 layout.
 
 Reference Rules
@@ -163,12 +170,16 @@ type.
     enough metadata to implement its garbage collector.
 
 A memory location has a **beginning** and an **end**. The value it holds is
-represented in that region.
+represented in that region.  A non-NULL internal reference of type *T* refers to
+the memory location of type *T* at a specific beginning.
 
-A non-NULL internal reference of type *T* refers to a memory location of
-type *T*. It can be **cast** to an internal reference of type *T2* and the
-memory location of the new internal reference has the same beginning as the old
-internal reference.
+    NOTE: There can only be one such memory location.
+    
+Specifically, there is a memory location of type ``void`` at the beginning of
+any other memory location.
+
+    NOTE: This makes it legal to cast any ``iref<T>`` to ``iref<void>`` and
+    back.
 
 Prefix Rule
 -----------
@@ -177,70 +188,24 @@ Prefix Rule
     object headers in objects. It also supports inheritance in object-oriented
     programming where a superclass is a prefix of a subclass.
 
-Some type **is a prefix** of another type. In this case, they have **shared
-components**. A component of a type is the whole type or a part of it if it is a
-composite type.
+A component C is a **prefix** of a type T if any of the following is true.
 
-*T1* is a prefix of *T2* if any of the following is true, and their shared
-components are defined accordingly:
++ *C* is *T* itself.
++ *T* is a ``struct`` and *C* is its first field.
++ *T* is a ``hybrid`` and *C* is its fixed part.
++ *T* is an ``array<T n>`` or ``vector<T n>`` and n >= 1, and *C* is its first
+  element.
++ *C* is a prefix of another prefix of *T*.
 
-+ *T1* and *T2* are the same type.
+A prefix of memory location *M* is the memory location that represents a prefix
+of the type of *M*.
 
-  - *T1* is a shared component with *T2*.
+All prefixes of a memory location have the same beginning.
 
-+ *T1* is ``void``.
-
-  - They have no shared components.
-
-+ *T1* is any type *T* and *T2* is ``struct<SEQ>`` where *T* is the first type
-  in the type sequence *SEQ*.
-
-  - *T1* is a shared component with the first field of *T2*.
-
-+ *T1* is any type *T* and *T2* is ``hybrid<T U>``.
-
-  - *T1* is a shared component with the fixed part of *T2*.
-
-+ *T1* is any type *T* and *T2* is ``array<T n>`` or ``vector<T n>`` and n >=
-  1.
-
-  - *T1* is a shared component with the first element of *T2*.
-
-+ There is a type *T3* so that *T1* is a prefix of *T3* and *T3* is a prefix of
-  *T2*.
-
-  - The shared components between *T1* and *T2* are their mutual shared components
-    with *T3*.
-
-..
-
-    Example:
-    
-    * ``float`` is a prefix of ``struct <float double>``
-    * ``float`` is a prefix of ``hybrid <float int<8>>``
-    * ``float`` is a prefix of ``array <float 10>``
-    * ``float`` is a prefix of ``vector <float 4>``
-    * ``float`` is a prefix of ``struct <struct <float double> int<32>>``
-
-    However, ``struct<float float>`` is not a prefix of ``struct<float float
-    double>``. The two types may be aligned differently.
-
-    ``vector<float 4>`` is a prefix of ``array<vector<float 4> 10``, but not a
-    prefix of ``array<float 40>`` because vectors have stricter alignment
-    requirements than scalar types.
-
-If all of the following are true:
-
-* There is a memory location *M* which represents value of type *T2*, and,
-* there is a type *T1* and *T1* is a prefix of *T2*, and,
-* *r1* is a value of ``iref<T1>`` and refers to memory location *M1*, and,
-* *r2* is a value of ``iref<T2>`` and refers to memory location *M*, and,
-* *M1* and *M* have the same beginning, and,
-* *rc1* is an internal reference derived from *r1*, and,
-* *rc2* is an internal reference derived from *r2*, and,
-* *rc1* and *rc2* refer to a shared component between *T1* and *T2*,
-
-then *rc1* and *rc2* refer to the same memory location.
+The ``REFCAST`` instruction or the ``refcast`` API message preserves the
+beginning of the operand. If it casts ``iref<T1>`` to ``iref<T2>``, the result
+is an internal reference to the memory location of type ``T2`` at the same
+beginning. (see `<instruction-set>`__)
 
 Array Rule
 ----------
