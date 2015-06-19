@@ -1017,7 +1017,37 @@ In the binary format, *nbbs* is the number of the basic block-value pairs and
 there are this number of pairs following *nbbs*.
 
 If the previous basic block executed before this basic block is one of the
-*bbx*, then the value is the corresponding *valx*. Otherwise it is an error.
+*bbx*, then the value this ``PHI`` instruction is the value of the corresponding
+*valx* at the end of the basic block *bbx*. Otherwise it is an error.
+
+    NOTE: The value is taken at the control flow edge. This means all ``PHI``
+    instructions are evaluated simultaneously rather than one at a time. For
+    example::
+    
+        .funcsig @keep_swaping_sig = @i64 (@i64 @i64 @i64)
+        .funcdef @keep_swaping VERSION keep_swaping_v1 <@keep_swaping_sig> (%a %b %n) {
+            %entry:
+                BRANCH %head
+
+            %head:
+                %aa = PHI <@i64> { %entry: %a;      %body: %bb; }
+                %bb = PHI <@i64> { %entry: %b;      %body: %aa; }
+                %i  = PHI <@i64> { %entry: @I64_0;  %body: %i2; }
+
+                %lt = LT  <@i64> %i %n
+                BRANCH2 %lt %body %exit
+
+            %body:
+                %i2 = ADD <@i64> %i @I64_1
+                BRANCH %head
+
+            %exit:
+                RET <@i64> %aa
+        }
+
+    When branching from ``%body`` to ``%head``, the value of both ``%aa`` and
+    ``%bb`` are taken before re-evaluating them. Thus their values are
+    exchanged.
 
 The ``PHI`` instruction must appear in the beginning of a basic block.
 Multiple ``PHI`` instructions are allowed.
