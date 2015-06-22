@@ -1,7 +1,0 @@
-Note: this chapter is currently a draft.
-
-===============================
-AMD64-specific Native Interface
-===============================
-
-This is the AMD64-specific part of the interface.

@@ -25,6 +25,6 @@ Working in progress:
 be listed here.)
 
 - `Native Interface <native-interface>`__
-- `AMD64 Native Interface <native-interface-x64>`__
+- `AMD64 Unix Native Interface <native-interface-x64-unix>`__
 
 .. vim: tw=80

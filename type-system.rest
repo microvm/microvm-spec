@@ -116,6 +116,16 @@ complement notation where the highest bit is the sign bit.
 
 ..
 
+    NOTE: Although ``int<1>`` is required and ``int<6>`` and ``int<52>`` are
+    also required when ``tagref64`` is implemented, they should not be part of
+    any in-memory structure because their corresponding ``LOAD`` and ``STORE``
+    operations are not required for Mu implementations. ``int<1>`` is meant to
+    represent register flags, such as the result of comparison and some overflow
+    or carry flags. ``int<6>`` and ``int<52>`` are supposed to be used
+    transiently when packing or unpacking a ``tagref64`` value.
+
+..
+
     For LLVM users: these types are directly borrowed from LLVM.
 
 ..

@@ -1,0 +1,80 @@
+This chapter is currently a draft.
+
+===========================
+AMD64 Unix Native Interface
+===========================
+
+This is the native interface for AMD64 on Unix-like operating systems.
+
+Memory Layout
+=============
+
+The memory layout of the native memory uses the `System V Application Binary
+Interface for x86-64 <http://www.x86-64.org/documentation_folder/abi.pdf>`__
+(referred to as "the AMD64 ABI" from now on) as a reference. It is recommended
+that the Mu memory also use this memory layout, but is not required since the Mu
+memory it is never externally visible unless explicitly pinned.
+
+Data in the native memory uses the sizes and alignments of types are listed in
+the following table. The unit of sizes and alignments is byte, which is 8 bits.
+
+=========================== ======================= =============== ================
+Mu type                     C type                  Size            Alignment
+=========================== ======================= =============== ================
+``int<8>``                  ``char``                1               1
+``int<16>``                 ``short``               2               2
+``int<32>``                 ``int``                 4               4
+``int<64>``                 ``long``, ``long long`` 8               8
+``float``                   ``float``               4               4
+``double``                  ``double``              8               8
+``vector<int<8> 4>``        ``__m128``              16              16
+``vector<float  4>``        ``__m128``              16              16
+``vector<double 2>``        ``__m128``              16              16
+``ptr<T>``                  ``T *``                 8               8
+``funcptr<sig>``            ``T (*) ()``            8               8
+``ref<T>``                  N/A                     8               8
+``iref<T>``                 N/A                     16              16
+``weakref<T>``              N/A                     8               8
+``tagref64``                N/A                     8               8
+``func<sig>``               N/A                     8               8
+``thread``                  N/A                     8               8
+``stack``                   N/A                     8               8
+``int<1>``                  N/A                     unspecified     unspecified
+``int<6>``                  N/A                     unspecified     unspecified
+``int<52>``                 N/A                     unspecified     unspecified
+``int<n>``                  unspecified             unspecified     unspecified
+``vector<T n>``             unspecified             unspecified     unspecified
+=========================== ======================= =============== ================
+
+    NOTE: Although ``int<1>`` is required and ``int<6>`` and ``int<52>`` are
+    required when ``tagref64`` is implemented, their memory layout is
+    unspecified because memory access instructions ``LOAD``, ``STORE``, etc. are
+    not required to support those types. It it not recommended to include those
+    types in the memory because they may never be loaded or stored.
+
+    Although vectors of other lengths are not required by a Mu implementation,
+    implementations are encouraged to support them in a way compatible with the
+    AMD64 ABI.
+
+The structure type ``struct<...>`` and the hybrid type ``hybrid<F V>`` is
+aligned to its most strictly aligned component. Each member is assigned to the
+lowest available offset with the appropriate alignment. This rule applies to
+hybrids as if the hybrid ``hybrid<F V>`` is a struct of ``F`` followed by an
+array of ``V`` of the actual length. Arrays ``array<T>`` use the same alignment
+as its elements.
+
+    NOTE: There is no union types in Mu. Arrays do not have special rules of
+    16-byte alignment as the AMD64 ABI does. Mu arrays must be declared as an
+    array of vectors (such as ``array<vector<int<32> 4> 100>``) to be eligible
+    for vector access.
+
+Both integers and floating point numbers are little-endian (lower bytes in lower
+addresses). Signed integers use the 2's complement representation. Elements with
+lower indexes in a vector is stored in lower addresses in the memory.
+
+Calling Convention
+==================
+
+TODO
+
+.. vim: tw=80
