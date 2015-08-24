@@ -8,10 +8,11 @@ This document specifies Common Instructions.
 used with the ``COMMINST`` super instruction. They have:
 
 1. An ID and a name. (This means, they are *identified*. See `<uvm-ir>`__.)
-2. A type parameter list.
-3. A value parameter list.
-4. An optional exception clause.
-5. A possibly empty (which means optional) keep-alive clause.
+2. A flag list.
+3. A type parameter list.
+4. A value parameter list.
+5. An optional exception clause.
+6. A possibly empty (which means optional) keep-alive clause.
 
 *Common instructions* are a mechanism to extend the Mu IR without adding new
 instructions or changing the grammar.
@@ -47,16 +48,17 @@ instructions or changing the grammar.
 
 This document uses the following notation:
 
-    ``[id]@name < T1 T2 ... > ( p1:t1, p2:t2, ... ) excClause KEEPALIVE -> RT``
+    ``[id]@name [F1 F2 ...] < T1 T2 ... > ( p1:t1, p2:t2, ... ) excClause KEEPALIVE -> RT``
     
-``id`` is the ID and ``@name`` is the name. ``T1 T2 ...`` is a list of types.
-It is the type parameter list. ``p1:t1, p2:t2, ...`` is a list of symbolic name
-and type pair. It is the value parameter list with the type of each parameter.
-If ``excClause`` or ``KEEPALIVE`` are present, they mean that the common
-instruction accepts exception clause or keepalive clause, respectively.  ``RT``
-is the return type. If the type parameter list or the value parameter list are
-omitted, it means the common instruction takes no type parameters or value
-parameters, respectively. If the return type is omitted, it returns ``void``.
+``id`` is the ID and ``@name`` is the name. ``F1 F2 ...`` is a list of flags.
+``T1 T2 ...`` is a list of types.  It is the type parameter list. ``p1:t1,
+p2:t2, ...`` is a list of symbolic name and type pair. It is the value parameter
+list with the type of each parameter.  If ``excClause`` or ``KEEPALIVE`` are
+present, they mean that the common instruction accepts exception clause or
+keepalive clause, respectively.  ``RT`` is the return type. If the type
+parameter list or the value parameter list are omitted, it means the common
+instruction takes no type parameters or value parameters, respectively. If the
+return type is omitted, it returns ``void``.
 
 Thread and Stack operations
 ===========================
