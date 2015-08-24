@@ -9,13 +9,19 @@ This chapter defines the Mu native interface.
 The **native interface** is a *light-weight* *unsafe* interface through which
 *Mu IR programs* communicate with *native programs*.
 
-    NOTE: This has no direct relationship with the Mu client interface. Native
-    programs are usually written in C, C++ or other low-level languages and
-    usually does not run on VMs. A Mu client is not necessary a native program.
-    The client can be written in a managed language, running in a VM, running in
-    the same Mu VM as user-level programs (i.e. a "metacircular" client), or
-    living in a different process or even a different computer, communicating
-    with Mu using sockets.
+    NOTE: This has no direct relationship with the Mu client interface.
+    
+    * Native programs are usually written in C, C++ or other low-level languages
+      and usually does not run on VMs.
+
+    * A Mu client is not necessary a native program.  The client can be written
+      in a managed language, running in a VM, running in the same Mu VM as
+      user-level programs (i.e. a "metacircular" client), or living in a
+      different process or even a different computer, communicating with Mu
+      using sockets.
+
+    However, it does not rule out the possibility to implement the Mu client
+    interface *for* native programs *via* this native interface.
 
 The main purpose of the native interface is
 
@@ -27,16 +33,15 @@ The main purpose of the native interface is
 ..
 
     NOTE: The purpose of the Mu client interface is to let the client control
-    the Mu micro VM and handle events. The native interface does not directly
-    address giving native programs control over the Mu VM (which is unlikely to
-    happen in a usual scenario).
+    the Mu micro VM and handle events. The native interface is not about
+    "controlling Mu".
 
-It is not a purpose of this interface to interface with *arbitrary* native
-libraries. This interface should be minimal but just enough to handle most
-common system calls (e.g. ``open``, ``read``, ``write``, ``close``, ...).
-Complex data types and functions (e.g. those with unusual size/alignment
-requirements or calling conventions) may require wrapper code provided by the
-language implementer.
+It is not a purpose to interface with *arbitrary* native libraries. This
+interface should be minimal but just enough to handle most *common* system calls
+(e.g. ``open``, ``read``, ``write``, ``close``, ...) and *common* native
+libraries.  Complex data types and functions (e.g. those with unusual
+size/alignment requirements or calling conventions) may require wrapper code
+provided by the language implementer.
 
 The native interface is not required to be *safe*. The overhead of this
 interface should be as low as possible. It is the client's responsibility to
@@ -59,15 +64,18 @@ Outline
 This interface has several aspects:
 
 1. **Raw memory access**: This interface provides pointer types and directly
-   access the memory pointed by pointers.
+   access the memory via pointers.
 
-2. **Native function call**: This interface provides a mechanism to call a
+2. **Exposing Mu memory to the native world**: This allows native programs to
+   access Mu memory in a limited fashion.
+
+3. **Native function call**: This interface provides a mechanism to call a
    native function using a native calling convention.
 
-3. **Callback from native programs**: This interface will enable calling back
+4. **Callback from native programs**: This interface will enable calling back
    from the native program.
 
-4. **Inline assembly**: Directly inserting machine-dependent instructions into
+5. **Inline assembly**: Directly inserting machine-dependent instructions into
    a Mu IR function.
 
 Raw Memory Access
@@ -78,7 +86,7 @@ This section defines mechanisms for raw memory access.
 Pointers
 --------
 
-A **pointer** is an address in the memory space of the current process. A
+A **pointer** is an address in the memory space of the current process.  A
 pointer can be a **data pointer** (type ``ptr<T>``) or **function pointer**
 (type ``funcptr<sig>``). The former assumes a data value is stored in a region
 beginning with the address. The latter assumes a piece of executable machine
@@ -96,6 +104,13 @@ address. Type checking is not performed.
     point to either objects (region of storage) or functions. Casting between
     object pointers, function pointers and integers has implementation-defined
     behaviours.
+
+    There are segmented architectures, including x86, whose "pointers" are
+    segments + offsets. However, apparently the trend is to move to a "flat"
+    memory space.
+
+Exposing Mu Memory to the Native World
+======================================
 
 Memory Layout
 -------------
@@ -154,17 +169,6 @@ his multi-set. A memory location is pinned as long as there is at least one
     implemented as a thread-local buffer. In this case, if GC never happens, no
     expensive atomic memory access or inter-thread synchronisation is performed.
 
-..
-
-    NOTE: This section does not mention "object pinning". Actually "address" is
-    not a concept in the Mu memory (it only talks about abstract concepts like
-    "objects" and "memory locations"). Pinning plays the role of converting
-    between this two worlds.
-
-    It does not mention "copying", either, because it is a detail of garbage
-    collector. As long as the GC can cheat the user by providing the guarantees
-    above, it is a legal implementation.
-
 Memory Access and Memory Model
 ------------------------------
 
@@ -180,6 +184,113 @@ Memory Access and Memory Model
 
     * And the attempt to look into the bytes representation of references must
       be forbidden.
+
+Calling between Mu and Native Functions
+=======================================
+
+Mu Functions calling Native functions
+-------------------------------------
+
+The ``CCALL`` instruction calls a native function. Determined by calling
+conventions, the native function may be represented in different ways, and the
+arguments are passed in different ways. The return value of the call will be the
+return value of the ``CCALL`` instruction, which is a Mu SSA variable.
+
+Native Functions calling Mu Functions
+-------------------------------------
+
+A Mu function can be **exposed** as a native function pointer in three ways:
+
+1. Statically, an ``.expose`` top-level definition exposes a Mu function as a
+   native value according to the desired calling convention. For the default
+   calling convention, the result is usually a function pointer.
+
+2. Dynamically, the ``@uvm.native.expose.<CALLCONV>`` common instructions can
+   expose a Mu function, and the ``@uvm.native.unexpose`` common instruction
+   deletes the exposed value.
+
+3. Dynamically, the ``expose`` and ``unexpose`` API messages do the same thing
+   as the above instructions.
+
+A "cookie", which is a 64-bit integer value, can be attached to each exposed
+value. When a Mu function is called via one of its exposed value, the attached
+cookie can be retrieved by the ``@uvm.native.get_cookie`` common instruction in
+the callee, or 0 if called directly from Mu.
+
+    NOTE: The purpose for the cookie is to support "closures". In some
+    high-level languages, the programmer-accessible "functions" are actually
+    closures, i.e. codes with attached data. Implemented on Mu, multiple
+    different closures may share the same Mu function as their codes, but has
+    different attached data. For example, in Lua::
+
+        function make_adder(y)
+            return function(x)
+                return x + y
+            end
+        end
+
+        plus_one = make_adder(1)
+        plus_two = make_adder(2)
+
+        print(plus_one(3), plus_two(3))     -- 4 5
+
+    ``plus_one`` and ``plus_two`` may probably share the same underlying Mu
+    function as their common implementations, and they only differ by the
+    different "up-value" ``y``.
+
+    In C, any sane C programs that use call-backs should also have a ``void *`` 
+    as the "user data". For example, the ``pthread_create`` routine takes an
+    extra ``void *arg`` parameter which will be passed to its ``start_routine``
+    as the argument. If the call-back is supposed to be a wrapper of a
+    high-level language closure, the user data will be its context.
+    
+    However, different C programs support user data in different ways (if at
+    all). For example, the UNIX signal handler function takes exactly one
+    parameter which is the signal number: ``typedef void (*sig_t) (int)``. If a
+    closure is supposed to handle UNIX signals, it must be able to identify its
+    context by merely the exposed function pointer.
+
+    One way to work around this problem is to generate a trampoline function
+    which sets the cookie and jumps to the real callee. Many different
+    trampolines can be made for a single Mu function, each of which supplies a
+    different cookie. In this case, the cookie can identify the context for the
+    closure.
+
+    The simplest kind of cookie is an integer, but an object reference may also
+    be a candidate.
+
+Since Mu programs need special contexts to execute (such as the thread-local
+memory allocation pool for the garbage collector, and the notion of the "current
+stack" for the SWAP-STACK operation), a native thread needs to attach itself to
+the Mu instance before calling any Mu functions. If a Mu thread calls native
+code from Mu, then it is already attached and can freely call back to Mu again.
+How to attach a thread to Mu is implementation-defined.
+
+    For JVM users: The JNI invocation API function ``AttachCurrentThread()`` and
+    ``DetachCurrentThread()`` are the counterpart of this requirement.
+
+Stack Sharing and Stack Introspection
+-------------------------------------
+
+The callee may share the stack with the caller. 
+
+When a Mu function "A" calls a native function which then calls back to another
+Mu function "B", Mu sees one single native frame between the frames for "A" and
+"B". When a Mu function is called from a native function without other Mu
+functions below, Mu consider the Mu function sitting on top of a native frame.
+
+Stack introspection can skip native frames and introspect other Mu frames below.
+OSR can pop native frames. Mu exceptions, when thrown to a native frame, will
+remove the native frame and throw the exception to the Mu frame below it, or
+have undefined behaviour if there is no such Mu frame below.
+
+    NOTE: The requirement to "see through" native frames is partially required
+    by exact garbage collection, in which case all references in the stack must
+    be identified.
+
+Mu exceptions are oblivious of non-Mu exception handling (such as C++
+exceptions). Destructors for C++ local variables will not be executed. It is
+undefined how Mu frames are seen by native programs.
 
 New Types
 =========
@@ -201,6 +312,27 @@ data stored in the memory address.
 ``funcptr`` is a pointer type. A value of ``funcptr`` type is an address in the
 memory space of the current process. The signature ``sig`` is the assumed
 signature of the native function in the memory address.
+
+New Top-level Definitions
+=========================
+
+Function Exposing Definition
+----------------------------
+
+A **Function Exposing Definition** has the following syntax:
+
+``.expose`` *name* = *funcName* ``<`` *callconv* ``>`` *cookie*
+
+* **name**: The name of the exposed value.
+* **funcName**: The name of a Mu function.
+* **callconv**: The calling convention. See platform-specific ABI.
+* **cookie**: The cookie. Must be an ``int<64>`` constant.
+
+This definition exposes a Mu function *funcName* as a value *name* according to
+the calling convention *callConv*. The *cookie* is attached to this exposed
+value.
+
+How such an exposed value can be called is implementation-specific.
 
 New Instructions
 ================
@@ -304,23 +436,59 @@ return value
 
 The ``CCALL`` instruction calls a native function
 
-The possible values of *callconv* is implementation-dependent, but the value
-``DEFAULT`` is always available for all platforms.
+The possible values of *callconv* is ABI-dependent, but the value ``DEFAULT`` is
+always available for all platforms.
 
 The callee *func* must have type *T*. The allowed type of ``T`` is
-implementation-dependent and calling convention-dependent. For example,
+implementation-dependent and calling convention-dependent.
 
-* If the callee is a C function, it should be ``funcsig<sig>`` which has the
-  same signature as the *sig* argument.
+    For example,
 
-* If it is desired to make system calls directly from Mu, then *T* can be the
-  system call number.
-  
-* If it is something like `a SWAP-STACK operation implemented as a calling
-  convention <http://dl.acm.org/citation.cfm?id=2400695>`__, then *T* can be a
-  stack pointer, maybe ``ptr<void>``, or a pointer to some specific type.
+    * If the callee is a C function, it should be ``funcsig<sig>`` which has the
+      same signature as the *sig* argument.
+
+    * If it is desired to make system calls directly from Mu, then *T* can be the
+      system call number.
+      
+    * If it is something like `a SWAP-STACK operation implemented as a calling
+      convention <http://dl.acm.org/citation.cfm?id=2400695>`__, then *T* can be a
+      stack pointer, maybe ``ptr<void>``, or a pointer to some specific type.
 
 The argument list *argList* must match the *sig* signature.
+
+Callback from Native
+--------------------
+
+``@uvm.native.expose`` :: [*callconv*] <*sig*> (*func*: ``func<sig>``, *cookie*:
+``int<64>``) -> ``T``
+
+callconv
+    *calling convention*: The calling convention. See platform-specific ABI.
+sig
+    *signature*: The signature of *func*.
+func
+    *variable* of type ``func<sig>``: The Mu function to expose.
+cookie
+    *variable* of type ``int<64>``: The attached cookie.
+return value
+    Type is determined by *callconv*: The exposed value.
+
+Expose a Mu function *func* as a value according to the calling convention
+*callConv* with cookie *cookie*.
+
+``@uvm.native.unexpose`` :: [*callconv*] (*value*: ``T``) -> ``void``
+
+callconv
+    *calling convention*: The calling convention. See platform-specific ABI.
+value
+    *variable* whose type is determined by *callconv*.
+
+Remove the exposed value.
+
+``@uvm.native.get_cookie`` :: () -> ``int<64>``
+
+If a Mu function is called via its exposed value, the ``@uvm.native.get_cookie``
+common instruction returns the attached cookie. Otherwise it returns 0.
 
 New API Messages
 ================
@@ -338,7 +506,7 @@ The ``ptrcast`` Message
 
 - return value: A handle to the converted pointer or integer value.
 
-The ``refcast`` message converts the value of ``hanlde`` of n integer or pointer
+The ``refcast`` message converts the value of ``handle`` of n integer or pointer
 type (see `<type-system>`__) to a new type ``new_type`` according to the rules
 of the ``PTRCAST`` instruction.
 
@@ -387,9 +555,38 @@ addressing messages are ``ptr<U>`` rather than ``iref<U>`` for some type U.
     the micro VM doing too much for the client? But I think the type information
     always has to be maintained by the micro VM.
 
-Other Mechanisms
-================
+Exposing Mu Functions
+---------------------
 
-TODO: callback, inline assembly
+- receiver: client agent
+- message: ``expose``
+- parameters:
+
+  + ``func``: A handle to a value of ``func<sig>`` type.
+  + ``callConv``: The calling convention.
+  + ``cookie``: A handle to a value of ``int<64>`` type.
+
+- return value: A handle to an exposed value. The type is decided by the
+  ``callConv``.
+
+Expose a Mu function ``func`` using the calling convention ``callConv`` with
+cookie ``cookie`` attached.
+
+- receiver: client agent
+- message: ``unexpose``
+- parameters:
+
+  + ``callConv``: The calling convention.
+  + ``handle``: A handle to an exposed value. The type is decided by the
+    ``callConv``.
+
+- return value: None
+
+Remove the exposed value.
+  
+Future Works
+============
+
+    TODO: Inline assembly
 
 .. vim: tw=80
