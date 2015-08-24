@@ -18,33 +18,37 @@ memory it is never externally visible unless explicitly pinned.
 Data in the native memory uses the sizes and alignments of types are listed in
 the following table. The unit of sizes and alignments is byte, which is 8 bits.
 
-=========================== ======================= =============== ================
-Mu type                     C type                  Size            Alignment
-=========================== ======================= =============== ================
-``int<8>``                  ``char``                1               1
-``int<16>``                 ``short``               2               2
-``int<32>``                 ``int``                 4               4
-``int<64>``                 ``long``, ``long long`` 8               8
-``float``                   ``float``               4               4
-``double``                  ``double``              8               8
-``vector<int<8> 4>``        ``__m128``              16              16
-``vector<float  4>``        ``__m128``              16              16
-``vector<double 2>``        ``__m128``              16              16
-``ptr<T>``                  ``T *``                 8               8
-``funcptr<sig>``            ``T (*) ()``            8               8
-``ref<T>``                  N/A                     8               8
-``iref<T>``                 N/A                     16              16
-``weakref<T>``              N/A                     8               8
-``tagref64``                N/A                     8               8
-``func<sig>``               N/A                     8               8
-``thread``                  N/A                     8               8
-``stack``                   N/A                     8               8
-``int<1>``                  N/A                     unspecified     unspecified
-``int<6>``                  N/A                     unspecified     unspecified
-``int<52>``                 N/A                     unspecified     unspecified
-``int<n>``                  unspecified             unspecified     unspecified
-``vector<T n>``             unspecified             unspecified     unspecified
-=========================== ======================= =============== ================
+.. table:: Mapping between Mu and C types
+
+    =========================== ======================= =============== ================
+    Mu type                     C type                  Size            Alignment
+    =========================== ======================= =============== ================
+    ``int<8>``                  ``char``                1               1
+    ``int<16>``                 ``short``               2               2
+    ``int<32>``                 ``int``                 4               4
+    ``int<64>``                 ``long``, ``long long`` 8               8
+    ``float``                   ``float``               4               4
+    ``double``                  ``double``              8               8
+    ``vector<int<8> 4>``        ``__m128``              16              16
+    ``vector<float  4>``        ``__m128``              16              16
+    ``vector<double 2>``        ``__m128``              16              16
+    ``ptr<T>``                  ``T *``                 8               8
+    ``funcptr<sig>``            ``T (*) ()``            8               8
+    ``ref<T>``                  N/A                     8               8
+    ``iref<T>``                 N/A                     16              16
+    ``weakref<T>``              N/A                     8               8
+    ``tagref64``                N/A                     8               8
+    ``func<sig>``               N/A                     8               8
+    ``thread``                  N/A                     8               8
+    ``stack``                   N/A                     8               8
+    ``int<1>``                  N/A                     unspecified     unspecified
+    ``int<6>``                  N/A                     unspecified     unspecified
+    ``int<52>``                 N/A                     unspecified     unspecified
+    ``int<n>``                  unspecified             unspecified     unspecified
+    ``vector<T n>``             unspecified             unspecified     unspecified
+    =========================== ======================= =============== ================
+
+..
 
     NOTE: Although ``int<1>`` is required and ``int<6>`` and ``int<52>`` are
     required when ``tagref64`` is implemented, their memory layout is
@@ -75,6 +79,17 @@ lower indexes in a vector is stored in lower addresses in the memory.
 Calling Convention
 ==================
 
-TODO
+The calling convention between Mu functions is implementation-defined.
+
+The ``DEFAULT`` Calling Convention
+----------------------------------
+
+The ``DEFAULT`` calling convention follows the AMD64 ABI. The parameter types
+and the return types are mapped to C types according to the above table. Mu
+``struct`` types are mapped to C structs of corresponding members. Mu ``array``
+types and ``hybrid`` types cannot be used as parameters or return values.
+Pointers are passed and returned as addresses, i.e. 64-bit integers.
+
+TODO: callback
 
 .. vim: tw=80
