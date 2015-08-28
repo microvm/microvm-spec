@@ -1131,11 +1131,8 @@ The ``current_instruction`` message
   + ``stack``: A handle of a stack.
   + ``frame``: An integer: The number of frames below the top. 0 means top.
 
-- return value: A handle of a thread value: the newly created thread.
-
-The ``current_instruction`` message returns the id of the current instruction of
-a frame in ``stack``. Return 0 if the frame is the "stack-bottom frame" of a
-newly created stack.
+- return value: The ID of the current instruction of a frame in ``stack``, or 0
+  if the frame is the "stack-bottom frame" of a newly created stack.
 
 See ``current_func_ver`` about how the frame is selected.
 

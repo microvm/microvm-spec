@@ -205,9 +205,9 @@ A Mu function can be **exposed** as a native function pointer in three ways:
    native value according to the desired calling convention. For the default
    calling convention, the result is usually a function pointer.
 
-2. Dynamically, the ``@uvm.native.expose.<CALLCONV>`` common instructions can
-   expose a Mu function, and the ``@uvm.native.unexpose`` common instruction
-   deletes the exposed value.
+2. Dynamically, the ``@uvm.native.expose`` common instructions can expose a Mu
+   function, and the ``@uvm.native.unexpose`` common instruction deletes the
+   exposed value.
 
 3. Dynamically, the ``expose`` and ``unexpose`` API messages do the same thing
    as the above instructions.
@@ -371,7 +371,7 @@ The size of pointer types is implementation-dependent.
 Pinning and Unpinning
 ---------------------
 
-``PIN`` ``<`` *T* ``>`` *opnd*
+``@uvm.native.pin`` :: < *T* > (*opnd*: *T*) -> ``ptr<U>``
 
 T
     *type*: The type of *opnd*. Must be ``ref<U>`` or ``iref<U>`` for some
@@ -381,13 +381,13 @@ opnd
 return value
     Type ``ptr<U>``: The resulting pointer.
 
-Pin the memory location of *opnd*. Return the mapped pointer to the bytes for
-the memory location. If *T* is ``ref<U>``, it is equivalent to pinning the
-memory location of the whole object (as returned by the ``GETIREF``
-instruction). If *opnd* is ``NULL``, the result is a null pointer whose address
-is 0.
+Add one instance of the reference *opnd* to the pinning multiset of the current
+thread.  Return the mapped pointer to the bytes for the memory location. If *T*
+is ``ref<U>``, it is equivalent to pinning the memory location of the whole
+object (as returned by the ``GETIREF`` instruction). If *opnd* is ``NULL``, the
+result is a null pointer whose address is 0.
 
-``UNPIN`` ``<`` *T* ``>`` *opnd*
+``@uvm.native.unpin`` :: < *T* > (*opnd*: *T*) -> ``void``
 
 T
     *type*: The type of *opnd*. Must be ``ref<U>`` or ``iref<U>`` for some
@@ -395,7 +395,8 @@ T
 opnd
     *value*: an object reference or an internal reference.
     
-Unpin the memory location of *opnd*.
+Remove one instance of the reference *opnd* from the pinning multiset of the
+current thread. It has undefined behaviour if no such an instance exists.
 
 Pointer-based Memory Addressing and Accessing
 ---------------------------------------------
@@ -583,6 +584,23 @@ cookie ``cookie`` attached.
 - return value: None
 
 Remove the exposed value.
+
+Stack Introspection and OSR
+---------------------------
+
+The ``current_func_ver`` message, in addition to returning the function version
+ID, it may also return 0 if the selected frame is a native frame. (Multiple
+native frames are counted as one between two Mu frames.)
+
+The ``pop_frame`` message may pop native frames.
+
+During OSR, if the top frame is a native frame, the state of the stack is
+``READY<T>`` where *T* is the return type of the previous frame on top of the
+native frame.
+
+When rebinding a thread to a stack with a value, and the top frame is on a call
+site (native or Mu), the value associated with the rebinding is the return value
+of the call.
   
 Future Works
 ============
