@@ -98,6 +98,10 @@ global SSA variable whose value is a ``func`` value referring to the function.
 Defining a previously undefined function or redefining a function does not
 change this variable.
 
+A function exposing definition (see `<uvm-ir>`__) defines a global SSA variable
+whose value is the exposed value. The type is determined by the calling
+convention, which is described in the native interface of concrete platforms.
+
 A **local SSA variable** is valid in the same function activation it is in.
 
 A parameter defines a local SSA variable whose value is the value passed in the
@@ -675,6 +679,7 @@ return value
  SITOFP     0x38     int             FP
  BITCAST    0x39    (see below)     (see below)
  REFCAST    0x3A    (see below)     (see below)
+ PTRCAST    0x3B    (see below)     (see below)
 ========== ======== ============    ============
 
 In all conversions, the operand *opnd* must have type *T1*. All conversions
@@ -710,6 +715,12 @@ must have the same length and the conversion is done element-wise.
   + Both *T1* and *T2* are ``ref``.
   + Both *T1* and *T2* are ``iref``.
   + Both *T1* and *T2* are ``func``.
+
+* For PTRCAST, *T1* and *T2* must be two of the three cases:
+
+  + ``ptr<T>`` for some T.
+  + ``funcptr<sig>`` for some sig.
+  + ``int<n>`` for some n.
 
 Semantics:
 
@@ -752,6 +763,10 @@ REFCAST
       as *opnd*, but may treat the function as having a different signature.
     * In all cases, if the operand is ``NULL``, the result is the ``NULL`` value
       of the result type.
+PTRCAST
+    Cast between integers and pointer types, preserving the address. If the
+    length of the result is less than *opnd*, only the lowest bits are kept. If
+    the length of the result is greater than *opnd*, it is zero-extended.
 
 ..
 
@@ -1633,50 +1648,38 @@ Memory allocation
 
 This family of instructions allocate memory on the heap or the stack.
 
-``NEW`` Instruction
-~~~~~~~~~~~~~~~~~~~
+- ``NEW`` ``<`` *T1* ``>`` *excClause*
+- ``NEWHYBRID`` ``<`` *T1* *T2* ``>`` *length* *excClause*
+- ``ALLOCA`` ``<`` *T1* ``>`` *excClause*
+- ``ALLOCAHYBRID`` ``<`` *T1* *T2* ``>`` *length* *excClause*
 
-``NEW`` ``<`` *T* ``>`` *excClause*
+T1
+    *type*: The type to allocate.
 
-T
-    *type*, not ``hybrid``: The type to allocate.
+    - For ``NEW`` and ``ALLOCA``: *T* must not be ``hybrid``.
+    - For ``NEWHYBRID`` and ``ALLOCAHYBRID``: *T* must be ``hybrid``.
+
+T2
+    *type*, must be ``int``: The type of *length*.
+
 excClause
     *exception clause*: Specifies the basic block to handle allocation failure.
+
 return value
-    Type is ``ref<T>``: An object reference to the newly allocated object.
+    - For ``NEW`` and ``NEWHYBRID``: Type is ``ref<T>``: An object reference to
+      the newly allocated object.
+    - For ``ALLOCA`` and ``ALLOCAHYBRID``: Type is ``iref<T>``: An internal
+      reference to the newly allocated stack cell.
+
+NEW:
 
 +------+-----+-----------+
 | opct | idt | excClause |
 +======+=====+===========+
-| 0x10 | T   | excClause |
+| 0x10 | T1  | excClause |
 +------+-----+-----------+
 
-The ``NEW`` instruction allocates an object of a fixed-length type *T* on the
-heap. Return an object reference to it.
-
-If the allocation failed, this instruction *continues exceptionally*.
-
-    For LLVM users: There is no equivalent instructions in LLVM.
-
-..
-
-    Example: See the example in ``ALLOCAHYBRID``.
-
-``NEWHYBRID`` Instruction
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-``NEWHYBRID`` ``<`` *T1* *T2* ``>`` *length* *excClause*
-
-T1
-    *type*, must be ``hybrid``: The type to allocate.
-T2
-    *type*, must be ``int``: The type of *length*.
-length
-    *variable* of type *T2*: The length of the variable part of the hybrid.
-excClause
-    *exception clause*: Specifies the basic block to handle allocation failure.
-return value
-    Type is ``ref<T1>``: An object reference to the newly allocated object.
+NEWHYBRID:
 
 +------+-----+-----+--------+-----------+
 | opct | idt | idt | idt    | excClause |
@@ -1684,68 +1687,15 @@ return value
 | 0x11 | T1  | T2  | length | excClause |
 +------+-----+-----+--------+-----------+
 
-The ``NEWHYBRID`` instruction allocates an object of the ``hybrid`` type *T1*
-type on the heap. Return an object reference to it.
-
-*length* is the length of the variable part of the hybrid. *T2* can be any
-integer type and is treated as unsigned.
-
-If the allocation failed, this instruction *continues exceptionally*.
-
-    For LLVM users: There is no equivalent instructions in LLVM.
-
-..
-
-    Example: See the example in ``ALLOCAHYBRID``.
-
-``ALLOCA`` Instruction
-~~~~~~~~~~~~~~~~~~~~~~
-
-``ALLOCA`` ``<`` *T* ``>`` *excClause*
-
-T
-    *type*, not ``hybrid``: The type to allocate.
-excClause
-    *exception clause*: Specifies the basic block to handle allocation failure.
-return value
-    Type is ``iref<T>``: An internal reference to the newly allocated stack
-    cell.
+ALLOCA:
 
 +------+-----+-----------+
 | opct | idt | excClause |
 +======+=====+===========+
-| 0x12 | T   | excClause |
+| 0x12 | T1  | excClause |
 +------+-----+-----------+
 
-The ``ALLOCA`` instruction allocates a stack cell of a fixed-length type *T* on
-the stack. Return an internal reference to it.
-
-If the allocation failed, this instruction *continues exceptionally*.
-
-    For LLVM users: Alloca is the closest approximation, but Mu's ``ALLOCA``
-    only allocates fixed-length types. Use ``ALLOCAHYBRID`` to allocate
-    variable-length types.
-
-..
-
-    Example: See the example in ``ALLOCAHYBRID``.
-
-``ALLOCAHYBRID`` Instruction
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-``ALLOCAHYBRID`` ``<`` *T1* *T2* ``>`` *length* *excClause*
-
-T1
-    *type*, must be ``hybrid``: The type to allocate.
-T2
-    *type*, must be ``int``: The type of *length*.
-length
-    *variable* of type *T2*: The length of the variable part of the hybrid.
-excClause
-    *exception clause*: Specifies the basic block to handle allocation failure.
-return value
-    Type is ``iref<T1>``: An internal reference to the newly allocated stack
-    cell.
+ALLOCAHYBRID:
 
 +------+-----+-----+--------+-----------+
 | opct | idt | idt | idt    | excClause |
@@ -1753,15 +1703,27 @@ return value
 | 0x13 | T1  | T2  | length | excClause |
 +------+-----+-----+--------+-----------+
 
+The ``NEW`` instruction allocates an object of a fixed-length type *T* on the
+heap. Return an object reference to it.
+
+The ``NEWHYBRID`` instruction allocates an object of the ``hybrid`` type *T1*
+type on the heap. Return an object reference to it.
+
+The ``ALLOCA`` instruction allocates a stack cell of a fixed-length type *T* on
+the stack. Return an internal reference to it.
+
 The ``ALLOCAHYBRID`` instruction allocates a stack cell of a ``hybrid`` type
 *T1* on the stack. Return an internal reference to it.
 
-*length* is the length of the variable part of the hybrid. *T2* can be any
-integer type and is treated as signed.
+For ``NEWHYBRID`` and ``ALLOCAHYBRID``, *length* is the length of the variable
+part of the hybrid. *T2* can be any integer type and is treated as unsigned.
 
 If the allocation failed, this instruction *continues exceptionally*.
 
-    For LLVM users: This is similar to ``alloca`` with a number of elements. A
+    For LLVM users: LLVM does not have instructions for heap allocation.
+    
+    ``ALLOCA`` is similar to LLVM's ``alloca`` with a fixed-length type.
+    ``ALLOCAHYBRID`` is similar to ``alloca`` with a number of elements. A
     ``hybrid`` in Mu may have a fixed prefix. This is similar to C99 flexible
     array member like ``struct Something { ...; char suffix[];};``.
 
@@ -1785,8 +1747,8 @@ If the allocation failed, this instruction *continues exceptionally*.
 Memory Addressing
 -----------------
 
-This family of instructions manipulates references, but does not actually read
-or write memory.
+This family of instructions manipulates references/pointers, but does not
+actually read or write memory.
 
 ``GETIREF`` Instruction
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -1823,176 +1785,123 @@ heap object *opnd*.
 
 ..
 
-    Example: See the example in ``GETVARPARTIREF``.
+    Example::
 
-``GETFIELDIREF`` Instruction
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        %a = NEW <@i32>
+        %b = GETIREF <@i32> %a
 
-``GETFIELDIREF`` ``<`` *T* *index* ``>`` opnd
+Other Memory Addressing Instructions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-T
-    *type*, must be ``struct``: The referent type of *opnd*.
-index
-    *integer literal*: The index of the field.
-opnd
-    *variable* of type ``iref<T>``: The reference to derive reference from.
-return value
-    Type is ``iref<U>`` where *U* is the type of *index*-th field of *T*: An
-    internal reference to the *index*-th field in the referenced struct.
+- ``GETFIELDIREF`` ``PTR`` :sub:`opt` ``<`` *T1* *fieldIndex* ``>`` opnd
+- ``GETELEMIREF``  ``PTR`` :sub:`opt` ``<`` *T1* *T2* ``>`` *opnd* *arrayIndex*
+- ``SHIFTIREF``    ``PTR`` :sub:`opt` ``<`` *T1* *T2* ``>`` *opnd* *offset*
+- ``GETFIXEDPARTIREF`` ``PTR`` :sub:`opt` ``<`` *T1* ``>`` *opnd*
+- ``GETVARPARTIREF`` ``PTR`` :sub:`opt` ``<`` *T1* ``>`` *opnd*
 
-+------+-----+--------+--------+
-| opct | idt | lent   | idt    |
-+======+=====+========+========+
-| 0x15 | T   | index  | opnd   |
-+------+-----+--------+--------+
-
-The ``GETFIELDIREF`` instruction gets an internal reference to the *index*-th
-field of the struct referenced by *opnd*.
-
-    For LLVM users: It is similar to the ``getelementptr`` instruction
-    addressing into a struct.
-
-..
-
-    Example: See the example in ``GETVARPARTIREF``.
-
-``GETELEMIREF`` Instruction
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-``GETELEMIREF`` ``<`` *T1* *T2* ``>`` *opnd* *index*
-
-T1
-    *type*, must be ``array``: The referent type of *opnd*.
-T2
-    *type*, must be ``int``: The type of *index*.
-opnd
-    *variable* of type ``iref<T1>``: The reference to derive reference from.
-index
-    *variable* of type *T2*: The index of the element.
-return value
-    Type is ``iref<U>`` where *U* is the element type of *T1*: An internal
-    reference to the *index*-th element of the referenced array.
-
-+------+-----+-----+--------+--------+
-| opct | idt | idt | idt    | idt    |
-+======+=====+=====+========+========+
-| 0x16 | T1  | T2  | opnd   | index  |
-+------+-----+-----+--------+--------+
-
-The ``GETELEMIREF`` instruction gets an internal reference to the *index*-th
-element of the array referenced by *opnd*.
-
-*T2* can be any integer type and is treated as signed. If the resulting memory
-location is outside the range of the array referenced by *opnd*, it has
-undefined behaviour.
-
-    NOTE: This does not work on the variable part of a ``hybrid``. Use
-    ``SHIFTIREF``, instead.
-
-..
-
-    For LLVM users: It is similar to the ``getelementptr`` indexing into an
-    array.
-
-..
-
-    Example: See the example in ``GETVARPARTIREF``.
-
-``SHIFTIREF`` Instruction
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-``SHIFTIREF`` ``<`` *T1* *T2* ``>`` *opnd* *offset*
+PTR :sub:`opt`
+    If present, the types of *opnd* and the return value are pointers. Otherwise
+    they are internal references.
 
 T1
     *type*: The referent type of *opnd*.
+
+    - For ``GETFIELDIREF``, *T1* must be ``struct``.
+    - For ``GETELEMIREF``, *T1* must be ``array``.
+    - For ``GETFIXEDPARTIREF`` and ``GETVARPARTIREF``, *T1* must be ``hybrid``.
+
 T2
-    *type*, must be ``int``: The type of *offset*.
-opnd
-    *variable* of type ``iref<T1>``: The reference to derive reference from.
+    *type*, must be ``int``: The type of *arrayIndex* and *offset*.
+
+fieldIndex
+    *integer literal*: The index of the field.
+
+arrayIndex
+    *variable* of type *T2*: The index of the element.
+
 offset
     *variable* of type *T2*: The offset to move the *opnd*.
-return value
-    Type is ``iref<T1>``: An internal reference that is *opnd* moved forward by
-    *offset* elements.
 
-+------+-----+-----+--------+--------+
-| opct | idt | idt | idt    | idt    |
-+======+=====+=====+========+========+
-| 0x17 | T1  | T2  | opnd   | offset |
-+------+-----+-----+--------+--------+
-
-The ``SHIFTIREF`` instruction assumes the *opnd* already refers to an element of
-a *general memory array* (see `<uvm-memory>`__). It moves *opnd* internal
-reference forward by *offset* elements. If *offset* is negative, it moves the
-reference backwards by the absolute value of *offset*.
-
-*T2* can be any integer type and is treated as signed. If the resulting memory
-location is outside the range of the array where *opnd* is in, it has undefined
-behaviour.
-
-    TODO: Define "general memory array" so that references can move among the
-    elements of nested arrays and vectors and also the variable part of a
-    ``hybrid``.
-
-..
-
-    For LLVM users: It is similar to the ``getelementptr`` with its first index
-    being *offset*. It is also like the pointer arithmetic in C which adds an
-    integer to a pointer.
-
-..
-
-    Example: See the example in ``GETVARPARTIREF``.
-
-``GETFIXEDPARTIREF`` and ``GETVARPARTIREF`` Instruction
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-``GETFIXEDPARTIREF`` ``<`` *T* ``>`` *opnd*
-
-``GETVARPARTIREF`` ``<`` *T* ``>`` *opnd*
-
-T
-    *type*, must be ``hybrid``: The referent type of *opnd*.
 opnd
-    *variable* of type ``iref<T>``: The reference to derive reference from.
+    *variable* of type ``iref<T>`` or ``ptr<T>``: The reference/pointer to
+    derive reference from.
+
 return value
-    - ``GETFIXEDPARTIREF``: Type is ``iref<F>`` where *F* is the type of the fixed
-      part of *T*: An internal reference to the fixed part of *T*.
-    - ``GETVARPARTIREF``: Type is ``iref<V>`` where *V* is the type of the first
-      (0-th) element of the variable part of *T*.
+    Type is ``iref<U>`` or ``ptr<U>``: The derived reference/pointer.
+
+    - For ``GETFIELDIREF``, *U* is the type of the *fieldIndex*-th field of
+      *T1*.
+    - For ``GETELEMIREF``, *U* is the element type of *T1*.
+    - For ``SHIFTIREF``, *U* is the same as *T1*.
+    - For ``GETFIXEDPARTIREF``, *U* is the type of the fixed part of *T1*.
+    - For ``GETVARPARTIREF``, *U* is the type of the elements of the variable
+      part of *T1*.
+
+GETFIELDIREF:
+
++------+------+-----+------------+--------+
+| opct | opct | idt | lent       | idt    |
++======+======+=====+============+========+
+| 0x15 | PTR  | T   | fieldIndex | opnd   |
++------+------+-----+------------+--------+
+
+GETELEMIREF:
+
++------+------+-----+-----+--------+------------+
+| opct | opct | idt | idt | idt    | idt        |
++======+======+=====+=====+========+============+
+| 0x16 | PTR  | T1  | T2  | opnd   | arrayIndex |
++------+------+-----+-----+--------+------------+
+
+SHIFTIREF:
+
++------+------+-----+-----+--------+--------+
+| opct | opct | idt | idt | idt    | idt    |
++======+======+=====+=====+========+========+
+| 0x17 | PTR  | T1  | T2  | opnd   | offset |
++------+------+-----+-----+--------+--------+
 
 GETFIXEDPARTIREF:
 
-+------+-----+------+
-| opct | idt | idt  |
-+======+=====+======+
-| 0x18 | T   | opnd |
-+------+-----+------+
++------+------+-----+------+
+| opct | opct | idt | idt  |
++======+======+=====+======+
+| 0x18 | PTR  | T   | opnd |
++------+------+-----+------+
 
 GETVARPARTIREF:
 
-+------+-----+------+
-| opct | idt | idt  |
-+======+=====+======+
-| 0x19 | T   | opnd |
-+------+-----+------+
++------+------+-----+------+
+| opct | opct | idt | idt  |
++======+======+=====+======+
+| 0x19 | PTR  | T   | opnd |
++------+------+-----+------+
 
-The ``GETFIXEDPARTIREF`` instruction gets an internal reference to the fixed
-part of the hybrid referenced by *opnd*.
+The ``GETFIELDIREF`` instruction gets an internal reference/pointer to the
+*index*-th field of the struct referenced by *opnd*.
 
-The ``GETVARPARTIREF`` instruction gets an internal reference to the first
-(0-th) element in the variable part of the hybrid referenced by *opnd*.
+The ``GETELEMIREF`` instruction gets an internal reference/pointer to the
+*index*-th element of the array referenced by *opnd*.
 
-If the variable part of *opnd* has zero elements, the ``GETVARPARTIREF`` has
-undefined behaviour.
+The ``SHIFTIREF`` instruction assumes the *opnd* already refers to an element of
+a *general memory array* (see `<uvm-memory>`__). It moves *opnd* internal
+reference/pointer forward by *offset* elements. If *offset* is negative, it
+moves the reference/pointer backwards by the absolute value of *offset*.
 
-    NOTE: To access further elements in the variable part, use the ``SHIFTIREF``
-    instruction to move forward.
+For ``GETELEMIREF`` and ``SHIFTIREF``, *T2* can be any integer type and is
+treated as signed. When working with internal references, if the resulting
+memory location is outside the range of the array, it has undefined behaviour.
 
-..
+The ``GETFIXEDPARTIREF`` instruction gets an internal reference/pointer to the
+fixed part of the hybrid referenced by *opnd*.
 
-    For LLVM users: The closest counterpart is the ``getelementptr`` instruction
-    that gets a member or the flexible array member of a struct.
+The ``GETVARPARTIREF`` instruction gets an internal reference/pointer to the
+first (0-th) element in the variable part of the hybrid referenced by *opnd*.
+When working with internal references, if the variable part of *opnd* has zero
+elements, the ``GETVARPARTIREF`` has undefined behaviour.
+
+    For LLVM users: This family of instructions are essentially a decomposed
+    version of the ``getelementptr`` instruction.
 
 ..
 
@@ -2022,6 +1931,20 @@ undefined behaviour.
         %baz_f = GETFIXEDPARTIREF <@Bar> %baz_i             // iref<@Foo>
         %baz_v = GETVARPARTIREF   <@Bar> %baz_i             // iref<@i8> the 0-th element
         %baz_v5 = SHIFTIREF <@Bar @i64> %baz_i @I64_5       // iref<@i8> the 5-th element
+
+..
+
+    Example2::
+
+        .typedef @Foo = struct <@i64 @float @double>
+
+        %foo_r = NEW <@Foo>                                 // ref<@Foo>
+        %foo_p = COMMINST @uvm.native.pin <@Foo> (%foo_r)   // ptr<@Foo>
+        %foo_1 = GETFIELDIREF PTR <@Foo 1>                  // ptr<@float>
+
+        COMMINST @uvm.native.unpin <@Foo> (%foo_r)
+        
+        // @foo_p and @foo_1 should not be used from now on.
 
 Memory Accessing
 ----------------
@@ -2061,26 +1984,30 @@ SEQ_CST     0x06    sequentially consistent
 ``LOAD`` Instruction
 ~~~~~~~~~~~~~~~~~~~~
 
-``LOAD`` *ord* :sub:`opt` ``<`` *T* ``>`` *loc* *excClause*
+``LOAD`` ``PTR`` :sub:`opt` *ord* :sub:`opt` ``<`` *T* ``>`` *loc* *excClause*
 
+
+``PTR`` :sub:`opt`
+    If present, *loc* is a pointer. Otherwise it is an internal reference.
 ord :sub:`opt`
     *memory order*: The memory order. Default: ``NOT_ATOMIC``
 T
     *type*: The referent type of *loc*.
 loc
-    *variable* of type ``iref<T>``: The memory location to load from.
+    *variable* of type ``iref<T>`` or ``ptr<T>``: The memory location/address to
+    load from.
 excClause
     *exception clause*: Used to handle NULL reference errors.
 return value
     Type is the unmarked type of *T*: The value loaded from *loc*
 
-+------+------+-----+------+-----------+
-| opct | opct | idt | idt  | excClause |
-+======+======+=====+======+===========+
-| 0x1A | ord  | T   | loc  | excClause |
-+------+------+-----+------+-----------+
++------+------+------+-----+------+-----------+
+| opct | opct | opct | idt | idt  | excClause |
++======+======+======+=====+======+===========+
+| 0x1A | PTR  | ord  | T   | loc  | excClause |
++------+------+------+-----+------+-----------+
 
-The ``LOAD`` instruction loads from the memory location *loc*.
+The ``LOAD`` instruction loads from the memory location/address *loc*.
 
 *ord* is the memory order. In the text form, the *ord* can be omitted and
 defaults to ``NOT_ATOMIC``. The instruction is atomic if *ord* is not
@@ -2105,26 +2032,30 @@ defaults to ``NOT_ATOMIC``. The instruction is atomic if *ord* is not
 ``STORE`` Instruction
 ~~~~~~~~~~~~~~~~~~~~~
 
-``STORE`` *ord* :sub:`opt` ``<`` *T* ``>`` *loc* *newval* *excClause*
+``STORE`` ``PTR`` :sub:`opt` *ord* :sub:`opt` ``<`` *T* ``>`` *loc* *newval* *excClause*
 
+``PTR`` :sub:`opt`
+    If present, *loc* is a pointer. Otherwise it is an internal reference.
 ord :sub:`opt`
     *memory order*: The memory order. Default: ``NOT_ATOMIC``
 T
     *type*: The referent type of *loc*.
 loc
-    *variable* of type ``iref<T>``: The memory location to store into.
+    *variable* of type ``iref<T>`` or ``ptr<T>``: The memory location/address to
+    store into.
 excClause
     *exception clause*: Used to handle NULL reference errors.
 newval
     *variable* of the unmarked type of *T*: The new value to store.
 
-+------+------+-----+------+--------+-----------+
-| opct | opct | idt | idt  | idt    | excClause |
-+======+======+=====+======+========+===========+
-| 0x1B | ord  | T   | loc  | newval | excClause |
-+------+------+-----+------+--------+-----------+
++------+------+------+-----+------+--------+-----------+
+| opct | opct | opct | idt | idt  | idt    | excClause |
++======+======+======+=====+======+========+===========+
+| 0x1B | PTR  | ord  | T   | loc  | newval | excClause |
++------+------+------+-----+------+--------+-----------+
 
-The ``STORE`` instruction stores *newval* into the memory location *loc*.
+The ``STORE`` instruction stores *newval* into the memory location/address
+*loc*.
 
 *ord* is the memory order. In the text form, the *ord* can be omitted and
 defaults to ``NOT_ATOMIC``. The instruction is atomic if *ord* is not
@@ -2148,9 +2079,11 @@ defaults to ``NOT_ATOMIC``. The instruction is atomic if *ord* is not
 ``CMPXCHG`` Instruction
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-``CMPXCHG`` ``WEAK`` :sub:`opt` *succOrd* *failOrd* ``<`` *T* ``>`` *loc*
-*expected* *desired* *excClause*
+``CMPXCHG`` ``PTR`` :sub:`opt` ``WEAK`` :sub:`opt` *succOrd* *failOrd* ``<`` *T*
+``>`` *loc* *expected* *desired* *excClause*
 
+``PTR`` :sub:`opt`
+    If present, *loc* is a pointer. Otherwise it is an internal reference.
 ``WEAK`` :sub:`opt`
     If present, the ``CMPXCHG`` operation is weak.
 succOrd, failOrd
@@ -2158,7 +2091,8 @@ succOrd, failOrd
 T
     *type*, must be EQ-comparable: The referent type of *loc*.
 loc
-    *variable* of ``iref<T>``: The memory location to access.
+    *variable* of ``iref<T>`` or ``ptr<T>``: The memory location/address to
+    access.
 expected
     *variable* of the unmarked type of *T*: The expected value in the memory.
 desired
@@ -2171,16 +2105,16 @@ return value:
     of the original value in the memory and whether this operation is
     successful.
 
-+------+------+---------+---------+-----+------+----------+---------+-----------+
-| opct | opct | opct    | opct    | idt | idt  | idt      | idt     | excClause |
-+======+======+=========+=========+=====+======+==========+=========+===========+
-| 0x1C | weak | succOrd | failOrd | T   | loc  | expected | desired | excClause |
-+------+------+---------+---------+-----+------+----------+---------+-----------+
++------+------+------+---------+---------+-----+------+----------+---------+-----------+
+| opct | opct | opct | opct    | opct    | idt | idt  | idt      | idt     | excClause |
++======+======+======+=========+=========+=====+======+==========+=========+===========+
+| 0x1C | PTR  | weak | succOrd | failOrd | T   | loc  | expected | desired | excClause |
++------+------+------+---------+---------+-----+------+----------+---------+-----------+
 
-``CMPXCHG`` loads the value from memory location *loc* and compare it with the
-*expected* value. If the comparison succeeds, then store the *desired* value to
-*loc*. If fails, no store operation will happen. The whole process happens
-atomically.
+``CMPXCHG`` loads the value from memory location/address *loc* and compare it
+with the *expected* value. If the comparison succeeds, then store the *desired*
+value to *loc*. If fails, no store operation will happen. The whole process
+happens atomically.
 
 A ``CMPXCHG`` instruction can be **strong** or **weak**. In the text form, it is
 weak if the flag ``WEAK`` is present, otherwise it is strong. In the binary
@@ -2240,8 +2174,10 @@ The memory order of this instruction is *succOrd* if the comparison succeeds, or
 ``ATOMICRMW`` Instruction
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``ATOMICRMW`` *ord* *op* ``<`` *T* ``>`` *loc* *opnd* *excClause*
+``ATOMICRMW`` ``PTR`` :sub:`opt` *ord* *op* ``<`` *T* ``>`` *loc* *opnd* *excClause*
 
+``PTR`` :sub:`opt`
+    If present, *loc* is a pointer. Otherwise it is an internal reference.
 ord
     *memory order*: The memory order.
 op
@@ -2249,7 +2185,8 @@ op
 T
     *type*: The referent type of *loc*.
 loc
-    *variable* of ``iref<T>``: The memory location to access.
+    *variable* of ``iref<T>`` or ``ptr<T>``: The memory location/address to
+    access.
 opnd
     *variable* of the unmarked type of *T*: The right-hand-side of the
     operation.  
@@ -2258,11 +2195,11 @@ excClause
 return value
     Type is the unmarked type of *T*: The original value in the memory.
 
-+------+------+------+-----+------+------+-----------+
-| opct | opct | opct | idt | idt  | idt  | excClause |
-+======+======+======+=====+======+======+===========+
-| 0x1D | ord  | op   | T   | loc  | opnd | excClause |
-+------+------+------+-----+------+------+-----------+
++------+------+------+------+-----+------+------+-----------+
+| opct | opct | opct | opct | idt | idt  | idt  | excClause |
++======+======+======+======+=====+======+======+===========+
+| 0x1D | PTR  | ord  | op   | T   | loc  | opnd | excClause |
++------+------+------+------+-----+------+------+-----------+
 
 An **AtomicRMW operator** is one of the following:
 
@@ -2282,10 +2219,10 @@ UMAX        0x09   int unsigned max
 UMIN        0x0A   int unsigned min
 =========== ====== === =============
 
-The ``ATOMICRMW`` loads the value from memory location *loc*, perform an
+The ``ATOMICRMW`` loads the value from memory location/address *loc*, perform an
 operation *op* with the loaded value as the left-hand-side operand and *opnd* as
-the right-hand-side operand and store the result back to the memory location
-*loc*. The whole process happen atomically.
+the right-hand-side operand and store the result back to the memory
+location/address *loc*. The whole process happen atomically.
 
 All operators other than ``XCHG`` are only applicable for integer types.
 ``XCHG`` is allowed for any type. However, a Mu implementation may only
@@ -2600,7 +2537,7 @@ Unsafe Native Call
 ``CCALL`` Instruction
 ---------------------
 
-``CCALL`` *callconv* ``<`` *T* *sig* ``>`` *func* *argList*
+``CCALL`` *callconv* ``<`` *T* *sig* ``>`` *func* *argList* *keepAliveClause*
 
 callconv
     *calling convention*: The calling convention.
@@ -2612,17 +2549,19 @@ func
     *variable* of type *T*: The callee.
 argList
     *argument list*: Arguments to the callee.
+keepAliveClause
+    *keep-alive clause*: For on-stack replacement.
 return value
     Type is the return type of *sig*: The return value of the callee.
 
-+------+----------+-----+-----+------+---------+
-| opct | opct     | idt | idt | idt  | argList |
-+======+==========+=====+=====+======+=========+
-| 0xEC | callconv | T   | sig | func | argList |
-+------+----------+-----+-----+------+---------+
++------+----------+-----+-----+------+---------+-----------------+
+| opct | opct     | idt | idt | idt  | argList | keepAliveClause |
++======+==========+=====+=====+======+=========+=================+
+| 0xEC | callconv | T   | sig | func | argList | keepAliveClause |
++------+----------+-----+-----+------+---------+-----------------+
 
-*calling convention* is one in the following table or extended by the Mu
-implementation:
+*calling convention* is one in the following table or others defined by the
+platform-specific part of the Mu native interface:
 
 =========== ======
 Keyword     Binary
@@ -2636,12 +2575,27 @@ The ``CCALL`` instruction calls a native function.
 
 *callconv* specifies the calling convention used by this instruction.
 
+The callee *func* must have type *T*. The allowed type of ``T`` is
+implementation-dependent and calling convention-dependent.
+
+    For example,
+
+    * If the callee is a C function, it should be ``funcsig<sig>`` which has the
+      same signature as the *sig* argument.
+
+    * If it is desired to make system calls directly from Mu, then *T* can be the
+      system call number.
+      
+    * If it is something like `a SWAP-STACK operation implemented as a calling
+      convention <http://dl.acm.org/citation.cfm?id=2400695>`__, then *T* can be a
+      stack pointer, maybe ``ptr<void>``, or a pointer to some specific type.
+
 The semantic of this instruction is highly implementation-dependent. See
 `<native-interface>`__ for a detailed description of the native interface.
 
 ``CCALL`` cannot receive exceptions thrown by C++.
 
-``CCALL`` is not an OSR point.
+``CCALL`` is an OSR point.
 
     For LLVM users: Mu is not designed to be compatible with C and functions
     defined in Mu IR does not use the native C ABI. This instruction is
@@ -2681,6 +2635,7 @@ The semantic of this instruction is highly implementation-dependent. See
         .typedef @c_ptrvoid = ptr<@c_void>  // the ptr type is still a planned feature
         .typedef @c_size_t  = int<64>
         .funcsig @write_sig = @c_ssize_t (@c_int @c_ptrvoid @c_size_t)
+        .typedef @write_ptr = funcptr<@write_sig>
 
         // Define necessary constants and types
         .const @FD = 1      // 1 is for stdout
@@ -2705,7 +2660,7 @@ The semantic of this instruction is highly implementation-dependent. See
         %hi = GETIREF <@DynByteArray> %h
         %v  = GETVARPARTIREF <@DynByteArray> %hi
 
-        // Then do something to fill %v with string "Hello world\n\0"
+        // Then fill %v with string "Hello world\n\0"
         STORE <@i8> %v @CHAR_H          // store 'H'
         %v1 = SHIFTIREF <@i8 @i64> %v %I64_1
         STORE <@i8> %v1 @CHAR_e         // store 'e'
@@ -2714,18 +2669,18 @@ The semantic of this instruction is highly implementation-dependent. See
         STORE <@i8> %v12 @CHAR_NL       // store '\n'
 
         // Before calling the C function, we need to pin the object 
-        %bufptr = PIN <@irefi8> %v      // pins the underlying object of %v. %bufptr is a ptr<@i8>
-        %bufptr_pv = BITCAST <@ptri8 @c_ptrvoid> %bufptr    // cast to the correct type
+        %bufptr = COMMINST @uvm.native.pin <@irefi8> %v     // pins the underlying object of %v. %bufptr is a ptr<@i8>
+        %bufptr_pv = PTRCAST <@ptri8 @c_ptrvoid> %bufptr    // cast to the correct type
+
+        // Cast the function to a funcptr type
+        %callee = PTRCAST <@AddrType @write_ptr> @write_address
 
         // Then use the CCALL instruction to call the write function.
-        // This call depends on the mapping between Mu types and the C types
-        // defined by the Mu implementation. In this case, the iref to @i8 is
-        // converted to a C pointer.
-        %bytes_written = CCALL DEFAULT <@AddrType @write_sig> @write_address (@FD %bufptr_pv @ARY_SZ)
+        %bytes_written = CCALL DEFAULT <@write_sig @write_sig> @callee (@FD %bufptr_pv @ARY_SZ)
 
         // Unpin the object after calling to C so that the garbage collector
         // can move the object again.
-        UNPIN <@ptri8> %v
+        COMMINST @uvm.native.unpin <@irefi8> %v
 
 Thread and Stack
 ================

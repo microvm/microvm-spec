@@ -48,6 +48,8 @@ The following type constructors are available in Mu:
 - stack
 - tagref64
 - vector < T length >
+- ptr < T >
+- funcptr < sig >
 
 Parameters of a type are in the angular brackets. They can be integer literals,
 types and function signatures. In the text form, the latter two are global
@@ -67,6 +69,8 @@ There are several kinds of types.
   **fixed-length types**.
 * ``int``, ``ref``, ``iref``, ``func``, ``stack`` or ``thread`` are
   **EQ-comparable types**.
+* **Native-safe types** are defined in the `Native Interface
+  <native-interface>`__.
 
 A **marked storage type** T1 of another type T2 represents the same set of
 values as T2; in this case T2 is called the **unmarked type** of T1. When a
@@ -516,7 +520,7 @@ Vector Type
 ``vector < T length >``
 
     ``T``
-        *type* The type of elements.
+        *type*: The type of elements.
     ``length``
         *integer literal*: The number of elements.
 
@@ -546,5 +550,77 @@ It is allowed to have SSA variables of vector types.
         .typedef @vector2 = vector<@float 4>
         .typedef @vector3 = vector<@double 2>
         .typedef @vector4 = vector<@double 4>
+
+Pointer Types
+-------------
+
+``ptr < T >``
+
+    ``T``
+        *type*: The type of the referent.
+
++------+-----+
+| opct | idt |
++======+=====+
+| 0x10 | T   |
++------+-----+
+
+``funcptr < sig >``
+
+    ``sig``
+        *function signature*: The signature of the pointed function.
+
++------+-----+
+| opct | idt |
++======+=====+
+| 0x11 | sig |
++------+-----+
+
+``ptr`` and ``funcptr`` are pointer types which are represented by the integral
+address of the referent. They are part of the (unsafe) native interface.
+
+``ptr`` is the data pointer type. It points to a region in the native address
+space which represents the data type *T*.
+
+``funcptr`` is the function pointer type. It points to a native function whose
+signature is *sig*.
+
+The type parameter *T* and both the return type and the parameter types of *sig*
+must be *native-safe*. See the `Native Interface <native-interface>`__.
+
+    For LLVM users: ``ptr<T>`` is the counterpart of pointer types ``T*``.
+    ``funcptr<sig>`` is the counterpart of function pointers ``R (P1 P2 ...)*``.
+    The ``PTRCAST`` instruction can cast between different pointer types as well
+    as integer types.
+
+    For C users: Similar to LLVM, ``ptr`` and ``funcptr`` are the equivalent of
+    C pointers to objects and functions, respectively. However, since Mu is on a
+    lower level than C, pointers are defined as addresses and casting between
+    pointers and integers has semantics.
+
+..
+
+    Example::
+
+        .typedef @i32           = int<32>       // int
+        .typedef @i32_p         = ptr<@i32>     // int*
+
+        // ssize_t write(int fildes, const void *buf, size_t nbyte);
+        // See man (2) write.
+        .typedef @void          = void          // void
+        .typedef @void_p        = ptr<@void>    // void*
+        .typedef @size_t        = int<64>       // size_t, ssize_t
+        .funcsig @write_s       = @size_t (@i32 @void_p @size_t)  
+        .typedef @write_fp      = funcptr<@write_s>
+        // @write_fp may point to the native function "write".
+
+        // typedef void (*sig_t) (int);
+        // sig_t signal(int sig, sig_t func);
+        // See man (3) signal.
+        .funcsig @sig_s         = @void (@i32)       
+        .typedef @sig_t         = funcptr<@sig_s>
+        .funcsig @signal_s      = @sig_t (@i32 @sig_t)
+        .typedef @signal_fp     = funcptr<@signal_s>
+        // @signal_fp may point to the native function "signal".
 
 .. vim: tw=80

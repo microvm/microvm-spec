@@ -757,10 +757,10 @@ The ``get_field_iref`` message
 - message: ``get_field_iref``
 - parameters:
 
-  + ``handle``: A handle to an internal reference of a struct.
+  + ``handle``: A handle to an internal reference/pointer of a struct.
   + ``index``: An integer of the client type: the index of the field.
 
-- return value: A handle to the field.
+- return value: A handle to an internal reference/pointer field.
 
 The ``get_field_iref`` message converts an internal reference ``handle`` to an
 internal reference to the ``index``-th field of the struct.
@@ -776,10 +776,10 @@ The ``get_elem_iref`` message
 - message: ``get_elem_iref``
 - parameters:
 
-  + ``handle``: A handle to an internal reference of an array or vector.
+  + ``handle``: A handle to an internal reference/pointer of an array or vector.
   + ``index``: A handle of a Mu integer: the index of the element.
 
-- return value: A handle to an internal reference of an array or vector element.
+- return value: A handle to an internal reference/pointer of an array or vector element.
 
 ``index`` is treated as signed.
 
@@ -797,10 +797,10 @@ The ``shift_iref`` message
 - message: ``shift_iref``
 - parameters:
 
-  + ``handle``: A handle to an internal reference.
+  + ``handle``: A handle to an internal reference/pointer.
   + ``offset``: A handle of a Mu integer: the offset.
 
-- return value: A handle to the shifted internal reference.
+- return value: A handle to the shifted internal reference/pointer.
 
 ``offset`` is treated as signed.
 
@@ -818,17 +818,17 @@ The ``get_fixed_part_iref`` and the ``get_var_part_iref`` message
 - message: ``get_fixed_part_iref``, ``get_var_part_iref``
 - parameters:
 
-  + ``handle``: A handle of an internal reference to a ``hybrid`` type.
+  + ``handle``: A handle of an internal reference/pointer to a ``hybrid`` type.
 
-- return value: A handle of an internal reference to the fixed part or the 0-th
+- return value: A handle of an internal reference/pointer to the fixed part or the 0-th
   element in the variable part.
 
-The ``get_fixed_part_iref`` message converts an internal reference ``handle``
-to an internal reference to the fixed part of it.
+The ``get_fixed_part_iref`` message converts an internal reference/pointer ``handle``
+to an internal reference/pointer to the fixed part of it.
 
-The ``get_var_part_iref`` message converts an internal reference ``handle`` to
-an internal reference to the 0-th element of the variable part of it. It has
-undefined behaviour if the variable part has 0 elements.
+The ``get_var_part_iref`` message converts an internal reference/pointer ``handle`` to
+an internal reference/pointer to the 0-th element of the variable part of it. It has
+undefined behaviour if ``handle`` is an internal reference and the variable part has 0 elements.
 
     Example Java signatures::
 
@@ -848,11 +848,11 @@ The ``load`` message
 - parameters:
 
   + ``ord``: The memory order
-  + ``loc``: A handle of an internal reference.
+  + ``loc``: A handle of an internal reference/pointer.
 
 - return value: A handle of the loaded value.
 
-The ``load`` message loads from the memory location of ``loc``.
+The ``load`` message loads from the memory location/address of ``loc``.
 
 This operation has the memory order ``ord``.
 
@@ -872,14 +872,14 @@ The ``store`` message
 - parameters:
 
   + ``ord``: The memory order
-  + ``loc``: A handle of an internal reference.
+  + ``loc``: A handle of an internal reference/pointer.
   + ``newval``: A handle of the new value.
 
 - return value: None
 
 ``newval`` must have the unmarked type of the referent type of ``loc``.
 
-The ``store`` message stores ``newval`` into the memory location of ``loc``.
+The ``store`` message stores ``newval`` into the memory location/address of ``loc``.
 
 This operation has the memory order ``ord``.
 
@@ -901,7 +901,8 @@ The ``cmpxchg`` message
   + ``ord_succ``: The memory order when successful.
   + ``ord_fail``: The memory order when failed.
   + ``weak``: A client Boolean value: Weak if true. Strong if false.
-  + ``loc``: A handle of an internal reference: the memory location.
+  + ``loc``: A handle of an internal reference/pointer: the memory
+    location/address.
   + ``expected``: A handle: the expected value.
   + ``desired``: A handle: the desired value.
 
@@ -915,7 +916,7 @@ The ``cmpxchg`` message
 
 The ``cmpxchg`` message loads form ``loc`` and compare with ``expected``. If
 successful, then store ``desired`` to ``loc``, otherwise do nothing. In both
-cases, the old value ``oldval`` at memory location ``loc`` is returned. This
+cases, the old value ``oldval`` at memory location/address  ``loc`` is returned. This
 whole process happen atomically.
 
 If this operation is strong, The comparison is successful if and only if the
@@ -950,7 +951,7 @@ The ``atomicrmw`` message
 
   + ``ord``: The memory order.
   + ``op``: The operation
-  + ``loc``: A handle of an internal reference.
+  + ``loc``: A handle of an internal reference/pointer.
   + ``opnd``: A handle: the right-hand-side operand.
 
 - return value: A handle to the old value.
@@ -1103,7 +1104,8 @@ The ``current_func_ver`` message
   + ``stack``: A handle of a stack.
   + ``frame``: An integer: The number of frames below the top. 0 means top.
 
-- return value: The ID of the version of function of the current frame.
+- return value: The ID of the version of function of the current frame, or 0 if
+  it is a native frame.
 
 The ``current_func_ver`` message returns the id of the current function version
 of a frame in ``stack``.
@@ -1185,7 +1187,8 @@ The ``pop_frame`` message
 
 - return value: None
 
-The ``pop_frame`` message pops the top frame of the stack.
+The ``pop_frame`` message pops the top frame of the stack. May pop native
+frames.
 
     For JVM users: This is the counterpart of the ``PopFrame`` frame.
 
@@ -1458,6 +1461,86 @@ program will re-execute the same instruction again.
 Since there may be multiple Mu threads running, more than one thread may call
 undefined functions simultaneously. The implementation is only required to have
 all of them handled, sequentially or parallelly.
+
+Native Interface
+================
+
+The ``ptrcast`` Message
+-----------------------
+
+- receiver: client agent
+- message: ``ptrcast``
+- parameters:
+
+  + ``handle``: A handle to a value of either ``int<n>``, ``ptr<T>`` or
+    ``funcptr<sig>`` type.
+  + ``new_type``: The ID of the new type for ``handle``.
+
+- return value: A handle to the converted pointer or integer value.
+
+The ``refcast`` message converts the value of ``handle`` of n integer or pointer
+type (see `<type-system>`__) to a new type ``new_type`` according to the rules
+of the ``PTRCAST`` instruction.
+
+The type of ``handle`` and the type ``new_type`` must match the constraint of
+the type parameters *T1* and *T2* of the ``PTRCAST`` instruction (see
+`<instruction-set>`__).
+
+The ``pin`` message
+-------------------
+
+- receiver: client agent
+- message: ``pin``
+- parameters:
+
+  + ``handle``: A handle to a value of either ``ref<T>`` or ``iref<T>`` type.
+
+- return value: A handle to the pointer of the bytes for the memory location of
+  ``handle``. The type is ``ptr<T>``.
+
+Pin the memory location of handle ``handle``.
+
+The ``unpin`` message
+---------------------
+
+- receiver: client agent
+- message: ``unpin``
+- parameters:
+
+  + ``handle``: A handle to a value of either ``ref<T>`` or ``iref<T>`` type.
+
+- return value: None
+
+Unpin the memory location of handle ``handle``.
+
+Exposing Mu Functions
+---------------------
+
+- receiver: client agent
+- message: ``expose``
+- parameters:
+
+  + ``func``: A handle to a value of ``func<sig>`` type.
+  + ``callConv``: The calling convention.
+  + ``cookie``: A handle to a value of ``int<64>`` type.
+
+- return value: A handle to an exposed value. The type is decided by the
+  ``callConv``.
+
+Expose a Mu function ``func`` using the calling convention ``callConv`` with
+cookie ``cookie`` attached.
+
+- receiver: client agent
+- message: ``unexpose``
+- parameters:
+
+  + ``callConv``: The calling convention.
+  + ``handle``: A handle to an exposed value. The type is decided by the
+    ``callConv``.
+
+- return value: None
+
+Remove the exposed value.
 
 Signal Handling
 ===============

@@ -109,6 +109,27 @@ address. Type checking is not performed.
     segments + offsets. However, apparently the trend is to move to a "flat"
     memory space.
 
+Native-safe Types
+-----------------
+
+Only a subset of types can be used as the type parameter of the ``ptr`` and the
+``funcptr`` types. These types are said to be **native-safe**.
+
+* ``void``, ``int<n>``, ``float``, ``double`` and ``vec<T n>`` are
+  *native-safe*.
+
+* ``struct<T1 T2 ...>``, ``array<T n>``, and ``hybrid<F V>`` are
+  native-safe if all of their type arguments *T1*, *T2*, ..., *T*, *F*, *V* are
+  native-safe.
+
+* ``ptr<T>`` is native-safe. It requires T to be native-safe.
+
+* ``funcptr<sig>`` is native-safe. It requires the return type and all parameter
+  types of *sig* to be native-safe.
+
+* All other types are not native-safe. Specifically, they are ``ref``, ``iref``,
+  ``weakref``, ``func``, ``thread``, ``stack``.
+
 Exposing Mu Memory to the Native World
 ======================================
 
@@ -292,120 +313,53 @@ Mu exceptions are oblivious of non-Mu exception handling (such as C++
 exceptions). Destructors for C++ local variables will not be executed. It is
 undefined how Mu frames are seen by native programs.
 
-New Types
-=========
+Changes in the Mu IR and the API
+================================
 
-``ptr < T >``
+**New types**:
 
-    ``T``
-        *type*: The referent type of this pointer.
+* ``ptr < T >``
+* ``funcptr < sig >``
 
-``ptr`` is a pointer type. A value of ``ptr`` type is an address in the memory
-space of the current process. The type parameter ``T`` is the assumed type of
-data stored in the memory address.
+See `Type System <type-system>`__
 
-``funcptr < sig >``
+**New top-level definitions**:
 
-    ``sig``
-        *funcsig*: The signature of the referent of this pointer.
+* function exposing definition
 
-``funcptr`` is a pointer type. A value of ``funcptr`` type is an address in the
-memory space of the current process. The signature ``sig`` is the assumed
-signature of the native function in the memory address.
+See `Mu IR <uvm-ir>`__.
 
-New Top-level Definitions
-=========================
+**New instructions**:
 
-Function Exposing Definition
-----------------------------
+* ``PTRCAST``
+* ``@uvm.native.pin``
+* ``@uvm.native.unpin``
+* ``@uvm.native.expose``
+* ``@uvm.native.unexpose``
+* ``@uvm.native.get_cookie``
 
-A **Function Exposing Definition** has the following syntax:
+See `Instruction Set <instruction-set>`__ and `Common Instructions
+<common-insts>`__.
 
-``.expose`` *name* = *funcName* ``<`` *callconv* ``>`` *cookie*
+**Modified instructions**:
 
-* **name**: The name of the exposed value.
-* **funcName**: The name of a Mu function.
-* **callconv**: The calling convention. See platform-specific ABI.
-* **cookie**: The cookie. Must be an ``int<64>`` constant.
+* Memory addressing:
 
-This definition exposes a Mu function *funcName* as a value *name* according to
-the calling convention *callConv*. The *cookie* is attached to this exposed
-value.
+  * ``GETFIELDIREF``
+  * ``GETELEMIREF``
+  * ``SHIFTIREF``
+  * ``GETFIXEDPARTIREF``
+  * ``GETVARPARTIREF``
+  * ``LOAD``
+  * ``STORE``
+  * ``CMPXCHG``
+  * ``ATOMICRMW``
 
-How such an exposed value can be called is implementation-specific.
+* ``CCALL``
 
-New Instructions
-================
-
-Pointer Casting
----------------
-
-``PTRCAST`` ``<`` *T1* *T2* ``>`` *opnd*
-
-T1, T2
-    *type*: The source type and the destination type, respectively.
-opnd
-    *value* of type *T1*: The operand.
-return value
-    Type *T2*: The result of the conversion.
-
-``PTRCAST`` converts between different pointer types or between pointer types
-and integers.
-
-*T1* and *T2* can be one of ``ptr<T>``, ``funcptr<sig>`` or ``int<n>``.
-
-The result is a pointer or an integer of the same address as *opnd*. If the
-length of the result is less than *opnd*, only the lowest bits are kept. If the
-length of the result is greater than *opnd*, it is zero-extended.
-
-The size of pointer types is implementation-dependent.
-
-    TODO: The API should provide some messages to query the length of pointers
-    at run time. I am not sure if this is the most preferred way because other
-    more efficient methods for determining the pointer size may exist, such as
-    requiring the client developers to read the documentation if the micro VM is
-    not cross-platform. If it is cross-platform, maybe one "platform" identifier
-    (such as "x86", "x86_64", "x86-linux", "haswell", "aarch32", "aarch64",
-    "cortexa9", etc. Maybe one aspect is not enough.)
-
-Pinning and Unpinning
----------------------
-
-``@uvm.native.pin`` :: < *T* > (*opnd*: *T*) -> ``ptr<U>``
-
-T
-    *type*: The type of *opnd*. Must be ``ref<U>`` or ``iref<U>`` for some
-    ``U``.
-opnd
-    *value*: an object reference or an internal reference.
-return value
-    Type ``ptr<U>``: The resulting pointer.
-
-Add one instance of the reference *opnd* to the pinning multiset of the current
-thread.  Return the mapped pointer to the bytes for the memory location. If *T*
-is ``ref<U>``, it is equivalent to pinning the memory location of the whole
-object (as returned by the ``GETIREF`` instruction). If *opnd* is ``NULL``, the
-result is a null pointer whose address is 0.
-
-``@uvm.native.unpin`` :: < *T* > (*opnd*: *T*) -> ``void``
-
-T
-    *type*: The type of *opnd*. Must be ``ref<U>`` or ``iref<U>`` for some
-    ``U``.
-opnd
-    *value*: an object reference or an internal reference.
-    
-Remove one instance of the reference *opnd* from the pinning multiset of the
-current thread. It has undefined behaviour if no such an instance exists.
-
-Pointer-based Memory Addressing and Accessing
----------------------------------------------
-
-``GETFIELDIREF``, ``GETELEMIREF``, ``SHIFTIREF``, ``GETFIXEDPARTIREF``,
-``GETVARPARTIREF``, ``LOAD``, ``STORE``, ``CMPXCHG``, ``ATOMICRMW``
-
-These instructions take an additional ``PTR`` flag. If this flag is present, the
-location operand must be ``ptr<T>`` rather than ``iref<T>``. For example:
+Memory addressing instructions take an additional ``PTR`` flag. If this flag is
+present, the location operand must be ``ptr<T>`` rather than ``iref<T>``. For
+example:
 
 * ``%new_ptr = GETFIELDIREF PTR <@some_struct 3>   %ptr_to_some_struct``
 * ``%new_ptr = GETELEMIREF  PTR <@some_array @i64> %ptr_to_some_array @const1``
@@ -417,133 +371,17 @@ location operand must be ``ptr<T>`` rather than ``iref<T>``. For example:
 * ``%result  = CMPXCHG       PTR ACQ_REL ACQUIRE <@T> %ptr_to_T %expected %desired``
 * ``%old_val = ATOMICRMW ADD PTR SEQ_CST         <@T> %ptr_to_T %rhs``
 
-Calling Native Functions
-------------------------
+See `Instruction Set <instruction-set>`__.
 
-``CCALL`` *callconv* ``<`` *T* *sig* ``>`` *func* *argList*
+**New API messages**:
 
-callconv
-    *calling convention*: The calling convention.
-T
-    *type*: The type of *func*.
-sig
-    *function signature*: The signature of the callee.
-func
-    *variable* of type *T*: The callee.
-argList
-    *argument list*: Arguments to the callee.
-return value
-    Type is the return type of *sig*: The return value of the callee.
+* ``ptrcast``
+* ``pin``
+* ``unpin``
+* ``expose``
+* ``unexpose``
 
-The ``CCALL`` instruction calls a native function
-
-The possible values of *callconv* is ABI-dependent, but the value ``DEFAULT`` is
-always available for all platforms.
-
-The callee *func* must have type *T*. The allowed type of ``T`` is
-implementation-dependent and calling convention-dependent.
-
-    For example,
-
-    * If the callee is a C function, it should be ``funcsig<sig>`` which has the
-      same signature as the *sig* argument.
-
-    * If it is desired to make system calls directly from Mu, then *T* can be the
-      system call number.
-      
-    * If it is something like `a SWAP-STACK operation implemented as a calling
-      convention <http://dl.acm.org/citation.cfm?id=2400695>`__, then *T* can be a
-      stack pointer, maybe ``ptr<void>``, or a pointer to some specific type.
-
-The argument list *argList* must match the *sig* signature.
-
-Callback from Native
---------------------
-
-``@uvm.native.expose`` :: [*callconv*] <*sig*> (*func*: ``func<sig>``, *cookie*:
-``int<64>``) -> ``T``
-
-callconv
-    *calling convention*: The calling convention. See platform-specific ABI.
-sig
-    *signature*: The signature of *func*.
-func
-    *variable* of type ``func<sig>``: The Mu function to expose.
-cookie
-    *variable* of type ``int<64>``: The attached cookie.
-return value
-    Type is determined by *callconv*: The exposed value.
-
-Expose a Mu function *func* as a value according to the calling convention
-*callConv* with cookie *cookie*.
-
-``@uvm.native.unexpose`` :: [*callconv*] (*value*: ``T``) -> ``void``
-
-callconv
-    *calling convention*: The calling convention. See platform-specific ABI.
-value
-    *variable* whose type is determined by *callconv*.
-
-Remove the exposed value.
-
-``@uvm.native.get_cookie`` :: () -> ``int<64>``
-
-If a Mu function is called via its exposed value, the ``@uvm.native.get_cookie``
-common instruction returns the attached cookie. Otherwise it returns 0.
-
-New API Messages
-================
-
-The ``ptrcast`` Message
------------------------
-
-- receiver: client agent
-- message: ``ptrcast``
-- parameters:
-
-  + ``handle``: A handle to a value of either ``int<n>``, ``ptr<T>`` or
-    ``funcptr<sig>`` type.
-  + ``new_type``: The ID of the new type for ``handle``.
-
-- return value: A handle to the converted pointer or integer value.
-
-The ``refcast`` message converts the value of ``handle`` of n integer or pointer
-type (see `<type-system>`__) to a new type ``new_type`` according to the rules
-of the ``PTRCAST`` instruction.
-
-The type of ``handle`` and the type ``new_type`` must match the constraint of
-the type parameters *T1* and *T2* of the ``PTRCAST`` instruction (see
-`<instruction-set>`__).
-
-The ``pin`` message
--------------------
-
-- receiver: client agent
-- message: ``pin``
-- parameters:
-
-  + ``handle``: A handle to a value of either ``ref<T>`` or ``iref<T>`` type.
-
-- return value: A handle to the pointer of the bytes for the memory location of
-  ``handle``. The type is ``ptr<T>``.
-
-Pin the memory location of handle ``handle``.
-
-The ``unpin`` message
----------------------
-
-- receiver: client agent
-- message: ``unpin``
-- parameters:
-
-  + ``handle``: A handle to a value of either ``ref<T>`` or ``iref<T>`` type.
-
-- return value: None
-
-Unpin the memory location of handle ``handle``.
-
-Memory Addressing and Memory Accessing Messages
------------------------------------------------
+**Modified API messages**:
 
 The following messages: ``get_field_iref``, ``get_elem_iref``, ``shift_iref``,
 ``get_fixed_part_iref``, ``get_var_part_iref``, ``load``, ``store``,
@@ -555,38 +393,6 @@ addressing messages are ``ptr<U>`` rather than ``iref<U>`` for some type U.
     not require the client to supply the types for handles when using them. Is
     the micro VM doing too much for the client? But I think the type information
     always has to be maintained by the micro VM.
-
-Exposing Mu Functions
----------------------
-
-- receiver: client agent
-- message: ``expose``
-- parameters:
-
-  + ``func``: A handle to a value of ``func<sig>`` type.
-  + ``callConv``: The calling convention.
-  + ``cookie``: A handle to a value of ``int<64>`` type.
-
-- return value: A handle to an exposed value. The type is decided by the
-  ``callConv``.
-
-Expose a Mu function ``func`` using the calling convention ``callConv`` with
-cookie ``cookie`` attached.
-
-- receiver: client agent
-- message: ``unexpose``
-- parameters:
-
-  + ``callConv``: The calling convention.
-  + ``handle``: A handle to an exposed value. The type is decided by the
-    ``callConv``.
-
-- return value: None
-
-Remove the exposed value.
-
-Stack Introspection and OSR
----------------------------
 
 The ``current_func_ver`` message, in addition to returning the function version
 ID, it may also return 0 if the selected frame is a native frame. (Multiple

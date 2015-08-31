@@ -62,6 +62,8 @@ Here is an example of Mu IR in the text form::
             RET <@i64> %a
     }
 
+    .expose @gcd_native = @gcd < DEFAULT > @i64_0
+
 Later the client can submit a function that defines a previously undefined
 function or a new version of a function that replaces the old version::
 
@@ -79,7 +81,8 @@ Top-level Structure
 A **bundle** is the unit of code the client sends to Mu. It contains many
 **top-level definitions**. A top-level definition shall be a **type
 definition**, **function signature definition**, **constant definition**,
-**global cell definition**, **function definition** or **function declaration**.
+**global cell definition**, **function definition**,  **function declaration**
+or **function exposing definition**.
 
     NOTE: For Java users, a bundle is the counterpart of a Java class file.
 
@@ -662,5 +665,25 @@ The following instructions are starter instructions:
 
     NOTE: This means ``PHI`` and ``LANDINGPAD`` must be in the beginning of
     non-entry basic blocks.
+
+Function Exposing Definition
+============================
+
+A **function exposing definition** has the following syntax:
+
+    .expose Name = FuncName <CallConv> Cookie
+
+where:
+
+* ``Name`` is a global name of the exposed value.
+* ``FuncName`` is the name of a Mu function.
+* ``CallConv`` is the calling convention. See platform-specific ABI.
+* ``Cookie`` is the cookie. Must be the global name to a ``int<64>`` constant.
+
+This definition exposes a Mu function *FuncName* as a value *Name* according to
+the calling convention *CallConv*. The *Cookie* is attached to this exposed
+value.
+
+How such an exposed value can be called is implementation-specific.
 
 .. vim: textwidth=80

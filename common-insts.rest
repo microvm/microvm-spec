@@ -224,4 +224,44 @@ the return value.
     NOTE: This is supposed to free the compiler from keeping dependencies in
     some performance-critical cases.
 
+Native Interface
+================
+
+- ``[0x240]@uvm.native.pin <T> (%opnd: T) -> ptr<U>``
+
+*T* must be ``ref<U>`` or ``iref<U>`` for some U.
+
+Add one instance of the reference ``%opnd`` to the pinning multiset of the
+current thread.  Return the mapped pointer to the bytes for the memory location.
+If *T* is ``ref<U>``, it is equivalent to pinning the memory location of the
+whole object (as returned by the ``GETIREF`` instruction). If *opnd* is
+``NULL``, the result is a null pointer whose address is 0.
+
+- ``[0x241]@uvm.native.unpin <T> (%opnd: T) -> void``
+
+*T* must be ``ref<U>`` or ``iref<U>`` for some U.
+
+Remove one instance of the reference ``%opnd`` from the pinning multiset of the
+current thread. It has undefined behaviour if no such an instance exists.
+
+- ``[0x242]@uvm.native.expose [callconv] <T> (%func: T, %cookie: int<64>) -> U``
+
+*callconv* is a platform-specific calling convention flag.  *T* must be
+``func<sig>`` *U* is determined by the calling convention and *T*.
+
+Expose a Mu function *func* as a value according to the calling convention
+*callConv* with cookie *cookie*.
+
+- ``@uvm.native.unexpose [callconv] (%value: U) -> void``
+
+*callconv* is a platform-specific calling convention flag. *U* is determined by
+the calling convention.
+
+Remove the exposed value.
+
+- ``@uvm.native.get_cookie () -> int<64>``
+
+If a Mu function is called via its exposed value, this instruction returns the
+attached cookie. Otherwise it returns an arbitrary value.
+
 .. vim: tw=80
