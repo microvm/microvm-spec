@@ -251,6 +251,45 @@ zero local variables. In the binary form, *nka* is the number of local variables
         %trap1 = TRAP <@ty>                     // Does not keep alive any variables
         %trap2 = TRAP <@ty> KEEPALIVE(%a %b)    // Keep %a and %b alive
 
+Flag and Flag List
+------------------
+
+*flag* ::= ``#`` [``A-Z_``] :sub:`rep`
+
+*flagList* ::= ``[`` *flag* :sub:`rep` ``]``
+
++--------+-------+-------+-----+
+| lent   | idt   | idt   | ... |
++========+=======+=======+=====+
+| nflags | flag1 | flag2 | ... |
++--------+-------+-------+-----+
+
+In the text form, a **flag** starts with a hash character ``#`` which is
+followed by many capital letters ``[A-Z]`` or underscores ``_``. In the binary
+form, flags are represented the same as opcodes (idt).
+
+    Examples:
+
+    * ``#DEFAULT``
+    * ``#STDCALL``
+    * ``#ADD``
+    * ``#SIGNED_OVERFLOW``
+
+A **flag list** is a list of flags. Currently only used by the ``COMMINST``
+super instruction.
+
+    Examples:
+
+    * ``[ #FLAG_FOO #FLAG_BAR #FLAG_BAZ ]``
+    * ``[]``
+
+..
+
+    NOTE: The purpose of flags is to allow the IR to be extended without
+    changing the IR grammar. One particular user is the calling convention.
+    Available calling conventions differ from platform to platform and they
+    cannot be described by a fixed set of key words.
+
 Argument List
 -------------
 
@@ -275,7 +314,7 @@ many IDs follows it.
 
         CALL     <@sig> @func (%arg0 %arg1 %arg2)
         TAILCALL <@sig> @func (%arg0 %arg1 %arg2)
-        CCALL    <@func_ty @sig> @func (%arg0 %arg1 %arg2)
+        CCALL    #DEFAULT <@func_ty @sig> @func (%arg0 %arg1 %arg2)
         NEWSTACK <@sig> @func (%arg0 %arg1 %arg2)
         COMMINST @some.common.instruction (%arg0 %arg1 %arg2)
 
@@ -2540,7 +2579,7 @@ Unsafe Native Call
 ``CCALL`` *callconv* ``<`` *T* *sig* ``>`` *func* *argList* *keepAliveClause*
 
 callconv
-    *calling convention*: The calling convention.
+    *flag*: The calling convention.
 T
     *type*: The type of *func*.
 sig
@@ -2564,9 +2603,9 @@ return value
 platform-specific part of the Mu native interface:
 
 =========== ======
-Keyword     Binary
+Flag        Binary
 =========== ======
-DEFAULT     0x00
+#DEFAULT    0x00
 =========== ======
 
 The ``CCALL`` instruction calls a native function.
@@ -2676,7 +2715,7 @@ The semantic of this instruction is highly implementation-dependent. See
         %callee = PTRCAST <@AddrType @write_ptr> @write_address
 
         // Then use the CCALL instruction to call the write function.
-        %bytes_written = CCALL DEFAULT <@write_sig @write_sig> @callee (@FD %bufptr_pv @ARY_SZ)
+        %bytes_written = CCALL #DEFAULT <@write_sig @write_sig> @callee (@FD %bufptr_pv @ARY_SZ)
 
         // Unpin the object after calling to C so that the garbage collector
         // can move the object again.
@@ -2897,14 +2936,23 @@ Common Instructions
 ``COMMINST`` Instruction
 ------------------------
 
-``COMMINST`` *name* *typeList* :sub:`opt` *argList* :sub:`opt` *excClause* *keepAliveClause*
+``COMMINST`` *name* *flagList* :sub:`opt` *typeList* :sub:`opt` *funcSigList*
+:sub:`opt` *argList*
+:sub:`opt` *excClause* *keepAliveClause*
 
 + *typeList* ::= ``<`` *type* :sub:`rep` ``>``
 
++ *funcSigList* ::= ``<[`` *funcSig* :sub:`rep` ``]>``
+
 name
     *global name*: The name of the common instruction.
+flagList :sub:`opt`
+    Optional *flag list*: A list of flags. Can be omitted.
 typeList :sub:`opt`
     Optional *type list*: A list of type arguments. Can be omitted.
+funcSigList :sub:`opt`
+    Optional *function signature list*: A list of function signature arguments.
+    Can be omitted.
 type :sub:`rep`
     List of *type*: The list of type arguments.
 argList :sub:`opt`
@@ -2933,16 +2981,26 @@ return value:
 | ntypes | type1 | type2 | ... |
 +--------+-------+-------+-----+
 
-The ``COMMINST`` instruction calls a common instruction identified by *name* in
-the text form or *ID* in the binary form. A list of type arguments *typeList*, a
-list of value arguments *argList*, an optional exception clause *excClause* and
-a possibly empty keep-alive clause *keepAliveClause* are provided for the common
-instruction. The return value of this instruction is decided by the specific
-common instruction. The semantic is defined by the specific common instruction.
+*funcSigList*:
 
-The *typeList* is considered empty when omitted in the text form. In the binary
-form, there are exactly *ntypes* type IDs following the *ntypes* field. The
-*argList* is considered empty when omitted in the text form.
++--------+-------+-------+-----+
+| lent   | idt   | idt   | ... |
++========+=======+=======+=====+
+| nsigs  | sig1  | sig2  | ... |
++--------+-------+-------+-----+
+
+The ``COMMINST`` instruction calls a common instruction identified by *name* in
+the text form or *ID* in the binary form. A list of flags *flagList*, a list of
+type arguments *typeList*, a list of function signature arguments *funcSigList*,
+a list of value arguments *argList*, an optional exception clause *excClause*
+and a possibly empty keep-alive clause *keepAliveClause* are provided for the
+common instruction. The return value of this instruction is decided by the
+specific common instruction. The semantic is defined by the specific common
+instruction.
+
+The *flagList*, *typeList*, *funcSigList* and *argList* are considered empty
+when omitted in the text form. In the binary form, they start with a length (may
+be zero) followed by that number of items.
 
 A ``COMMINST`` instruction must supply as many type arguments and value
 arguments as the specific common instruction requires. A ``COMMINST``

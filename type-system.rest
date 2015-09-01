@@ -67,8 +67,9 @@ There are several kinds of types.
 * ``vector``, ``struct``, ``array`` and ``hybrid`` are **composite types**.
 * ``hybrid`` is the only **variable-length type**. All other types are
   **fixed-length types**.
-* ``int``, ``ref``, ``iref``, ``func``, ``stack`` or ``thread`` are
-  **EQ-comparable types**.
+* ``ptr`` and ``funcptr`` are **pointer types**.
+* ``int``, ``ref``, ``iref``, ``func``, ``stack``, ``thread`` and pointer types
+  are **EQ-comparable types**.
 * **Native-safe types** are defined in the `Native Interface
   <native-interface>`__.
 

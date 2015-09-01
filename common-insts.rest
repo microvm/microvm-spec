@@ -244,22 +244,28 @@ whole object (as returned by the ``GETIREF`` instruction). If *opnd* is
 Remove one instance of the reference ``%opnd`` from the pinning multiset of the
 current thread. It has undefined behaviour if no such an instance exists.
 
-- ``[0x242]@uvm.native.expose [callconv] <T> (%func: T, %cookie: int<64>) -> U``
+- ``[0x242]@uvm.native.expose [callconv] <[sig]> (%func: func<sig>, %cookie: int<64>) -> U``
 
-*callconv* is a platform-specific calling convention flag.  *T* must be
-``func<sig>`` *U* is determined by the calling convention and *T*.
+*callconv* is a platform-specific calling convention flag. *U* is determined by
+the calling convention and *sig*.
 
 Expose a Mu function *func* as a value according to the calling convention
 *callConv* with cookie *cookie*.
 
-- ``@uvm.native.unexpose [callconv] (%value: U) -> void``
+    Example::
+        
+        .funcdef @foo VERSION ... <@foo_sig> (...) { ... }
+
+        %ev = COMMINST @uvm.native.expose [#DEFAULT] <[@foo_sig]>
+
+- ``[0x243]@uvm.native.unexpose [callconv] (%value: U) -> void``
 
 *callconv* is a platform-specific calling convention flag. *U* is determined by
 the calling convention.
 
 Remove the exposed value.
 
-- ``@uvm.native.get_cookie () -> int<64>``
+- ``[0x244]@uvm.native.get_cookie () -> int<64>``
 
 If a Mu function is called via its exposed value, this instruction returns the
 attached cookie. Otherwise it returns an arbitrary value.

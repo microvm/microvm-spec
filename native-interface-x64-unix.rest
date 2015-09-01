@@ -81,14 +81,15 @@ Calling Convention
 
 The calling convention between Mu functions is implementation-defined.
 
-The ``DEFAULT`` Calling Convention
-----------------------------------
+The Default Calling Convention
+------------------------------
 
-The ``DEFAULT`` calling convention follows the AMD64 ABI in register usage,
-stack frame structure, parameter passing and returning. The parameter types and
-the return types are mapped to C types according to the above table. Mu
-``struct`` types are mapped to C structs of corresponding members. Mu ``array``
-types and ``hybrid`` types cannot be used as parameters or return values.
+The *default* calling convention, denoted by the ``#DEFAULT`` flag in the IR,
+follows the AMD64 ABI in register usage, stack frame structure, parameter
+passing and returning. The parameter types and the return types are mapped to C
+types according to the above table. Mu ``struct`` types are mapped to C structs
+of corresponding members. Mu ``array`` types and ``hybrid`` types cannot be used
+as parameters or return values.
 
 Arguments and return values are passed in registers and the memory according to
 the AMD64 ABI, with the types of Mu arguments and the return type mapped to the
@@ -101,10 +102,10 @@ corresponding C types.
     arguments strictly according to the ABI, i.e. interpreting the integer value
     in the register as an address).
 
-If a Mu function of signature *sig* is exposed with the ``DEFAULT`` calling
+If a Mu function of signature *sig* is exposed with the *default* calling
 convention, the resulting value has ``funcptr<sig>`` type, i.e. it is a function
 pointer which can be called (by either Mu or native programs) with the
-``DEFAULT`` calling convention.
+*default* calling convention.
 
 It has undefined behaviour during the exception handling/unwinding process if
 the personality function does not report success in the direct callee of a
