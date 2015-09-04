@@ -595,9 +595,10 @@ must be *native-safe*. See the `Native Interface <native-interface>`__.
     as integer types.
 
     For C users: Similar to LLVM, ``ptr`` and ``funcptr`` are the equivalent of
-    C pointers to objects and functions, respectively. However, since Mu is on a
-    lower level than C, pointers are defined as addresses and casting between
-    pointers and integers has semantics.
+    C pointers to objects and functions, respectively. However, since Mu
+    interfaces with the native world at the ABI level rather than the C
+    programming language level, pointers are defined as addresses and casting
+    between pointers and integers has semantics.
 
 ..
 

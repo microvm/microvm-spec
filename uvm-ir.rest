@@ -315,8 +315,8 @@ where:
 
 A **constant constructor** can be the following:
 
-- An **integer constructor** creates an integer constant. It is written as an
-  integer literal. An **integer literal** is:
+- An **integer constructor** creates an integer constant or a pointer constant.
+  It is written as an integer literal. An **integer literal** is:
   
   + an optional sign [+-], followed by
   + an optional prefix: ``0`` or ``0x``, and
@@ -456,10 +456,19 @@ A **constant constructor** can be the following:
         .global @g1 <@i64>
         .funcdecl @f1 <@noparamsnoret>
 
-        .typedef @irefi64 = iref<i64>
+        .typedef @irefi64 = iref<@i64>
         .typedef @record2_t = struct<@irefi64 @some_func>
 
         .const @record2 <@record2_t> = {@g1 @f1}
+
+        .typedef @ptri64          = ptr<@i64>
+        .typedef @fpnoparamsnoret = funcptr<@noparamsnoret>
+
+        // Address should be looked up before generating the bundle.
+        .const @ptrconst <@ptri64> = 0x12345678
+        .const @fpconst  <@fpnoparamsnoret> = 0x7ff00000000
+        .const @nullptr  <@ptri64> = 0
+
 
 Global Cell Definition
 ======================
