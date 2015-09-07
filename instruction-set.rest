@@ -855,15 +855,15 @@ PTRCAST
 ``SELECT`` Instruction
 ----------------------
 
-``SELECT`` ``<`` *S* *T* ``>`` *cond* *iftrue* *iffalse*
+``SELECT`` ``<`` *S* *T* ``>`` *cond* *ifTrue* *ifFalse*
 
 S
     *type*: The type of *cond*.
 T
-    *type*: The type of *iftrue*, *iffalse* and the result.
+    *type*: The type of *ifTrue*, *ifFalse* and the result.
 cond
     *variable* of type *S*: The condition.
-iftrue, iffalse
+ifTrue, ifFalse
     *variable* of *T*: The candidates of the result.
 return value
     Type *T*: A value according to *cond*.
@@ -871,22 +871,22 @@ return value
 +------+-----+-------+--------+---------+
 | opct | idt | idt   | idt    | idt     |
 +======+=====+=======+========+=========+
-| 0x40 | T   | cond  | iftrue | iffalse |
+| 0x40 | T   | cond  | ifTrue | ifFalse |
 +------+-----+-------+--------+---------+
 
 *S* can be either ``int<1>`` or a vector type of ``int<1>``. When *S* is a
 vector type of ``int<1>``, *T* must also be a vector type of the same length as
 *S*.
 
-*cond* must have type *S*. Both *iftrue* and *iffalse* must have the same type
+*cond* must have type *S*. Both *ifTrue* and *ifFalse* must have the same type
 as *T*. The result of this instruction has type *T*.
 
-When *S* is ``int<1>``, then the result is *iftrue* if *cond* is 1, or *iffalse*
+When *S* is ``int<1>``, then the result is *ifTrue* if *cond* is 1, or *ifFalse*
 if *cond* is 0.
 
 When *S* is a vector of ``int<1>``, the corresponding element of the result is
-the corresponding element of *iftrue* if the corresponding element of *cond* is
-1, or the corresponding element of *iffalse* otherwise.
+the corresponding element of *ifTrue* if the corresponding element of *cond* is
+1, or the corresponding element of *ifFalse* otherwise.
 
 ..
 
@@ -943,23 +943,23 @@ This instruction jumps to the beginning of a basic block *dest*.
 ``BRANCH2`` Instruction
 -----------------------
 
-``BRANCH2`` *cond* *iftrue* *iffalse*
+``BRANCH2`` *cond* *ifTrue* *ifFalse*
 
 cond
     *variable* of type ``int<1>``: The condition
-iftrue, iffalse
+ifTrue, ifFalse
     *basic block*: The destinations to jump to when *cond* is 1 or 0,
     respectively
 
 +------+------+--------+---------+
 | opct | idt  | idt    | idt     |
 +======+======+========+=========+
-| 0x91 | cond | iftrue | iffalse |
+| 0x91 | cond | ifTrue | ifFalse |
 +------+------+--------+---------+
 
-*cond* must have type ``int<1>``. *iftrue* and *iffalse* must be basic blocks.
+*cond* must have type ``int<1>``. *ifTrue* and *ifFalse* must be basic blocks.
 
-If *cond* is 1, jump to *iftrue*, otherwise jump to *iffalse*.
+If *cond* is 1, jump to *ifTrue*, otherwise jump to *ifFalse*.
 
     For LLVM users: This is the same as the two-branch ``br`` instruction.
 
@@ -982,40 +982,40 @@ If *cond* is 1, jump to *iftrue*, otherwise jump to *iffalse*.
 ``SWITCH`` Instruction
 ----------------------
 
-``SWITCH`` ``<`` *T* ``>`` *opnd* *default* ``{`` *(* *casex* ``:`` *destx* ``;`` *)* :sub:`rep` ``}``
+``SWITCH`` ``<`` *T* ``>`` *opnd* *default* ``{`` *(* *value* ``:`` *dest* ``;`` *)* :sub:`rep` ``}``
 
 T
-    *type*: The type of *opnd* and *casex*
+    *type*: The type of *opnd* and *value*s
 opnd
     *variable* of *T*: The value to compare against.
 default:
     *basic block*: The default destination, i.e. the destination if no case
     matches.
-casex:
+value:
     *constant value* of *T*: The case value for a branch.
-destx:
+dest:
     *basic block*: The destination for the corresponding case.
 
 +------+-----+------+---------+--------+-------+-------+-----+
 | opct | idt | idt  | idt     | lent   | idt   | idt   | ... |
 +======+=====+======+=========+========+=======+=======+=====+
-| 0x92 | T   | opnd | default | ncases | casex | destx | ... |
+| 0x92 | T   | opnd | default | ncases | value | dest  | ... |
 +------+-----+------+---------+--------+-------+-------+-----+
 
-There are zero or more *casex*-*destx* pairs.
+There are zero or more *value*-*dest* pairs.
 
-*opnd* and all *casex* must have type *T*. *default* and all *destx* must be
+*opnd* and all *value* must have type *T*. *default* and all *dest* must be
 basic blocks.
 
 *T* must be an EQ-comparable type.
 
-All *casex* must be constants and must have distinct values.
+All *value* must be constants and must have distinct values.
 
 In the binary form, *ncases* is the number of cases and there are this number of
 case-destination pairs following *ncases*.
 
-If the value of *opnd* equals one of the *casex*, then jump to the corresponding
-*destx*. If no such *casex* equals *opnd*, then jump to *default*.
+If the value of *opnd* equals one of the *value*, then jump to the corresponding
+*dest*. If no such *value* equals *opnd*, then jump to *default*.
 
     For LLVM users: This is the same as the ``switch`` instruction.
 
@@ -1048,33 +1048,33 @@ If the value of *opnd* equals one of the *casex*, then jump to the corresponding
 ``PHI`` Instruction
 -------------------
 
-``PHI`` ``<`` *T* ``>`` ``{`` *(* *bbx* ``:`` *valx* ``;`` *)* :sub:`rep1` ``}``
+``PHI`` ``<`` *T* ``>`` ``{`` *(* *bb* ``:`` *value* ``;`` *)* :sub:`rep1` ``}``
 
 T
-    *type*: The type of *valx* and the result.
-bbx
+    *type*: The type of *value* and the result.
+bb
     *basic block*: The basic block where the control flow comes from.
-valx
+value
     *variable* of type *T*: The value of the current instruction for the
     corresponding control flow source.
 return value
-    Type *T*: One of *valx* according to the control flow.
+    Type *T*: One of *value* according to the control flow.
 
-+------+-----+------+-----+------+-----+
-| opct | idt | lent | idt | idt  | ... |
-+======+=====+======+=====+======+=====+
-| 0x93 | T   | nbbs | bbx | valx | ... |
-+------+-----+------+-----+------+-----+
++------+-----+------+-----+-------+-----+
+| opct | idt | lent | idt | idt   | ... |
++======+=====+======+=====+=======+=====+
+| 0x93 | T   | nbbs | bb  | value | ... |
++------+-----+------+-----+-------+-----+
 
-There must be at least one basic block-value pair. All *valx* must have type
-*T*. All *bbx* must be basic blocks.
+There must be at least one basic block-value pair. All *value* must have type
+*T*. All *bb* must be basic blocks.
 
 In the binary format, *nbbs* is the number of the basic block-value pairs and
 there are this number of pairs following *nbbs*.
 
 If the previous basic block executed before this basic block is one of the
-*bbx*, then the value this ``PHI`` instruction is the value of the corresponding
-*valx* at the end of the basic block *bbx*. Otherwise it is an error.
+*bb*, then the value this ``PHI`` instruction is the value of the corresponding
+*value* at the end of the basic block *bb*. Otherwise it is an error.
 
     NOTE: The value is taken at the control flow edge. This means all ``PHI``
     instructions are evaluated simultaneously rather than one at a time. For
@@ -1143,13 +1143,13 @@ Inter-function Control Flow
 ``CALL`` and ``TAILCALL`` Instruction
 -------------------------------------
 
-``CALL`` ``<`` *sig* ``>`` *func* *argList* *excClause* *keepAliveClause*
+``CALL`` ``<`` *sig* ``>`` *callee* *argList* *excClause* *keepAliveClause*
 
-``TAILCALL`` ``<`` *sig* ``>`` *func* *argList*
+``TAILCALL`` ``<`` *sig* ``>`` *callee* *argList*
 
 sig
     *function signature*: The signature of the callee.
-func
+callee
     *variable* of type ``func<sig>``: The callee.
 argList
     *argument list*: Argument list.
@@ -1164,19 +1164,19 @@ return value
 
 CALL:
 
-+------+-----+------+---------+-----------+-----------------+
-| opct | idt | idt  | argList | excClause | keepAliveClause |
-+======+=====+======+=========+===========+=================+
-| 0x60 | sig | func | argList | excClause | keepAliveClause |
-+------+-----+------+---------+-----------+-----------------+
++------+-----+--------+---------+-----------+-----------------+
+| opct | idt | idt    | argList | excClause | keepAliveClause |
++======+=====+========+=========+===========+=================+
+| 0x60 | sig | callee | argList | excClause | keepAliveClause |
++------+-----+--------+---------+-----------+-----------------+
 
 TAILCALL:
 
-+------+-----+------+---------+
-| opct | idt | idt  | argList |
-+======+=====+======+=========+
-| 0x62 | sig | func | argList |
-+------+-----+------+---------+
++------+-----+--------+---------+
+| opct | idt | idt    | argList |
++======+=====+========+=========+
+| 0x62 | sig | callee | argList |
++------+-----+--------+---------+
 
 The ``CALL`` instruction creates a new stack frame for the callee, passes the
 arguments in *argList* and starts executing from the entry block of the callee.
@@ -1462,7 +1462,7 @@ an SSA variable *opnd* which has type ``struct``.
 ``INSERTVALUE`` Instruction
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``INSERTVALUE`` ``<`` *T* *index* ``>`` *opnd* *newval*
+``INSERTVALUE`` ``<`` *T* *index* ``>`` *opnd* *newVal*
 
 T
     *type*, must be a ``struct``: The type of the operand.
@@ -1470,21 +1470,21 @@ index
     *integer literal* The index of the field to insert.
 opnd
     *variable* of type *T*: The struct to insert value into.
-newval
+newVal
     *variable* of the type of the *index*-th field of *T*: The new value for the
     field specified by *index*.
 return value
-    Type is *T*: A new struct with the *index*-th field being *newval*.
+    Type is *T*: A new struct with the *index*-th field being *newVal*.
 
 +------+-----+-------+------+--------+
 | opct | idt | lent  | idt  | idt    |
 +======+=====+=======+======+========+
-| 0x71 | T   | index | opnd | newval |
+| 0x71 | T   | index | opnd | newVal |
 +------+-----+-------+------+--------+
 
 The ``INSERTVALUE`` instruction constructs a struct value which has the same
 field values as *opnd* except the field specified by *index* which has the value
-*newval*.
+*newVal*.
 
     For LLVM users: It is the counterpart of the ``insertvalue`` instruction in
     LLVM. But Mu's ``INSERTVALUE`` does not work on arrays or nested
@@ -1532,27 +1532,27 @@ Vector Operations
 ``EXTRACTELEMENT`` Instruction
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``EXTRACTELEMENT`` ``<`` *T1* *T2* ``>`` *vec* *index*
+``EXTRACTELEMENT`` ``<`` *T1* *T2* ``>`` *opnd* *index*
 
 T1
     *type*, must be a ``vector``: The type of *vec*.
 T2
     *type*, must be an ``int``: The type of *index*.
-val
+opnd
     *variable* of type *T1*: The vector to extract from.
 index
     *variable* of type *T2*: The index of the element to extract.
 return value
     Type is the element type of *T1*: The extracted element.
 
-+------+-----+-----+-----+-------+
-| opct | idt | idt | idt | idt   |
-+======+=====+=====+=====+=======+
-| 0x72 | T1  | T2  | vec | index |
-+------+-----+-----+-----+-------+
++------+-----+-----+------+-------+
+| opct | idt | idt | idt  | idt   |
++======+=====+=====+======+=======+
+| 0x72 | T1  | T2  | opnd | index |
++------+-----+-----+------+-------+
 
 The ``EXTRACTELEMENT`` instruction extracts the element at *index* from a vector
-value *vec* of vector type *T1*.
+value *opnd* of vector type *T1*.
 
 The *index* may have any integer type and is treated as unsigned. If index
 exceeds the length of the vector, it has undefined behaviour.
@@ -1567,30 +1567,30 @@ exceeds the length of the vector, it has undefined behaviour.
 ``INSERTELEMENT`` Instruction
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
              
-``INSERTELEMENT`` ``<`` *T1* *T2* ``>`` *vec* *index* *newval*
+``INSERTELEMENT`` ``<`` *T1* *T2* ``>`` *opnd* *index* *newVal*
 
 T1
     *type*, must be a ``vector``: The type of *vec*.
 T2
     *type*, must be an ``int``: The type of *index*.
-vec
+opnd
     *variable* of type *T1*: The vector to insert into.
 index
     *variable* of type *T2*: The index of the element to insert.
-newval
+newVal
     *variable* of the element type of *T1*: The new value for that element.
 return value
-    Type is *T1*: A new vector with the *index*-th element being *newval*.
+    Type is *T1*: A new vector with the *index*-th element being *newVal*.
 
-+------+-----+-----+-----+-------+--------+
-| opct | idt | idt | idt | idt   | idt    |
-+======+=====+=====+=====+=======+========+
-| 0x73 | T1  | T2  | vec | index | newval |
-+------+-----+-----+-----+-------+--------+
++------+-----+-----+------+-------+--------+
+| opct | idt | idt | idt  | idt   | idt    |
++======+=====+=====+======+=======+========+
+| 0x73 | T1  | T2  | opnd | index | newVal |
++------+-----+-----+------+-------+--------+
 
 The ``INSERTELEMENT`` instruction creates a new vector value which has the same
-element values as *vec* except the element at *index* which has the value of
-*newval*.
+element values as *opnd* except the element at *index* which has the value of
+*newVal*.
 
 The *index* may have any integer type and is treated as unsigned. If index
 exceeds the length of the vector, it has undefined behaviour.
@@ -1832,8 +1832,8 @@ heap object *opnd*.
 Other Memory Addressing Instructions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- ``GETFIELDIREF`` ``PTR`` :sub:`opt` ``<`` *T1* *fieldIndex* ``>`` opnd
-- ``GETELEMIREF``  ``PTR`` :sub:`opt` ``<`` *T1* *T2* ``>`` *opnd* *arrayIndex*
+- ``GETFIELDIREF`` ``PTR`` :sub:`opt` ``<`` *T1* *index* ``>`` opnd
+- ``GETELEMIREF``  ``PTR`` :sub:`opt` ``<`` *T1* *T2* ``>`` *opnd* *index*
 - ``SHIFTIREF``    ``PTR`` :sub:`opt` ``<`` *T1* *T2* ``>`` *opnd* *offset*
 - ``GETFIXEDPARTIREF`` ``PTR`` :sub:`opt` ``<`` *T1* ``>`` *opnd*
 - ``GETVARPARTIREF`` ``PTR`` :sub:`opt` ``<`` *T1* ``>`` *opnd*
@@ -1850,13 +1850,12 @@ T1
     - For ``GETFIXEDPARTIREF`` and ``GETVARPARTIREF``, *T1* must be ``hybrid``.
 
 T2
-    *type*, must be ``int``: The type of *arrayIndex* and *offset*.
+    *type*, must be ``int``: The type of *index* (for ``GETELEMIREF``) and
+    *offset* (for ``SHIFTIREF``).
 
-fieldIndex
-    *integer literal*: The index of the field.
-
-arrayIndex
-    *variable* of type *T2*: The index of the element.
+index
+    - For ``GETFIELDIREF``: *integer literal*: The index of the field.
+    - For ``GETELEMIREF``: *variable* of type *T2*: The index of the element.
 
 offset
     *variable* of type *T2*: The offset to move the *opnd*.
@@ -1868,8 +1867,7 @@ opnd
 return value
     Type is ``iref<U>`` or ``ptr<U>``: The derived reference/pointer.
 
-    - For ``GETFIELDIREF``, *U* is the type of the *fieldIndex*-th field of
-      *T1*.
+    - For ``GETFIELDIREF``, *U* is the type of the *index*-th field of *T1*.
     - For ``GETELEMIREF``, *U* is the element type of *T1*.
     - For ``SHIFTIREF``, *U* is the same as *T1*.
     - For ``GETFIXEDPARTIREF``, *U* is the type of the fixed part of *T1*.
@@ -1881,7 +1879,7 @@ GETFIELDIREF:
 +------+------+-----+------------+--------+
 | opct | opct | idt | lent       | idt    |
 +======+======+=====+============+========+
-| 0x15 | PTR  | T   | fieldIndex | opnd   |
+| 0x15 | PTR  | T   | index      | opnd   |
 +------+------+-----+------------+--------+
 
 GETELEMIREF:
@@ -1889,7 +1887,7 @@ GETELEMIREF:
 +------+------+-----+-----+--------+------------+
 | opct | opct | idt | idt | idt    | idt        |
 +======+======+=====+=====+========+============+
-| 0x16 | PTR  | T1  | T2  | opnd   | arrayIndex |
+| 0x16 | PTR  | T1  | T2  | opnd   | index      |
 +------+------+-----+-----+--------+------------+
 
 SHIFTIREF:
@@ -2071,7 +2069,7 @@ defaults to ``NOT_ATOMIC``. The instruction is atomic if *ord* is not
 ``STORE`` Instruction
 ~~~~~~~~~~~~~~~~~~~~~
 
-``STORE`` ``PTR`` :sub:`opt` *ord* :sub:`opt` ``<`` *T* ``>`` *loc* *newval* *excClause*
+``STORE`` ``PTR`` :sub:`opt` *ord* :sub:`opt` ``<`` *T* ``>`` *loc* *newVal* *excClause*
 
 ``PTR`` :sub:`opt`
     If present, *loc* is a pointer. Otherwise it is an internal reference.
@@ -2084,16 +2082,16 @@ loc
     store into.
 excClause
     *exception clause*: Used to handle NULL reference errors.
-newval
+newVal
     *variable* of the unmarked type of *T*: The new value to store.
 
 +------+------+------+-----+------+--------+-----------+
 | opct | opct | opct | idt | idt  | idt    | excClause |
 +======+======+======+=====+======+========+===========+
-| 0x1B | PTR  | ord  | T   | loc  | newval | excClause |
+| 0x1B | PTR  | ord  | T   | loc  | newVal | excClause |
 +------+------+------+-----+------+--------+-----------+
 
-The ``STORE`` instruction stores *newval* into the memory location/address
+The ``STORE`` instruction stores *newVal* into the memory location/address
 *loc*.
 
 *ord* is the memory order. In the text form, the *ord* can be omitted and
@@ -2147,7 +2145,7 @@ return value:
 +------+------+------+---------+---------+-----+------+----------+---------+-----------+
 | opct | opct | opct | opct    | opct    | idt | idt  | idt      | idt     | excClause |
 +======+======+======+=========+=========+=====+======+==========+=========+===========+
-| 0x1C | PTR  | weak | succOrd | failOrd | T   | loc  | expected | desired | excClause |
+| 0x1C | PTR  | WEAK | succOrd | failOrd | T   | loc  | expected | desired | excClause |
 +------+------+------+---------+---------+-----+------+----------+---------+-----------+
 
 ``CMPXCHG`` loads the value from memory location/address *loc* and compare it
@@ -2576,15 +2574,15 @@ Unsafe Native Call
 ``CCALL`` Instruction
 ---------------------
 
-``CCALL`` *callconv* ``<`` *T* *sig* ``>`` *func* *argList* *keepAliveClause*
+``CCALL`` *callConv* ``<`` *T* *sig* ``>`` *callee* *argList* *keepAliveClause*
 
-callconv
+callConv
     *flag*: The calling convention.
 T
-    *type*: The type of *func*.
+    *type*: The type of *callee*.
 sig
     *function signature*: The signature of the callee.
-func
+callee
     *variable* of type *T*: The callee.
 argList
     *argument list*: Arguments to the callee.
@@ -2593,11 +2591,11 @@ keepAliveClause
 return value
     Type is the return type of *sig*: The return value of the callee.
 
-+------+----------+-----+-----+------+---------+-----------------+
-| opct | opct     | idt | idt | idt  | argList | keepAliveClause |
-+======+==========+=====+=====+======+=========+=================+
-| 0xEC | callconv | T   | sig | func | argList | keepAliveClause |
-+------+----------+-----+-----+------+---------+-----------------+
++------+----------+-----+-----+--------+---------+-----------------+
+| opct | opct     | idt | idt | idt    | argList | keepAliveClause |
++======+==========+=====+=====+========+=========+=================+
+| 0xEC | callConv | T   | sig | callee | argList | keepAliveClause |
++------+----------+-----+-----+--------+---------+-----------------+
 
 *calling convention* is one in the following table or others defined by the
 platform-specific part of the Mu native interface:
@@ -2612,9 +2610,9 @@ The ``CCALL`` instruction calls a native function.
 
     NOTE: The name ``CCALL`` indicates that it is intended to call C functions.
 
-*callconv* specifies the calling convention used by this instruction.
+*callConv* specifies the calling convention used by this instruction.
 
-The callee *func* must have type *T*. The allowed type of ``T`` is
+The *callee* must have type *T*. The allowed type of ``T`` is
 implementation-dependent and calling convention-dependent.
 
     For example,
@@ -2936,15 +2934,14 @@ Common Instructions
 ``COMMINST`` Instruction
 ------------------------
 
-``COMMINST`` *name* *flagList* :sub:`opt` *typeList* :sub:`opt` *funcSigList*
-:sub:`opt` *argList*
-:sub:`opt` *excClause* *keepAliveClause*
+``COMMINST`` *inst* *flagList* :sub:`opt` *typeList* :sub:`opt` *funcSigList*
+:sub:`opt` *argList* :sub:`opt` *excClause* *keepAliveClause*
 
 + *typeList* ::= ``<`` *type* :sub:`rep` ``>``
 
 + *funcSigList* ::= ``<[`` *funcSig* :sub:`rep` ``]>``
 
-name
+inst
     *global name*: The name of the common instruction.
 flagList :sub:`opt`
     Optional *flag list*: A list of flags. Can be omitted.
@@ -2970,7 +2967,7 @@ return value:
 +------+------+----------+---------+-----------+-----------------+
 | opct | idt  | typeList | argList | excClause | keepAliveClause |
 +======+======+==========+=========+===========+=================+
-| 0xE4 | ID   | typeList | argList | excClause | keepAliveClause |
+| 0xE4 | inst | typeList | argList | excClause | keepAliveClause |
 +------+------+----------+---------+-----------+-----------------+
 
 *typeList*:
@@ -2989,7 +2986,7 @@ return value:
 | nsigs  | sig1  | sig2  | ... |
 +--------+-------+-------+-----+
 
-The ``COMMINST`` instruction calls a common instruction identified by *name* in
+The ``COMMINST`` instruction calls a common instruction identified by *inst* in
 the text form or *ID* in the binary form. A list of flags *flagList*, a list of
 type arguments *typeList*, a list of function signature arguments *funcSigList*,
 a list of value arguments *argList*, an optional exception clause *excClause*
