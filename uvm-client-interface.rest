@@ -852,9 +852,8 @@ The ``load`` message
 
 - return value: A handle of the loaded value.
 
-The ``load`` message loads from the memory location/address of ``loc``.
-
-This operation has the memory order ``ord``.
+The ``load`` message performs a load operation with arguments (*ord*, *T*,
+*loc*) where *T* is the referent type of *loc*.
 
     For JNI users: This is similar to the ``Get<type>Field`` routine.
 
@@ -879,9 +878,8 @@ The ``store`` message
 
 ``newval`` must have the unmarked type of the referent type of ``loc``.
 
-The ``store`` message stores ``newval`` into the memory location/address of ``loc``.
-
-This operation has the memory order ``ord``.
+The ``store`` message performs a *store* operation with argument (*ord*,
+*T*, *loc*, *newval*) where *T* is the referent type of *loc*.
 
     For JNI users: This is similar to the ``Set<type>Field`` routine.
 
@@ -914,17 +912,11 @@ The ``cmpxchg`` message
 ``expected`` and ``desired`` must have the unmarked type of the referent type of
 ``loc``.
 
-The ``cmpxchg`` message loads form ``loc`` and compare with ``expected``. If
-successful, then store ``desired`` to ``loc``, otherwise do nothing. In both
-cases, the old value ``oldval`` at memory location/address  ``loc`` is returned. This
-whole process happen atomically.
+The ``cmpxchg`` message performs a *compare exchange* operation with
+argument (*weak*, *ord_sicc*, *ord_fail*, *T*, *loc*, *expected*, *desired*),
+where *T* is the referent type of *loc*.
 
-If this operation is strong, The comparison is successful if and only if the
-loaded value equals ``expected``. If weak, it may spuriously fail even if they
-are equal.
-
-This operation has the memory order ``ord_succ`` when successful and
-``ord_fail`` when failed.
+..
 
     Example in Java::
         
@@ -958,14 +950,9 @@ The ``atomicrmw`` message
 
 ``opnd`` must have the unmarked type of the referent type of ``loc``.
 
-The ``atomicrmw`` message performs a binary operation ``op`` on the current
-value in ``loc`` as the left-hand-side and ``opnd`` as the right-hand-side and
-stores the result to ``loc``. The whole process happen atomically.
-
-``op`` is one operation defined in the ``ATOMICRMW`` instruction. (See
-`<instruction-set>`__)
-
-This operation has the memory order ``ord``.
+The ``atomicrmw`` message performs an *atomic-x* operation with argument (*ord*,
+*T*, *loc*, *opnd*), where *T* is the referent type of *loc*, and the *x* in
+*atomic-x* is *op*.
 
     Example Java signature: ``Handle ClientAgent.atomicrmw(MemoryOrder ord, AtomicRMWOp op, Handle loc, Handle opnd)``
 
@@ -982,9 +969,7 @@ The ``fence`` message
 
 - return value: None
 
-The ``fence`` is a memory fence.
-
-This operation has the memory order ``ord``.
+The ``fence`` is a memory fence of memory order ``ord``.
 
     Example Java signature: ``void ClientAgent.fence(MemoryOrder ord)``
 

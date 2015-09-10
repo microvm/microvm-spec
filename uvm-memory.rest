@@ -1,6 +1,6 @@
-=============
-The Mu Memory
-=============
+=================
+Mu and the Memory
+=================
 
 Overview
 ========
@@ -22,8 +22,11 @@ so that the native interface is easier to implement.
 Basic Concepts
 ==============
 
+Mu Memory
+---------
+
 There are three kinds of memory in Mu, namely the **heap memory**, the **stack
-memory** and the **global memory**.
+memory** and the **global memory**. **Mu memory** means one of them.
 
 Memory is allocated in their respective **allocation units**. Every allocation
 unit has a **lifetime** which begins when the allocation unit is created and
@@ -35,13 +38,16 @@ a member (if applicable) or a component of T, it also has a memory location
 which is a **member** or a **component** of the memory location L, respectively.
 Memory location L1 **contains** a memory location L2 if L2 is a component of L1.
 
-The **lifetime** of a memory location is the same as the allocation unit that
-contains it.
-
     NOTE: The "object" in the C language is the counterpart of "memory location"
     in Mu. Mu does not have bit fields and a memory location is always an
     "object" in C's sense. The word "object" is a synonym of "heap object" or
     "garbage-collected object" in the Mu context.
+
+    In C, the word "memory location" must have scalar types, but Mu uses the
+    word for composite types, too.
+
+The **lifetime** of a memory location is the same as the allocation unit that
+contains it.
 
 As implementation details, when an allocation unit is destroyed and another
 allocation unit occupied the same or overlapping space as the former, they are
@@ -51,6 +57,47 @@ same object. Any memory locations within the same object remain the same.
 
     NOTE: This means the memory of Mu is an abstraction over the memory space of
     the process. 
+
+Native Memory
+-------------
+
+The **native memory** is not Mu memory. The native memory is an address space of
+a sequence of bytes, each can be addressed by an integral address. The size of
+the address is implementation-defined.
+
+A region of bytes in the native memory can be interpreted as Mu values in an
+implementation-dependent way. The bytes that represents a Mu value is the
+**bytes representation** of that Mu value.
+
+    For C programmers: it is similar to the "object representation", but in Mu,
+    unless a memory location is pinned, it may not be represented in such a way.
+
+A Mu memory location can be **pinned**. In this state, it is mapped to a
+(contiguous) region of bytes in the native memory which contains the bytes
+representation of the value the memory location holds. The beginning of the
+memory location is mapped to the lowest address of the region. Different
+components of a memory location which do not contain each other do not map to
+overlapping regions in the address space.
+
+    For C programmers:
+    
+    * Mu assumes 8-bit bytes. 
+
+    * Mu does not have the bit-field type, but a client can implement bit-fields
+      using integer types and bit operations. 
+
+    * Mu does not have union types. However, like C, directly casting an address
+      to a pointer has implementation-defined behaviours. If a Mu program
+      interfaces with native programs, it has to also depend on the platform.
+
+    * Unlike C, Mu operations work on SSA variables rather than memory locations
+      (the counterpart of objects in C).
+
+    * Mu forces the 2's complement representation, though the byte order and
+      alignment requirement are implementation-defined.
+
+See `Native Interface <native-interface>`__ for details about the pinning and
+unpinning operations.
 
 Memory Allocation and Deallocation
 ==================================
@@ -66,7 +113,7 @@ on-stack replacement using API messages. It is destroyed when the stack frame
 containing it is destroyed.
 
 An allocation unit in the global memory is called a **global cell**. One global
-cell is created for every ``.const`` declaration in a bundle submitted to Mu.
+cell is created for every ``.global`` declaration in a bundle submitted to Mu.
 Global cells are never destroyed.
 
 Initial Values
@@ -114,51 +161,196 @@ The garbage collector may move objects.
 Memory Accessing
 ================
 
-To **load** means to copy data from the memory. To **store** is to copy data to
-the memory. To **access** is to load or store. A load operation **sees** the
-value it copied.
+Memory accessing operations include **load** and **store** operations. To
+**access** means to load or store. **Atomic read-modify-write** operations may
+have both a load and a store operation, but may have special atomic properties.
 
-    NOTE: The concrete instructions are named in capital letters: LOAD and
-    STORE. The abstract operations are in lower case: load, store and
-    access. The CMPXCHG instruction and the ATOMICRMW instruction may perform
-    both a load and a store operation.
+    NOTE: Instructions are named in capital letters: LOAD and STORE. The
+    abstract operations are in lower case: load, store and access.
 
 Memory access operations can be performed by some Mu instructions (see
-`<instruction-set>`__, API messages (see `<uvm-client-interface>`__) or other
+`<instruction-set>`__, API messages (see `<uvm-client-interface>`__), native
+programs which accesses the pinned Mu memory, or in other
 implementation-specific ways.
-
-    NOTE: Since the Mu may interoperate with external entities, including
-    external libraries, the operating system or other non-Mu threads, the
-    memory model (see `<memory-model>`__) should be extended by a concrete
-    implementation to make meaningful programs that include external entities.
 
 Two memory accesses **conflict** if one stores to a memory location and the
 other loads from or stores to the same memory location.
 
-The result of Mu memory access operations are defined by the Mu memory model.
-See `<memory-model>`__.
+Parameters and Semantics of Memory Operations
+---------------------------------------------
 
-Semantics of Memory Operations
-------------------------------
+Generally speaking, load operations copy values from the memory and store
+operations copy values into the memory. The exact results are determined by the
+memory model. See `<memory-model>`__.
 
-    TODO: The semantics should be defined in one place and shared between the
-    instruction set and the API.
+A **load** operation has parameters ``(ord, T, loc)``. *ord* is the memory order
+of the operation.  *T* is the type of *loc*, a memory location. The result is a
+value of the strong variant of type *T*.
+
+A **store** operation has parameters ``(ord, T, loc, newVal)``. *ord is the
+memory order of the operation. *T* is the type of *loc*, a memory location.
+*newVal* is a value whose type is the strong variant of *T*. The result is void.
+
+A **compare exchange** operation is an atomic read-modify-write operation. Its
+parameters are ``(isWeak, ordSucc, ordFail, T, loc, expected, desired)``.
+*isWeak* is a Boolean parameter which indicates whether the compare exchange
+operation is weak or string. *ordSucc* and *ordFail* are the memory orders of
+the operation when the comparing is successful or failed. *T* is the type of the
+memory location *loc*. *expected* and *desired* are values whose type is the
+strong variant of *T*. The result is a pair ``(v, s)``, where *v* has the type
+of the strong variant of *T*, and *s* is a Boolean value.
+
+A compare exchange operation performs a load operation on *loc* and compares its
+result with *expected*. If the comparison is successful, it performs a store
+operation to location *loc* with *desired* as *newVal*.
+
+If the operation is strong, The comparison succeeds **if and only if** the
+result of load equals *expected*. If it is weak, the comparison succeeds **only
+if** the result of load equals the *expected* value and it may spuriously fail,
+that is, it may fail even if the loaded value equals the *expected* value.
+
+The result *v* is the result of the initial load operation and *s* is whether
+the comparison is successful or not.
+
+An **atomic-x** operation is an atomic read-modify-write operation, where *x*
+can be one of (XCHG, ADD, SUB, AND, NAND, OR, XOR, MAX, MIN, UMAX, UMIN). Its
+parameters are ``(ord, T, loc, opnd)``. *ord* is the memory order of the
+operation. *T* is the type of the memory location *loc*. *opnd* is a value whose
+type is the strong variant of *T*. The result also has the type of the strong
+variant of *T*.
+
+An atomic-x operation performs a load operation on location *loc*. Then
+according to *x*, it performs one of the binary operation below, with the result
+of the load operation as the left-hand-side operand and the value *opnd* as the
+right-hand-side operand. The result is:
+
+XCHG
+    The value of *opnd*.
+ADD
+    The sum of the two operands.
+SUB
+    The difference of the two operands.
+AND
+    The bitwise AND of the two operands.
+NAND
+    The bitwise NOT of the bitwise AND of the two operands.
+OR
+    The bitwise inclusive OR of the two operands.
+XOR
+    The bitwise exclusive OR of the two operands.
+MAX
+    The maximum value of the two operands, considering both operand as signed.
+MIN
+    The minimum value of the two operands, considering both operand as signed.
+UMAX
+    The maximum value of the two operands, considering both operand as unsigned.
+UMIN
+    The minimum value of the two operands, considering both operand as unsigned.
+
+..
+
+    NOTE: In the C syntax, the semantic of NAND is ``~(op1 & op2)``.
+
+Then it performs a store operation to location *loc* with the result of the
+binary operation as *newVal*.
+
+The result of the atomic-x operation is the result of the initial load
+operation.
+
+All operators other than ``XCHG`` are only applicable for integer types.
+``XCHG`` is allowed for any type. However, a Mu implementation may only
+implement some combinations of operators and operand types according to the
+requirements specified in `<portability>`__
+
+Memory Operations on Pointers
+-----------------------------
+
+Load, store, compare exchange and atomic-x operations can work with native
+memory in addition to Mu memory locations. In this case, the *loc* parameter of
+the above operations become a region of bytes in the native memory (usually
+represented as ``ptr<T>``) rather than memory locations (usually represented as
+``iref<T>``).
+
+Only *native-safe* types can be accessed via pointers.
+
+When accessing the memory via pointers, if the bytes are mapped to a Mu memory
+location via pinning (see `Native Interface <native-interface>`__), then if the
+referent type of the pointer is the same as the Mu memory location, it has the
+same effect as accessing the corresponding Mu memory location.
+
+When non-atomically loading from or storing to a region *R* of bytes which is
+
+1. not mapped to (i.e. not perfectly overlapping with) a particular Mu memory
+   location, and
+2. each byte in the region is part of any mapped byte region of any pinned Mu
+   memory location,
+   
+then such an operation loads or stores on a byte-by-byte basis. Specifically:
+
+* Such a load operation *L*:
+
+  1. for each address *A* of byte in the region *R*, performs a load operation
+       on the (only) Mu memory location of scalar types (not composite types)
+       whose mapped byte region *R2* contains address *A*, then extract the byte
+       value *b* at address *A*, then
+
+  2. combine all results *b* from the previous step into a sequence of byte
+       values, then interprets it as the bytes representation of a Mu value.
+       This Mu value is the result of the load operation *L*.
+
+* Such a store operation *S*:
+
+  1. interprets its *newVal* argument as its bytes representation *B*, then
+
+  2. for each address *A* of byte in the region *R*, performs a load operation
+       on the (only) Mu memory location of scalar types (not composite types)
+       whose mapped byte region *R2* contains address *A*, then update the
+       result by replacing the byte at address *A* with the byte in *B*, then
+       perform a store operation on the same Mu memory location with the updated
+       value as *newVal*.
+
+..
+
+    NOTE: This allows Mu to allocate a byte array and access (by itself or by
+    native programs) it via pointers as if it is a struct or a union, and then
+    interpret the written values as bytes. The requirement of each byte being
+    mapped gives implementation-defined behaviours to accesses beyond the border
+    of any Mu objects (such as array out-of-bound errors), or accessing padding
+    bytes in Mu structs.
+
+Accessing native memory regions not mapped to Mu memory locations has
+implementation-defined behaviours.
+
+    NOTE: Accessing the native memory may have all kinds of results: getting a
+    previously-stored value, storing to one address and affect another address
+    when two addresses are mapped to the same physical memory region/file,
+    segmentation fault, bus error (especially on OSX), turning on/off the light
+    by doing memory-mapped IO, launching nuclear missiles, summoning nasal
+    demons, etc. Mu cannot make much guarantee.
+
+Native programs can access pinned Mu memory locations in implementation-defined
+ways.
+
+    NOTE: This means it requires the efforts from the implementations of both Mu
+    and the native programs to obtain any defined semantics in mixed Mu-native
+    programs. For C, it will involve the C language, the platform ABI and the Mu
+    ABI of that platform.
 
 Memory Layout
 =============
 
-The way how data of any type are represented in the memory is
-implementation-defined.
+Whether or how Mu data of any type are represented in the native memory is
+implementation-defined. When an object is pinned, the layout is viewed from the
+native memory in a platform-dependent way.
 
 For Mu implementers, it is recommended to use the layout defined by the
-application binary interface of the platform in order to allow data exchange via
-the native interface implementation.
+application binary interface of the platform in order to ease the data exchange
+via the native interface implementation.
 
-Mu has some reference rules which may affect the definition of the memory
-layout.
+Mu has some rules about Mu memory locations which must always preserved.
 
-Reference Rules
-===============
+Rules of Memory Locations
+=========================
 
 Every memory location has an associated type bound when the memory location is
 created and cannot be changed. The memory location can only hold values of that

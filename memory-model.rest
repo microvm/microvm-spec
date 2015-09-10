@@ -115,8 +115,9 @@ store
     A memory store. May be atomic or not.
 
 atomic read-modify-write
-    A load and (maybe conditionally) a store as one atomic action. It has both a
-    load and a store operation, but may have special atomic properties.
+    A load and (maybe conditionally) a store as one atomic action. It may
+    contain both a load and a store operation, but may have special atomic
+    properties.
     
 fence
     A fence introduces memory orders.

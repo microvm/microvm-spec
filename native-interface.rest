@@ -122,47 +122,17 @@ Only a subset of types can be used as the type parameter of the ``ptr`` and the
   native-safe if all of their type arguments *T1*, *T2*, ..., *T*, *F*, *V* are
   native-safe.
 
-* ``ptr<T>`` is native-safe. It requires T to be native-safe.
+* ``ptr<T>`` is always native-safe. It requires T to be native-safe.
 
-* ``funcptr<sig>`` is native-safe. It requires the return type and all parameter
-  types of *sig* to be native-safe.
+* ``funcptr<sig>`` is always native-safe. It requires the return type and all
+  parameter types of *sig* to be native-safe.
 
 * All other types are not native-safe. Specifically, they are ``ref``, ``iref``,
-  ``weakref``, ``func``, ``thread``, ``stack``.
+  ``weakref``, ``func``, ``thread``, ``stack`` as well as ``struct``, ``array``
+  or ``hybrid`` that contains them.
 
 Exposing Mu Memory to the Native World
 ======================================
-
-Memory Layout
--------------
-
-The bytes in the address space can be interpreted as Mu values in an
-implementation-dependent way. The bytes that represents a Mu value is the
-**bytes representation** of that Mu value.
-
-A memory location (in the Mu memory) can be **pinned**. In this state, it is
-mapped to a contiguous region of bytes in the address space which contains the
-bytes representation of the value the memory location holds. The beginning of
-the memory location is mapped to the lowest address of the region. Different
-components of a memory location which do not contain each other do not map to
-overlapping regions in the address space.
-
-    For C programmers:
-    
-    * Mu assumes 8-bit bytes. 
-
-    * Mu does not have the bit-field type, but a client can implement bit-fields
-      using integer types and bit operations. 
-
-    * Mu does not have union types. However, like C, directly casting an address
-      to a pointer has implementation-defined behaviours. If a Mu program
-      interfaces with native programs, it has to also depend on the platform.
-
-    * Unlike C, Mu operations work on SSA variables rather than memory locations
-      (the counterpart of objects in C).
-
-    * Mu forces the 2's complement representation, though the byte order and
-      alignment requirement are implementation-defined.
 
 Pinning
 -------
@@ -189,22 +159,6 @@ his multi-set. A memory location is pinned as long as there is at least one
     by an unpinning operation in any thread. The "pinning multi-thread" can be
     implemented as a thread-local buffer. In this case, if GC never happens, no
     expensive atomic memory access or inter-thread synchronisation is performed.
-
-Memory Access and Memory Model
-------------------------------
-
-    TODO:
-    
-    * How does the atomic/non-atomic load/store/atomicrmw operations to the
-      bytes in the address space relate to the atomic/non-atomic
-      load/store/atomicrmw operations described in the Mu memory model? How does
-      the modification of bytes affect the values?
-
-    * How to model the modification of bytes that spans over more than one
-      memory location (in the Mu memory's sense)?
-
-    * And the attempt to look into the bytes representation of references must
-      be forbidden.
 
 Calling between Mu and Native Functions
 =======================================

@@ -2029,7 +2029,7 @@ loc
 excClause
     *exception clause*: Used to handle NULL reference errors.
 return value
-    Type is the strong variant of *T*: The value loaded from *loc*
+    Type is the strong variant of *T*: The result of the load operation.
 
 +------+------+------+-----+------+-----------+
 | opct | opct | opct | idt | idt  | excClause |
@@ -2037,11 +2037,10 @@ return value
 | 0x1A | PTR  | ord  | T   | loc  | excClause |
 +------+------+------+-----+------+-----------+
 
-The ``LOAD`` instruction loads from the memory location/address *loc*.
+The ``LOAD`` instruction performs a *load* operation with argument (*ord*, *T*,
+*loc*) as defined in `Mu and the Memory <uvm-memory>`__.
 
-*ord* is the memory order. In the text form, the *ord* can be omitted and
-defaults to ``NOT_ATOMIC``. The instruction is atomic if *ord* is not
-``NOT_ATOMIC``.
+In the text form, *ord* can be omitted and defaults to ``NOT_ATOMIC``.
 
     For LLVM users: This is the counterpart of the ``load`` instruction.
     ``volatile`` is absent in Mu because memory accesses are part of the
@@ -2084,12 +2083,10 @@ newVal
 | 0x1B | PTR  | ord  | T   | loc  | newVal | excClause |
 +------+------+------+-----+------+--------+-----------+
 
-The ``STORE`` instruction stores *newVal* into the memory location/address
-*loc*.
+The ``STORE`` instruction performs a *store* operation with argument (*ord*,
+*T*, *loc*, *newVal*) as defined in `Mu and the Memory <uvm-memory>`__.
 
-*ord* is the memory order. In the text form, the *ord* can be omitted and
-defaults to ``NOT_ATOMIC``. The instruction is atomic if *ord* is not
-``NOT_ATOMIC``.
+In the text form, *ord* can be omitted and defaults to ``NOT_ATOMIC``.
 
     For LLVM users: This is the counterpart of the ``store`` instruction.
     ``volatile`` is absent.
@@ -2109,14 +2106,14 @@ defaults to ``NOT_ATOMIC``. The instruction is atomic if *ord* is not
 ``CMPXCHG`` Instruction
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-``CMPXCHG`` ``PTR`` :sub:`opt` ``WEAK`` :sub:`opt` *succOrd* *failOrd* ``<`` *T*
+``CMPXCHG`` ``PTR`` :sub:`opt` ``WEAK`` :sub:`opt` *ordSucc* *ordFail* ``<`` *T*
 ``>`` *loc* *expected* *desired* *excClause*
 
 ``PTR`` :sub:`opt`
     If present, *loc* is a pointer. Otherwise it is an internal reference.
 ``WEAK`` :sub:`opt`
     If present, the ``CMPXCHG`` operation is weak.
-succOrd, failOrd
+ordSucc, ordFail
     *memory order*: The memory order for success and failure, respectively.
 T
     *type*, must be EQ-comparable: The referent type of *loc*.
@@ -2133,35 +2130,22 @@ excClause
     *exception clause*: Used to handle NULL reference errors.
 return value:
     Type is ``struct<U int<1>>`` where *U* is the strong variant of *T*:
-    A pair of the original value in the memory and whether this operation is
-    successful.
+    The result of the compare exchange operation.
 
 +------+------+------+---------+---------+-----+------+----------+---------+-----------+
 | opct | opct | opct | opct    | opct    | idt | idt  | idt      | idt     | excClause |
 +======+======+======+=========+=========+=====+======+==========+=========+===========+
-| 0x1C | PTR  | WEAK | succOrd | failOrd | T   | loc  | expected | desired | excClause |
+| 0x1C | PTR  | WEAK | ordSucc | ordFail | T   | loc  | expected | desired | excClause |
 +------+------+------+---------+---------+-----+------+----------+---------+-----------+
 
-``CMPXCHG`` loads the value from memory location/address *loc* and compare it
-with the *expected* value. If the comparison succeeds, then store the *desired*
-value to *loc*. If fails, no store operation will happen. The whole process
-happens atomically.
+The ``CMPXCHG`` instruction performs a *compare exchange* operation with
+argument (*isWeak*, *ordSucc*, *ordFail*, *T*, *loc*, *expected*, *desired*),
+where *isWeak* is true if ``WEAK`` is present, otherwise false.  The operation
+is defined in `Mu and the Memory <uvm-memory>`__.
 
-A ``CMPXCHG`` instruction can be **strong** or **weak**. In the text form, it is
-weak if the flag ``WEAK`` is present, otherwise it is strong. In the binary
-form, it is weak if the field *weak* is 1 and it is strong if *weak* is 0.
-
-If the instruction is strong, The comparison succeeds **if and only if** the
-loaded value equals the *expected* value. If it is weak, the comparison succeeds
-**only if** the loaded value equals the *expected* value and it may spuriously
-fail, that is, it may fail even if the loaded value equals the *expected* value.
-
-The return value of this instruction is a struct of two fields: The first field
-is the value loaded from the memory. The second field is 1 if the comparison is
-successful, or 0 otherwise.
-
-The memory order of this instruction is *succOrd* if the comparison succeeds, or
-*failOrd* otherwise.
+The result is a struct. The two fields represents the *v* and *s* value as
+defined in `Mu and the Memory <uvm-memory>`__. The second field is 1 for true
+and 0 for false.
 
     For LLVM users: This is the counterpart of the ``cmpxchg`` instruction.
 
@@ -2224,7 +2208,8 @@ opnd
 excClause
     *exception clause*: Used to handle NULL reference errors.
 return value
-    Type is the strong variant of *T*: The original value in the memory.
+    Type is the strong variant of *T*: The result of the atomic-x operation
+    where x is *op*.
 
 +------+------+------+------+-----+------+------+-----------+
 | opct | opct | opct | opct | idt | idt  | idt  | excClause |
@@ -2250,45 +2235,9 @@ UMAX        0x09   int unsigned max
 UMIN        0x0A   int unsigned min
 =========== ====== === =============
 
-The ``ATOMICRMW`` loads the value from memory location/address *loc*, perform an
-operation *op* with the loaded value as the left-hand-side operand and *opnd* as
-the right-hand-side operand and store the result back to the memory
-location/address *loc*. The whole process happen atomically.
-
-All operators other than ``XCHG`` are only applicable for integer types.
-``XCHG`` is allowed for any type. However, a Mu implementation may only
-implement some combinations of operators and operand types according to the
-requirements specified in `<portability>`__
-
-The results of the operations are: (NOTE: the result of the operation is not the
-return value of this instruction)
-
-XCHG
-    The value of *opnd*.
-ADD
-    The sum of the two operands.
-SUB
-    The difference of the two operands.
-AND
-    The bitwise AND of the two operands.
-NAND
-    The bitwise NOT of the bitwise AND of the two operands.
-OR
-    The bitwise inclusive OR of the two operands.
-XOR
-    The bitwise exclusive OR of the two operands.
-MAX
-    The maximum value of the two operands, considering both operand as signed.
-MIN
-    The minimum value of the two operands, considering both operand as signed.
-UMAX
-    The maximum value of the two operands, considering both operand as unsigned.
-UMIN
-    The minimum value of the two operands, considering both operand as unsigned.
-
-..
-
-    NOTE: In the C syntax, the semantic of NAND is ``~(op1 & op2)``.
+The ``ATOMICRMW`` instruction performs an *atomic-x* operation with argument
+(*ord*, *T*, *loc*, *opnd*), where the *x* in *atomic-x* is *op*. The operation
+is defined in `Mu and the Memory <uvm-memory>`__.
 
 ..
 
@@ -2317,10 +2266,8 @@ ord
 | 0x1E | ord  |
 +------+------+
 
-The ``FENCE`` is used to introduce happen-before edges between operations. Its
+The ``FENCE`` is a fence of memory order *ord*. Its
 semantic is specified in `<memory-model>`__.
-
-*ord* is the memory order of the fence.
 
     For LLVM users: This is the counterpart of the ``fence`` instruction.
 
