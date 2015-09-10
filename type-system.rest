@@ -72,18 +72,9 @@ There are several kinds of types.
   are **EQ-comparable types**.
 * **Native-safe types** are defined in the `Native Interface
   <native-interface>`__.
-
-A **marked storage type** T1 of another type T2 represents the same set of
-values as T2; in this case T2 is called the **unmarked type** of T1. When a
-marked storage type is represented by a memory location, it exhibits special
-properties. Specifically:
-
-* ``weakref<T>`` is a marked storage type of ``ref<T>``.
-
-A marked storage type cannot be the type of an SSA variable (defined in
-`<instruction-set>`__). Loading from a memory location of a marked storage type
-gets a value of its unmarked type. An unmarked type can be stored into a memory
-location of its marked storage type.
+* ``ref<T>`` is the **strong variant** of ``weakref<T>``; ``weakref<T>`` is the
+  **weak variant** of ``ref<T>``. All other types are the strong variant or weak
+  variant of themselves.
 
 A **member** of a composite type T is either a field of T if T is a struct, or
 an element of T if T is an array or a vector, or the fixed part or any element
@@ -216,10 +207,12 @@ heap objects.
 ``iref`` is an internal reference type. An ``iref`` value is an internal
 reference to a memory location.
 
-``weakref`` is a weak object reference type. It is a marked storage type of
-``ref``. A memory location of ``weakref`` holds a weak reference to a heap
-object and can be clear to ``NULL`` by the garbage collector when there is no
-strong references to the object the ``weakref`` value refers to.
+``weakref`` is a weak object reference type. It is the weak variant of ``ref``.
+A memory location of ``weakref`` holds a weak reference to a heap object and can
+be clear to ``NULL`` by the garbage collector when there is no strong references
+to the object the ``weakref`` value refers to.
+
+    NOTE: There is no weak internal reference.
 
 The type parameter ``T`` is the referent type, which is the type of the heap
 object or memory location its value refers to.
@@ -227,7 +220,41 @@ object or memory location its value refers to.
 All reference types can have ``NULL`` value which does not refer to any heap
 object or memory location.
 
-    NOTE: There is no weak internal reference.
+Weakref can only be the type of a memory location, not an SSA variable. When a
+``weakref`` location is loaded from, the result is a ``ref`` to the same object;
+when a ``ref`` is stored to a ``weakref`` location, the location holds a
+``weakref`` to that object.
+
+..
+
+    NOTE: Allowing SSA variables to hold weak references may cause many
+    problems. The semantic allows the GC to change it to ``NULL`` at any time
+    as long as the GC decides the referent object is no longer reachable. For
+    this reason, it is impossible to guarantee a weak reference is ``NULL``
+    before accessing. Consider the following program::
+
+        %entry:
+            %notnull = NE <@RefT> %weakref @NULLREF
+            // Just at this moment, GC changed %weakref to NULL
+            BRANCH2 %notnull %bb_cont %bb_abnormal
+
+        %bb_cont:
+            %val = LOAD <@T> %weakref       // null reference access
+            ...
+
+    GC may clear the weak reference right after the program decided it is not
+    ``NULL``.
+    
+    Requiring an explicit conversion from ``weakref<T>`` to ``ref<T>`` is not
+    very useful. In that case, the only operation allowed for ``weakref<T>`` is
+    to convert to ``ref<T>``.
+    
+    So letting this conversion happen implicitly during memory access is a
+    natural choice, though not intuitive at all.  In Mu's conceptual model, a
+    memory load is like an IO operation: it does not simply "get" the value
+    (such as an object reference) in the memory, but is a communication with the
+    memory system and queries the global state. So it is natural for a load
+    operation to return a different value each time executed.
 
 ..
 

@@ -1988,13 +1988,6 @@ Memory Accessing
 
 This family of instructions actually load from or store into the memory.
 
-Note about *marked storage type* (currently only ``weakref``): When values of
-such types are loaded from the memory to an SSA variable, the variable has its
-*unmarked type*. Variables of unmarked types can be used to store to memory
-locations of the *marked storage type*. Specifically, ``LOAD`` from
-``iref<weakref<T>>`` gets a ``ref<T>``. ``ref<T>`` can be stored into a memory
-location referenced by an ``iref<weakref<T>>`` internal reference.
-
 The ``LOAD``, ``STORE``, ``CMPXCHG`` and ``ATOMICRMW`` instructions have
 optional exceptional clauses. When the memory location argument *loc* is a NULL
 reference, the instruction will *continue exceptionally*.
@@ -2036,7 +2029,7 @@ loc
 excClause
     *exception clause*: Used to handle NULL reference errors.
 return value
-    Type is the unmarked type of *T*: The value loaded from *loc*
+    Type is the strong variant of *T*: The value loaded from *loc*
 
 +------+------+------+-----+------+-----------+
 | opct | opct | opct | idt | idt  | excClause |
@@ -2083,7 +2076,7 @@ loc
 excClause
     *exception clause*: Used to handle NULL reference errors.
 newVal
-    *variable* of the unmarked type of *T*: The new value to store.
+    Type is the strong variant of *T*: The new value to store.
 
 +------+------+------+-----+------+--------+-----------+
 | opct | opct | opct | idt | idt  | idt    | excClause |
@@ -2131,15 +2124,16 @@ loc
     *variable* of ``iref<T>`` or ``ptr<T>``: The memory location/address to
     access.
 expected
-    *variable* of the unmarked type of *T*: The expected value in the memory.
-desired
-    *variable* of the unmarked type of *T*: The new value to store into the
+    *variable* of the strong variant of *T*: The expected value in the
     memory.
+desired
+    *variable* of the strong variant of *T*: The new value to store into
+    the memory.
 excClause
     *exception clause*: Used to handle NULL reference errors.
 return value:
-    Type is ``struct<U int<1>>`` where *U* is the unmarked type of *T*: A pair
-    of the original value in the memory and whether this operation is
+    Type is ``struct<U int<1>>`` where *U* is the strong variant of *T*:
+    A pair of the original value in the memory and whether this operation is
     successful.
 
 +------+------+------+---------+---------+-----+------+----------+---------+-----------+
@@ -2162,9 +2156,9 @@ loaded value equals the *expected* value. If it is weak, the comparison succeeds
 **only if** the loaded value equals the *expected* value and it may spuriously
 fail, that is, it may fail even if the loaded value equals the *expected* value.
 
-The return value of this instruction is a struct of two fields: the unmarked
-type of *T* and a 1-bit integer. The first field is the value loaded from the
-memory. The second field is 1 if the comparison is successful, or 0 otherwise.
+The return value of this instruction is a struct of two fields: The first field
+is the value loaded from the memory. The second field is 1 if the comparison is
+successful, or 0 otherwise.
 
 The memory order of this instruction is *succOrd* if the comparison succeeds, or
 *failOrd* otherwise.
@@ -2225,12 +2219,12 @@ loc
     *variable* of ``iref<T>`` or ``ptr<T>``: The memory location/address to
     access.
 opnd
-    *variable* of the unmarked type of *T*: The right-hand-side of the
+    *variable* of the strong variant of *T*: The right-hand-side of the
     operation.  
 excClause
     *exception clause*: Used to handle NULL reference errors.
 return value
-    Type is the unmarked type of *T*: The original value in the memory.
+    Type is the strong variant of *T*: The original value in the memory.
 
 +------+------+------+------+-----+------+------+-----------+
 | opct | opct | opct | opct | idt | idt  | idt  | excClause |

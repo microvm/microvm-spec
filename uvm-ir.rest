@@ -134,9 +134,9 @@ introduced via name-binding.
         %succ   = EXTRACTVALUE <@i64_cmpxchg_result 1> %result
 
     Instructions of similar property include ``SHUFFLEVECTOR`` (result has a new
-    vector type), ``GETIREF`` (ref to iref), ``LOAD`` (marked storage type to
-    unmarked type), ``CMPXCHG`` (result is a struct), ``ATOMICRMW`` (marked
-    storage type to unmarked type).
+    vector type), ``GETIREF`` (ref to iref), ``LOAD`` (converting ``weakref<T>``
+    to ``ref<T>``), ``CMPXCHG`` (result is a struct), ``ATOMICRMW`` (same as
+    ``LOAD``).
 
 Names
 ~~~~~
@@ -373,9 +373,8 @@ A **constant constructor** can be the following:
 
 ..
 
-    NOTE: ``weakref`` is a marked storage type of ``ref`` and, thus, cannot be
-    the type of an SSA variable, but all constants are SSA variables. (See
-    `<type-system>`__ and `<instruction-set>`__).
+    NOTE: ``weakref`` cannot be the type of an SSA variable, but all constants
+    are SSA variables. (See `<type-system>`__ and `<instruction-set>`__).
 
 ..
 
