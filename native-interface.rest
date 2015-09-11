@@ -109,28 +109,6 @@ address. Type checking is not performed.
     segments + offsets. However, apparently the trend is to move to a "flat"
     memory space.
 
-Native-safe Types
------------------
-
-Only a subset of types can be used as the type parameter of the ``ptr`` and the
-``funcptr`` types. These types are said to be **native-safe**.
-
-* ``void``, ``int<n>``, ``float``, ``double`` and ``vec<T n>`` are
-  *native-safe*.
-
-* ``struct<T1 T2 ...>``, ``array<T n>``, and ``hybrid<F V>`` are
-  native-safe if all of their type arguments *T1*, *T2*, ..., *T*, *F*, *V* are
-  native-safe.
-
-* ``ptr<T>`` is always native-safe. It requires T to be native-safe.
-
-* ``funcptr<sig>`` is always native-safe. It requires the return type and all
-  parameter types of *sig* to be native-safe.
-
-* All other types are not native-safe. Specifically, they are ``ref``, ``iref``,
-  ``weakref``, ``func``, ``thread``, ``stack`` as well as ``struct``, ``array``
-  or ``hybrid`` that contains them.
-
 Exposing Mu Memory to the Native World
 ======================================
 

@@ -70,8 +70,7 @@ There are several kinds of types.
 * ``ptr`` and ``funcptr`` are **pointer types**.
 * ``int``, ``ref``, ``iref``, ``func``, ``stack``, ``thread`` and pointer types
   are **EQ-comparable types**.
-* **Native-safe types** are defined in the `Native Interface
-  <native-interface>`__.
+* ``int``, ``iref`` and pointer types are **ULT-comparable types**.
 * ``ref<T>`` is the **strong variant** of ``weakref<T>``; ``weakref<T>`` is the
   **weak variant** of ``ref<T>``. All other types are the strong variant or weak
   variant of themselves.
@@ -83,6 +82,24 @@ itself or a member of any component of T.
 
     NOTE: This means a component is anything in a type, including itself and any
     arbitrarily nested members.
+
+The type parameter *T* in ``ptr<T>`` and the return type and all parameter types
+of *sig* in ``funcptr<sig>`` must be **native-safe**. It is defined as
+following:
+
+* ``void``, ``int<n>``, ``float`` and ``double`` are *native-safe*.
+
+* ``struct<T1 T2 ...>``, ``array<T n>``, ``vec<T n>`` and ``hybrid<F V>`` are
+  native-safe if all of their type arguments *T1*, *T2*, ..., *T*, *F*, *V* are
+  native-safe.
+
+* ``ptr<T>`` and ``funcptr<sig>`` are *native-safe* if *T* and the return type
+  and all parameter types in *sig* are native-safe. Otherwise the ``ptr`` or the
+  ``funcptr`` type is not well-formed.
+
+* All other types are not native-safe. (Specifically, they are ``ref``, ``iref``,
+  ``weakref``, ``func``, ``thread``, ``stack`` as well as ``struct``, ``array``
+  or ``hybrid`` that contains them.)
 
 Integer Type
 ------------
