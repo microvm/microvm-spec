@@ -20,6 +20,12 @@ if an optional feature is implemented, it must behave as specified.
     Mu still needs to accept the Mu IR that contains such a type, but may always
     refuse to allocate such a type in the memory.
 
+The platform-independent part of the native interface is a required component of
+the Mu spec, but the platform-dependent parts are not. There will be things
+which are "required but has implementation-defined behaviours". In this case, Mu
+must not reject IR programs that contain such constructs, but each
+implementation may do different things.
+
 Type System
 ===========
 
@@ -66,6 +72,10 @@ A function signature ``R (P0 P1 ...)`` is required if all of its parameter types
 and its return type are implemented and there are at most 256 parameters.
 Otherwise optional.
 
+Pointer types ``ptr<T>`` and ``funcptr<sig>`` are required for required and
+native-safe types ``T`` and signatures ``sig``. Both are represented as
+integers, but their lengths are implementation-defined.
+
 Constants
 =========
 
@@ -81,6 +91,9 @@ A struct constant is required if constants for all of its fields are
 implemented.
 
 All NULL constants are required.
+
+Pointer constants are required, but the implementation defines the length of
+them.
 
 Instructions
 ============
@@ -121,6 +134,8 @@ Otherwise optional.
 
 Calling a function whose value is ``NULL`` is undefined behaviour.
 
+Throwing exceptions across native frames has implementation-defined behaviour.
+
 Stack overflow when calling a function results in taking the exceptional control
 flow and the ``LANDINGPAD`` instruction receives ``NULL``.
 
@@ -144,7 +159,9 @@ its variable part.
 
 All memory addressing instructions ``GETIREF``, ``GETFIELDIREF``,
 ``GETELEMIREF``, ``SHIFTIREF``, ``GETFIXEDPARTIREF`` and ``GETVARPARTIREF`` give
-undefined behaviour when applied to ``NULL`` references.
+undefined behaviour when applied to ``NULL`` references. But when applied to
+pointers, these instructions calculates the result by calculating the offset
+according to the memory layout, which is implementation-defined.
 
 All memory access instructions ``LOAD``, ``STORE``, ``CMPXCHG`` and
 ``ATOMICRMW`` that access the ``NULL`` references take the exceptional control
@@ -156,17 +173,25 @@ behaviours.
 Accessing a memory location which represents a type different from the type
 expected by the instruction gives undefined behaviour.
 
+Accessing the memory via a pointer behaves as if accessing via an ``iref`` if
+the byte region represented by the pointer overlaps with the mapped (pinned)
+memory region of the Mu memory location. It behaves as if updating the memory
+byte-by-byte (not atomically) when all bytes in the byte region pointed by the
+pointer are part of some Mu memory locations. Otherwise such memory access has
+implementation-defined behaviours.
+
 The following types are required for both non-atomic and atomic ``LOAD`` and
 ``STORE`` for all implemented ``T`` and ``Sig``: ``int<8>``, ``int<16>``,
 ``int<32>``, ``int<64>``, ``float``, ``double``, ``ref<T>``, ``iref<T>``,
-``weakref<T>``, ``func<Sig>``, ``thread`` and ``stack``.
+``weakref<T>``, ``func<Sig>``, ``thread``, ``stack``, ``ptr<T>`` and
+``funcptr<Sig>``.
 
 The following types are required for non-atomic ``LOAD`` and ``STORE``:
 ``vector<int<32> 4>``, ``vector<float 4>`` and ``vector<double 2>``.
 
-``int<32>``, ``int<64>``, ``ref``, ``iref``, ``weakref``, ``func``, ``stack``
-and ``thread`` are required for ``CMPXCHG`` and the ``XCHG`` operation of the
-``ATOMICRMW`` instruction. 
+``int<32>``, ``int<64>``, ``ref``, ``iref``, ``weakref``, ``func``, ``stack``,
+``thread``, ``ptr`` and ``funcptr`` are required for ``CMPXCHG`` and the
+``XCHG`` operation of the ``ATOMICRMW`` instruction. 
 
 ``int<32>`` and ``int<64>`` are required for all ``ATOMICRMW`` operations.
 
@@ -181,7 +206,8 @@ One atomic Mu instruction does not necessarily correspond to exactly one
 machine instruction. So some atomic read-modify-write operations can be
 implemented using ``CMPXCHG`` or load-link store-conditional constructs.
 
-``CCALL`` is optional.
+``CCALL`` is required, but the behaviour is implementation-defined. The
+available calling conventions are implementation-defined.
 
 ``NEWSTACK`` is allowed to result in error, in which case the exceptional
 control flow is taken.
@@ -206,6 +232,11 @@ Required:
 + @uvm.thread_exit
 + @uvm.futex.wait for ``int<32>`` memory locations
 + @uvm.futex.wake for ``int<32>`` memory locations
++ @uvm.native.pin
++ @uvm.native.unpin
++ @uvm.native.expose
++ @uvm.native.unexpose
++ @uvm.native.get_cookie
 
 Required when ``tagref64`` is implemented:
 

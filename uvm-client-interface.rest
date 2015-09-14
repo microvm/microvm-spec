@@ -1060,6 +1060,8 @@ The ``kill_stack`` message
 
 The ``kill_stack`` message kills the stack.
 
+If the stack contains native frames, the behaviour is implementation-defined.
+
     For JVM users: The JVM does not distinguish stacks and threads. The closest
     counterpart is the JVM TI function ``StopThread``, but the Mu ``kill_stack``
     message does not unwind the stack. It simply marks the whole stack for
@@ -1149,6 +1151,8 @@ current instruction in the selected frame. Returns a list of handles.
 
 See ``current_func_ver`` about how the frame is selected.
 
+This message cannot be used on native frames.
+
     For JVM users: The closest JVM TI function is ``GetLocalVariable``. Mu will
     not keep all local variables alive. It does not allow setting the value of
     local variables, either. However, if an internal reference to a stack memory
@@ -1172,10 +1176,11 @@ The ``pop_frame`` message
 
 - return value: None
 
-The ``pop_frame`` message pops the top frame of the stack. May pop native
-frames.
+The ``pop_frame`` message pops the top frame of the stack.
 
-    For JVM users: This is the counterpart of the ``PopFrame`` frame.
+Popping native frames has implementation-defined behaviours.
+
+    For JVM users: This is the counterpart of the ``PopFrame`` JVM TI function.
 
 ..
 

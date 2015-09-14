@@ -233,17 +233,26 @@ Mu function "B", Mu sees one single native frame between the frames for "A" and
 functions below, Mu consider the Mu function sitting on top of a native frame.
 
 Stack introspection can skip native frames and introspect other Mu frames below.
-OSR can pop native frames. Mu exceptions, when thrown to a native frame, will
-remove the native frame and throw the exception to the Mu frame below it, or
-have undefined behaviour if there is no such Mu frame below.
 
     NOTE: The requirement to "see through" native frames is partially required
     by exact garbage collection, in which case all references in the stack must
     be identified.
 
-Mu exceptions are oblivious of non-Mu exception handling (such as C++
-exceptions). Destructors for C++ local variables will not be executed. It is
-undefined how Mu frames are seen by native programs.
+However, throwing Mu exceptions into native frames has implementation-defined
+behaviour. Attempting to pop native frames via the API also has
+implementation-defined behaviour.
+
+    NOTE: In general, it is not safe to force unwind native frames because
+    native programs may need to clean up their own resources. Existing
+    approaches, including JNI, models high-level (such as Java-level) exceptions
+    as a query-able state rather than actual stack unwinding through native
+    programs.
+
+Native exceptions thrown into Mu frames also have implementation-defined
+behaviours.
+
+    NOTE: Similar to native frames, Mu programs may have even more necessary
+    clean-up operations, such as GC barriers.
 
 Changes in the Mu IR and the API
 ================================
