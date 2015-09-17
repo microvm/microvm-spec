@@ -2,7 +2,11 @@
 Mu Client Interface
 ===================
 
+NOTE: This chapter is being rewritten.
+
 A C header is available here: `<muapi.h>`__
+
+Another C header with less handles: `<muapi-lesshandles.h>`__
 
 Overview
 ========

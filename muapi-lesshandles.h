@@ -61,12 +61,6 @@ typedef struct MuCtx {
     MuHandle    (*load_bundle)(MuCtx *ctx, char *buf, int sz);
     MuHandle    (*load_hail  )(MuCtx *ctx, char *buf, int sz);
 
-    MuHandle    (*handle_from_int8  )(MuCtx *ctx, int8_t   num, int len);
-    MuHandle    (*handle_from_uint8 )(MuCtx *ctx, uint8_t  num, int len);
-    MuHandle    (*handle_from_int16 )(MuCtx *ctx, int16_t  num, int len);
-    MuHandle    (*handle_from_uint16)(MuCtx *ctx, uint16_t num, int len);
-    MuHandle    (*handle_from_int32 )(MuCtx *ctx, int32_t  num, int len);
-    MuHandle    (*handle_from_uint32)(MuCtx *ctx, uint32_t num, int len);
     MuHandle    (*handle_from_int64 )(MuCtx *ctx, int64_t  num, int len);
     MuHandle    (*handle_from_uint64)(MuCtx *ctx, uint64_t num, int len);
     MuHandle    (*handle_from_float )(MuCtx *ctx, float    num);
@@ -79,12 +73,6 @@ typedef struct MuCtx {
     MuHandle    (*handle_from_func  )(MuCtx *ctx, MuID id);
     MuHandle    (*handle_from_expose)(MuCtx *ctx, MuID id);
 
-    int8_t      (*handle_to_sint8 )(MuCtx *ctx, MuHandle opnd);
-    uint8_t     (*handle_to_uint8 )(MuCtx *ctx, MuHandle opnd);
-    int16_t     (*handle_to_sint16)(MuCtx *ctx, MuHandle opnd);
-    uint16_t    (*handle_to_uint16)(MuCtx *ctx, MuHandle opnd);
-    int32_t     (*handle_to_sint32)(MuCtx *ctx, MuHandle opnd);
-    uint32_t    (*handle_to_uint32)(MuCtx *ctx, MuHandle opnd);
     int64_t     (*handle_to_sint64)(MuCtx *ctx, MuHandle opnd);
     uint64_t    (*handle_to_uint64)(MuCtx *ctx, MuHandle opnd);
     float       (*handle_to_float )(MuCtx *ctx, MuHandle opnd);
@@ -98,14 +86,14 @@ typedef struct MuCtx {
     MuHandle    (*insert_value )(MuCtx *ctx, MuHandle str, int index, MuHandle newval);
 
     MuHandle    (*new_fixed )(MuCtx *ctx, MuID mu_type);
-    MuHandle    (*new_hybrid)(MuCtx *ctx, MuID mu_type, MuHandle length);
+    MuHandle    (*new_hybrid)(MuCtx *ctx, MuID mu_type, uint64_t length);
 
     MuHandle    (*refcast)(MuCtx *ctx, MuHandle opnd, MuID new_type);
 
     MuHandle    (*get_iref)(MuCtx *ctx, MuHandle opnd);
     MuHandle    (*get_field_iref     )(MuCtx *ctx, MuHandle opnd, int field);
-    MuHandle    (*get_elem_iref      )(MuCtx *ctx, MuHandle opnd, MuHandle index);
-    MuHandle    (*shift_iref         )(MuCtx *ctx, MuHandle opnd, MuHandle offset);
+    MuHandle    (*get_elem_iref      )(MuCtx *ctx, MuHandle opnd, int64_t index);
+    MuHandle    (*shift_iref         )(MuCtx *ctx, MuHandle opnd, int64_t offset);
     MuHandle    (*get_fixed_part_iref)(MuCtx *ctx, MuHandle opnd);
     MuHandle    (*get_var_part_iref  )(MuCtx *ctx, MuHandle opnd);
 
@@ -132,21 +120,21 @@ typedef struct MuCtx {
     int         (*tr64_is_fp   )(MuCtx *ctx, MuHandle value);
     int         (*tr64_is_int  )(MuCtx *ctx, MuHandle value);
     int         (*tr64_is_ref  )(MuCtx *ctx, MuHandle value);
-    MuHandle    (*tr64_to_fp   )(MuCtx *ctx, MuHandle value);
-    MuHandle    (*tr64_to_int  )(MuCtx *ctx, MuHandle value);
+    double      (*tr64_to_fp   )(MuCtx *ctx, MuHandle value);
+    uint64_t    (*tr64_to_int  )(MuCtx *ctx, MuHandle value);
     MuHandle    (*tr64_to_ref  )(MuCtx *ctx, MuHandle value);
-    MuHandle    (*tr64_to_tag  )(MuCtx *ctx, MuHandle value);
-    MuHandle    (*tr64_from_fp )(MuCtx *ctx, MuHandle value);
-    MuHandle    (*tr64_from_int)(MuCtx *ctx, MuHandle value);
-    MuHandle    (*tr64_from_ref)(MuCtx *ctx, MuHandle ref, MuHandle tag);
+    uint64_t    (*tr64_to_tag  )(MuCtx *ctx, MuHandle value);
+    MuHandle    (*tr64_from_fp )(MuCtx *ctx, double value);
+    MuHandle    (*tr64_from_int)(MuCtx *ctx, uint64_t value);
+    MuHandle    (*tr64_from_ref)(MuCtx *ctx, MuHandle ref, uint64_t tag);
 
     void        (*enable_watchpoint )(MuCtx *ctx, int wpid);
     void        (*disable_watchpoint)(MuCtx *ctx, int wpid);
 
-    MuHandle    (*pin  )(MuCtx *ctx, MuHandle ref);
+    MuPtr       (*pin  )(MuCtx *ctx, MuHandle ref);
     void        (*unpin)(MuCtx *ctx, MuHandle ref);
 
-    MuHandle    (*expose  )(MuCtx *ctx, MuHandle func, MuCallConv call_conv, MuHandle cookie);
-    void        (*unexpose)(MuCtx *ctx, MuHandle value);
+    MuFP        (*expose  )(MuCtx *ctx, MuHandle func, MuCallConv call_conv, uint64_t cookie);
+    void        (*unexpose)(MuCtx *ctx, MuFP value);
 };
 
