@@ -78,7 +78,8 @@ at different times.
 
     * Constant
     * Global cell reference
-    * Function
+    * Function reference
+    * Exposed function
 
   * Local SSA variable
 

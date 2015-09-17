@@ -134,6 +134,10 @@ typedef struct MuCtx {
     MuPtr       (*pin  )(MuCtx *ctx, MuHandle ref);
     void        (*unpin)(MuCtx *ctx, MuHandle ref);
 
+    // TODO: What if the exposed function is not a function pointer under some
+    // calling conventions? For example, system calls, in which case the
+    // callable things are just integers. But we can usually disguise an integer
+    // as a function pointer, though it has implementation-defined behaviour.
     MuFP        (*expose  )(MuCtx *ctx, MuHandle func, MuCallConv call_conv, uint64_t cookie);
     void        (*unexpose)(MuCtx *ctx, MuFP value);
 };

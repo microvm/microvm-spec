@@ -100,8 +100,10 @@ characters in the set: ``[0-9a-zA-Z_-.]``. An ID uniquely identifies an
     existence".
 
 In the Mu IR text form, names are exclusively used and IDs are automatically
-generated. In the binary form, IDs are exclusively generated and names can be
-introduced via name-binding.
+generated. When generating IDs, Mu guarantees that there is a **mapping** from
+each name to its corresponding ID, and **no two different names are mapped to
+the same ID**. In the binary form, IDs are exclusively generated and names can
+be introduced via name-binding.
 
     NOTE: There may be multiple different identified entities for the same
     thing. It is allowed to declare two types with the same concrete type::
@@ -316,7 +318,7 @@ where:
 A **constant constructor** can be the following:
 
 - An **integer constructor** creates an integer constant or a pointer constant.
-  It is written as an integer literal. An **integer literal** is:
+  It is written as an **integer literal**, which is:
   
   + an optional sign [+-], followed by
   + an optional prefix: ``0`` or ``0x``, and
@@ -325,8 +327,9 @@ A **constant constructor** can be the following:
   A prefix 0 represents an octal number. A prefix 0x represents a hexadecimal
   number. Otherwise it is a decimal number.
 
-- A **floating point constructor** creates a floating point number. It can be
-  one of the following forms:
+- A **floating point constructor** creates a floating point number. It is
+  written as a **floating point literal**, which can be one of the following
+  forms:
 
   + It has an optional sign [+-], an integral part, a dot (.), a fraction part,
     an optional exponent part and a suffix.
@@ -358,7 +361,8 @@ A **constant constructor** can be the following:
   A constant must not be recursive.
 
 - A **null constructor** create a null value of *general reference types* except
-  ``weakref`` (defined in `<type-system>`__). It is the literal ``NULL``. 
+  ``weakref`` (defined in `<type-system>`__). It is written as the **null
+  literal**: ``NULL``. 
 
 - A **vector constructor** create a vector constant. It is:
 

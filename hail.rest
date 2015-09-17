@@ -1,0 +1,202 @@
+===========================================
+Heap Allocation and Initialisation Language
+===========================================
+
+The Heap Allocation and Initialisation Language (HAIL) is a Mu IR-like language
+that allocates heap objects and initialise Mu memory locations with values.
+
+It is designed to initialise language-specific objects, such as class
+meta-objects (e.g. the ``java.lang.Class`` objects and the virtual tables in JVM
+created during class loading), heap-allocated constant string objects, and
+language-level constants which are implemented as Mu-level global cells (because
+Mu does not allow "constant object references").
+
+HAIL should be faster than initialising the memory via the client API, and more
+space-efficient than a naively implemented Mu function which creates and
+initialises objects by executing a (usually *very* long) sequence of ``NEW`` and
+``STORE`` instructions. But keep in mind that is not the only efficient method.
+A well-written Mu program can read from a serialised file (e.g. the ".class"
+file in Java) and interpret it in a similar way the Mu micro VM interprets the
+HAIL script. The client can also rely on object pinning and initialise objects
+via pointers, bypassing the handle-based API.
+
+A **HAIL script** has a text format and, in the future, a binary format. The
+text format is similar to the text-based Mu IR.
+
+Lexical Structures
+==================
+
+Comments start with two slashes ``//`` and ends at the end of the line.
+
+In HAIL, a **HAIL name**, i.e. the name of a heap-allocated object, start with a
+dollar sign ``$`` followed by many characters in the set: ``[0-9a-zA-Z_-.]``.
+The scope of a HAIL name is within a single HAIL script. In other words, they
+are temporary, and they become invalid as soon as the HAIL script is fully
+evaluated. Storing them to global cells is one way to keep references to the
+allocated objects.
+
+**Global name**, **integer literal**, **floating point literal** and **null
+literal** are defined the same way as in `Mu IR <uvm-ir>`__.
+
+Top-level Definitions
+=====================
+
+Top-level definitions in HAIL include **fixed object allocation**,
+**variable-length object allocation** and **memory initialisation**. All object
+allocations are evaluated before any memory initialisation
+definitions are evaluated.
+
+A *fixed object allocation* definition has the form:
+
+``.new name <T>``
+
+where *name* is a HAIL name of the allocated object, and *T* is the global name
+of the type of the object. *T* must not be a ``hybrid`` type.
+
+A *variable-length object allocation* definition has the form:
+
+``.newhybrid name <T> len``
+
+where *name* is a HAIL name of the allocated object, and *T* is the global name
+of the type of the object. *len* is an integer literal, which determines the
+length of the variable part of the object. *T* must be a ``hybrid`` type.
+
+A **memory initialisation** definition has the form:
+
+``.init lvalue = rvalue``
+
+Here is a description of *lvalue* and *rvalue* in EBNF::
+
+    lvalue      ::= name | fieldExpr
+    fieldExpr   ::= lvalue '[' intLiteral ']'
+
+    rvalue      ::= primary | list
+    primary     ::= name | literal
+    list        ::= '{' rvalue* '}'
+
+    name        ::= hailName | globalName
+    literal     ::= intLiteral | fpLiteral | nullLiteral
+
+The *lvalue* determines the memory location to write to. It can be a global name
+(``@xxxx``), in which case it designates the memory location of a global cell
+(``.global @xxxx <T>``), or a HAIL name (``$xxxx``) which designates an object
+defined in the current HAIL script. It can be followed by many ``[xx]`` indices
+where *xx* is a integer indexing into a memory location. If the *lvalue* to the
+left of ``[xx]`` is a ``struct``, *xx* designates its xx-th field (start with
+0); if it is an ``array`` or ``vector``, *xx* designates its xx-th element; if
+it is a ``hybrid``, then 0 is the fixed part and 1 is the variable part. The
+variable part is considered as an array, and can be indexed into.
+
+The *rvalue* determines the value to write in the location:
+
+- If it is a literal, the value is the integral/FP/NULL value;
+
+- if it is a HAIL name, the value is an object reference (if the location has
+  ``ref`` or ``weakref`` type) or internal reference (if the location has
+  ``iref`` type) to the object just allocated;
+  
+- if it is a global name, it designates the value of the global SSA variable of
+  that name, as defined in `Instruction Set <instruction-set>`__. Specifically,
+
+  * the name of a constant has the value of that constant;
+
+  * the name of a global cell has the value of the internal reference of the
+    global cell;
+
+  * the name of a Mu function has the value of ``func`` (function reference)
+    type, and refers to that function;
+
+  * the name of an exposed function usually has a C function pointer as the
+    value.
+
+- if it is a list, the *lvalue* must be a ``struct``, ``array``, ``vector`` or
+  ``hybrid``. In this case, the elements in the list are the values of each
+  field/element of it, or the fixed and the variable part, respectively.
+
+In the case when the *lvalue* is an array or a vector, if the value has less
+elements than its capacity, only the first elements are initialised. It is an
+error if the list has more elements than the number of fields/elements/parts of
+the *lvalue*.
+
+Multiple *memory initialisation* definitions are applied in the order they
+appear in the HAIL script.
+
+Example::
+
+    // Assume the following definitions in a previously loaded Mu IR bundle.
+    // .typedef @i8 = int<8>
+    // .typedef @i32 = int<32>
+    // .typedef @i64 = int<64>
+    // .typedef @float = float
+    // .typedef @double = double
+    // .typedef @VarByteArray = hybrid<@i32 @i8>
+    //
+    // .typedef @TID = int<64>
+    // .typedef @SmallFloatArray = array<@float 4>
+    // .typedef @irefi64 = iref<@i64>
+    // .typedef @Object = struct<@TID @SmallFloatArray @double @irefi64>
+    //
+    // .typedef @Linkedlist = struct<@i64 @LinkedList>
+    //
+    // .const  @PI <@double> = 3.14d
+    // .global @my_global <@i64>
+    //
+    // .global @my_favourite_linked_list_node <@LinkedList>
+
+    .new        $my_long_obj    <@i64>
+    .newhybrid  $my_array_obj   <@VarByteArray> 10000
+
+    .init       $my_long_obj            = 0x123456789abcdef0
+    .init       $my_array_obj           = {100 {0 1 2 3 4}} // Only init 5 elems
+    .init       $my_array_obj[1][99]    = 99                // Also init the last elem
+
+    .new        $my_obj         <@Object>
+
+    .init       $my_obj     = {42 {1.0f 2.0f 3.0f 4.0f} @PI @my_global}
+
+    .init       @my_global  = -1    // Can initialise global cells, too.
+    
+    .new    $node0  <@LinkedList>
+    .new    $node1  <@LinkedList>
+    .new    $node2  <@LinkedList>
+
+    .init   $node0 = {0 $node1}     // All objects are allocated before init.
+    .init   $node1 = {1 $node0}     // so they can form a ring
+
+    .init   $node2 = {2 NULL}
+
+    // In fact, all objects except $node0 and $node1 will become garbages after
+    // this HAIL script is fully evaluated.
+    .init   @my_favourite_linked_list_node = $node0
+
+Example 2: String constant initialization. In order to keep references to these
+objects, we need to store them to global cells::
+
+    // Assume the following Java code:
+    // System.out.println("Hello world!");
+    //
+    // We want to create a String object for the string literal "Hello world!".
+    // In a real JVM, more strings would be created for class names and method
+    // names for reflection.
+    //
+    // We assume the Java class loader defines the String like this:
+    // .typedef @RefString    = ref <@String>
+    // .typedef @String       = struct <@TID @RefCharArray @i32 @i32>  // tid, buf, begin, size
+    // .typedef @RefCharArray = ref <@CharArray>
+    // .typedef @CharArray    = hybrid <@ArrayHeader @i16>  // header, elements
+    // .typedef @ArrayHeader  = struct <@TID @i32>   // tid, length
+    // 
+    // It makes a global cell to store a reference to the String:
+    // .global @const_hello_world <@RefString>
+    //
+    // Then we can create and initialise the string in HAIL:
+
+    .new            $hw     <@String>               // The String object
+    .newhybrid      $hwbuf  <@CharArray>    12      // The underlying array
+
+    .init   $hw     = {0xabcd $hwbuf 0 12}
+    .init   $hwbuf  = {{0x1234 12} {0x48 0x65 0x6c 0x6c 0x6f 0x20 0x77 0x6f 0x72 0x6c 0x64 0x21}} 
+
+    .init   @const_hello_world = $hw    // Store it to the global cell.
+    
+.. vim: tw=80
