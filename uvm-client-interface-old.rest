@@ -1,8 +1,9 @@
-===================
-Mu Client Interface
-===================
+=========================
+Mu Client Interface (Old)
+=========================
 
-A C header is available here: `<muapi.h>`__
+This document is in the process of migrating to a C-based definition rather than
+the current language-neutral general definition.
 
 Overview
 ========
@@ -45,10 +46,8 @@ threads already created is implementation-specific.
 How to stop a Mu and/or a client is implementation-specific. Stopping a Mu
 implies stopping all Mu threads in it.
 
-Client Context
-==============
-
-Old name: Client Agent
+Client Agents
+=============
 
 The client interacts with Mu for almost all tasks through **client agents**.
 
