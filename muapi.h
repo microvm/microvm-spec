@@ -39,6 +39,10 @@ typedef int MuTrapHandlerResult;
 #define MU_REBIND_PASS_VOID     0x02
 #define MU_REBIND_THROW_EXC     0x03
 
+// Declare the types here because they are used in the following signatures.
+typedef struct MuVM MuVM;
+typedef struct MuCtx MuCtx;
+
 // Signature of the trap handler
 typedef void (*MuTrapHandler)(MuCtx *ctx, MuThreadValue thread,
         MuStackValue stack, int wpid, MuTrapHandlerResult *result,
@@ -74,7 +78,7 @@ typedef int MuAtomicRMWOp;
 #define MU_UMIN        0x0A
 
 // Calling conventions.
-typedef int MuCallConv
+typedef int MuCallConv;
 
 #define MU_DEFUALT     0x00
 // Concrete Mu implementations may define more calling conventions.
@@ -86,8 +90,7 @@ typedef int MuCallConv
 // used by the same client.
 
 // A handle and method lists of a micro VM
-typedef struct MuVM MuVM;
-typedef struct MuVM {
+struct MuVM {
     void *header;   // Refer to internal stuff
 
     // Create context
@@ -107,8 +110,7 @@ typedef struct MuVM {
 // local heap allocation pool, and an object-pinning set. It also holds many Mu
 // values and expose them to the client as opaque handles (MuValue and its
 // subtypes).
-typedef struct MuCtx MuCtx;
-typedef struct MuCtx {
+struct MuCtx {
     void *header;   // Refer to internal stuff
 
     // Convert between IDs and names
@@ -186,7 +188,7 @@ typedef struct MuCtx {
                         int weak, MuIRefValue loc, MuValue expected, MuValue desired,
                         int *is_succ);
     MuValue     (*atomicrmw)(MuCtx *ctx, MuMemOrd ord, MuAtomicRMWOp op,
-                        MuIRefValue loc, MuValue, opnd);
+                        MuIRefValue loc, MuValue opnd);
     void        (*fence    )(MuCtx *ctx, MuMemOrd ord);
 
     // Thread and stack creation and stack destruction
