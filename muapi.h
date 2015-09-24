@@ -162,6 +162,12 @@ struct MuCtx {
     // the resource.
     void        (*delete_value)(MuCtx *ctx, MuValue opnd);
 
+    // Compare reference or general reference types.
+    // EQ. Available for ref, iref, funcref, threadref and stackref.
+    int         (*ref_eq )(MuCtx *ctx, MuValue lhs,     MuValue rhs);
+    // ULT. Available for iref only.
+    int         (*ref_ult)(MuCtx *ctx, MuIRefValue lhs, MuIRefValue rhs);
+
     // Manipulate Mu values of the struct<...> type
     MuValue     (*extract_value)(MuCtx *ctx, MuStructValue str, int index);
     MuValue     (*insert_value )(MuCtx *ctx, MuStructValue str, int index, MuValue newval);
