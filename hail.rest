@@ -20,8 +20,9 @@ file in Java) and interpret it in a similar way the Mu micro VM interprets the
 HAIL script. The client can also rely on object pinning and initialise objects
 via pointers, bypassing the handle-based API.
 
-A **HAIL script** has a text format and, in the future, a binary format. The
-text format is similar to the text-based Mu IR.
+A **HAIL script** has a text format and a binary format. The text format is
+similar to the text-based Mu IR, and the binary format is similar to the binary
+form Mu IR
 
 Lexical Structures
 ==================
@@ -77,15 +78,16 @@ Here is a description of *lvalue* and *rvalue* in EBNF::
     name        ::= hailName | globalName
     literal     ::= intLiteral | fpLiteral | nullLiteral
 
-The *lvalue* determines the memory location to write to. It can be a global name
-(``@xxxx``), in which case it designates the memory location of a global cell
-(``.global @xxxx <T>``), or a HAIL name (``$xxxx``) which designates an object
-defined in the current HAIL script. It can be followed by many ``[xx]`` indices
-where *xx* is a integer indexing into a memory location. If the *lvalue* to the
-left of ``[xx]`` is a ``struct``, *xx* designates its xx-th field (start with
-0); if it is an ``array`` or ``vector``, *xx* designates its xx-th element; if
-it is a ``hybrid``, then 0 is the fixed part and 1 is the variable part. The
-variable part is considered as an array, and can be indexed into.
+The *lvalue* determines the memory location to write to. Its **base** can be a
+global name (``@xxxx``), in which case it designates the memory location of a
+global cell (``.global @xxxx <T>``), or a HAIL name (``$xxxx``) which designates
+an object defined in the current HAIL script. The base can be followed by many
+``[xx]`` indices where *xx* is a integer indexing into a memory location. If the
+*lvalue* to the left of ``[xx]`` is a ``struct``, *xx* designates its xx-th
+field (start with 0); if it is an ``array`` or ``vector``, *xx* designates its
+xx-th element; if it is a ``hybrid``, then 0 is the fixed part and 1 is the
+variable part. The variable part is considered as an array, and can be indexed
+into.
 
 The *rvalue* determines the value to write in the location:
 
@@ -198,5 +200,130 @@ objects, we need to store them to global cells::
     .init   $hwbuf  = {{0x1234 12} {0x48 0x65 0x6c 0x6c 0x6f 0x20 0x77 0x6f 0x72 0x6c 0x64 0x21}} 
 
     .init   @const_hello_world = $hw    // Store it to the global cell.
-    
+
+Binary Form
+===========
+
+A binary HAIL script starts with a 4-byte magic '\x7f' 'H' 'A' 'I', or 0x7f 0x48
+0x41 0x49.
+
+HAIL IDs are the counterpart of HAIL names. HAIL IDs are 32-bit integers. 0 is
+an invalid HAIL ID. HAIL ID has a different namespace from Mu IDs, i.e. they
+refer to different things even if their values are equal. HAIL IDs only refer to
+heap-allocated objects in the current HAIL script.
+
+In the following paragraphs, binary types defined in `Mu IR Binary Form
+<uvm-ir-binary>`__ are used. For convenience, we use "hID" for HAIL ID and "mID"
+for Mu ID.
+
+A *fixed object allocation* definition has the form:
+
++------+-----+------+
+| opct | idt | idt  |
++======+=====+======+
+| 0x01 | hID | type |
++------+-----+------+
+
+*hID* is the HAIL ID of the object. *type* is the Mu ID of the type.
+
+A *variable-length object allocation* definition has the form:
+
++------+-----+------+--------+
+| opct | idt | idt  | i64    |
++======+=====+======+========+
+| 0x02 | hID | type | length |
++------+-----+------+--------+
+
+*hID* is the HAIL ID of the object. *type* is the Mu ID of the type. *length* is
+the length of the variable part.
+
+A *memory initialisation* definition has the form:
+
++------+--------+----------+------+------+-----+--------+
+| opct | genid  | i8       | i64  | i64  | ... | rvalue |
++======+========+==========+======+======+=====+========+
+| 0x03 | lvbase | nindices | ind0 | ind1 | ... | rvalue |
++------+--------+----------+------+------+-----+--------+
+
+*lvbase* is the base of the l-value. *lvbase* has a "general ID" binary type
+``genid``, which is:
+
++------+-----+
+| opct | idt |
++======+=====+
+| tag  | id  |
++------+-----+
+
+If *tag* is 1, *id* is the HAIL ID; if *tag* is 2, *id* is the Mu ID.
+
+*lvbase* is followed by many indices. *nindices* is the number of indices.
+
+*rvalue* can be one of the following:
+
+1. Referring to another thing by a ``genid``:
+
++------+----------+
+| opct | genid    |
++======+==========+
+| 0x01 | referent |
++------+----------+
+
+2. A literal with value
+
++--------+-------+
+| opct   | type  |
++========+=======+
+| opcode | value |
++--------+-------+
+
+where *opcode* determines the *type* of *value*:
+
+=========== =========
+ opcode      type
+=========== =========
+ 0x02        i8
+ 0x03        i16
+ 0x04        i32
+ 0x05        i64
+ 0x06        float
+ 0x07        double
+=========== =========
+
+3. A NULL literal
+
++--------+
+| opct   |
++========+
+| 0x08   |
++--------+
+
+6. A list of other values of any kinds.
+
++------+--------+--------+--------+--------+
+| opct | i64    | rvalue | rvalue | ...    |
++======+========+========+========+========+
+| 0x09 | nelems | rv1    | rv2    | ...    |
++------+--------+--------+--------+--------+
+
+*nelems* is the number of r-values following it. This structure is recursive.
+
+7. A list of other values of the same kind of literals.
+
++------+--------+------+---------+---------+--------+
+| opct | i64    | opct | literal | literal | ...    |
++======+========+======+=========+=========+========+
+| 0x0a | nelems | kind | lit1    | lit2    | ...    |
++------+--------+------+---------+---------+--------+
+
+*nelems* is the number of literals following. *kind* can be 0x02-0x07
+corresponding to the *opcode* in case 2 above. The literals *lit1*, *lit2* ...
+have the same type as the table in case 2 indicates.
+
+Future Work
+===========
+
+The binary format is not ultimately efficient. There could be
+implementation-specific ways of serialising data faster than a generic
+interface.
+
 .. vim: tw=80

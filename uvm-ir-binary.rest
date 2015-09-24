@@ -22,7 +22,7 @@ A bundle in the binary form consists of many numbers encoded in bytes. All
 numbers are encoded in **little endian** and are **tightly packed** which means
 there are no padding bytes between two adjacent numbers. For floating point
 numbers, it is equivalent to convert them bit-by-bit into integer types of the
-same length and convert to bytes in little endian.
+same length and convert to bytes in little-endian.
 
 Binary Types
 ------------
@@ -78,6 +78,9 @@ An ID list, denoted as **idList**, is a list of IDs. It has the general form:
 
 Top-level Structure
 ===================
+
+A bundle starts with a 4-byte magic "\x7F' 'U' 'I' 'R', or 0x7F 0x55 0x49
+0x52. Then there are many top-level definitions until the end of the bundle.
 
 Type Definition
 ---------------
@@ -328,6 +331,9 @@ Example
 Here is a side-by-side translation of a bundle from the text form to the binary
 form::
 
+    // magic
+    // 7f 55 49 52
+
     //       @i8
     .typedef @65536     = int <8>
     // 01    00 00 01 00  01  08
@@ -465,10 +471,11 @@ form::
         
     }
 
-    // .expose @func0_exposed = @func0 #DEFAULT @const1
-    07  50 00 01 00  04 00 01 00  00  21 00 01 00
+    //      @func0_exp  @func0       #DEFAULT @const1
+    .expose @65616 =    @65600       0 T      @65569
+    // 07  50 00 01 00  40 00 01 00  00       21 00 01 00
 
     // Bind ID 65604 with the string "@sig2_v1.entry"
-    08  44 00 01 00  06  40 73 69 67 32 5f 76 31 2e 65 6e 74 72 79
+    // 08  44 00 01 00  06  40 73 69 67 32 5f 76 31 2e 65 6e 74 72 79
 
 .. vim: textwidth=80
