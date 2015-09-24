@@ -9,19 +9,20 @@
 //
 // Values of subtypes can be cast to MuValue and back using the type cast
 // expression in C, similar to casting one pointer to another.
-typedef void *MuValue;
-typedef void *MuIntValue;
-typedef void *MuFloatValue;
-typedef void *MuDoubleValue;
-typedef void *MuRefValue;
-typedef void *MuIRefValue;
-typedef void *MuStructValue;
-typedef void *MuFuncRefValue;
-typedef void *MuThreadRefValue;
-typedef void *MuStackRefValue;
-typedef void *MuTagRef64Value;
-typedef void *MuUPtrValue;
-typedef void *MuUFPValue;
+typedef void *MuValue;              // Any Mu value
+typedef void *MuIntValue;           // int<n>
+typedef void *MuFloatValue;         // float
+typedef void *MuDoubleValue;        // double
+typedef void *MuRefValue;           // ref<T>
+typedef void *MuIRefValue;          // iref<T>
+typedef void *MuStructValue;        // struct<...>
+typedef void *MuArrayValue;         // array<T l>
+typedef void *MuFuncRefValue;       // funcref<sig>
+typedef void *MuThreadRefValue;     // threadref
+typedef void *MuStackRefValue;      // stackref
+typedef void *MuTagRef64Value;      // tagref64
+typedef void *MuUPtrValue;          // uptr
+typedef void *MuUFPValue;           // ufuncptr
 
 // Identifiers and names of Mu
 typedef uint32_t MuID;

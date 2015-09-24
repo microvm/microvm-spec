@@ -9,107 +9,178 @@ A C header is available here: `<muapi.h>`__
 Overview
 ========
 
-This chapter defines the **Mu Client Interface**, or "the API", the abstract
-interface between Mu and the client. This API is defined in an
-object-oriented style using *receivers*, *messages*, *parameters* and *return
-values*. The concrete Mu implementation can implement this API using the
-preferred style (procedural, functional, object-oriented, message passing and so
-on) of the language the client is implemented in.
+This chapter defines the **Mu Client Interface**, or "the API", the interfaces
+for the client to load bundles and manipulate the state of Mu, including
+creating stacks and threads, allocating objects, accessing memory and
+manipulating stacks and frames.
 
-To reduce confusion, in this chapter, "**message**" means a message sent from
-the client to Mu. "**call-back**" means a message sent from Mu to the client.
-Both are synchronous, means the sender should wait for the receiver to finish,
-unless explicitly specified as "asynchronous".
-
-Although call-backs are defined in this chapter, how to register those
-call-backs to Mu is implementation-specific. How messages and call-backs are
-represented is implementation-specific. How parameters and return values are
-represented is implementation-specific. Parameters may not literally match the
-parameters defined in this chapter.
-
-    NOTE: For example, if a message expects a list as an argument, a client in
-    the C language can pass a pointer and a length to indicate a slice of an
-    array while a client in Haskell can pass a List which is a linked list.
-
-Mu provides interfaces for the client to load bundles and manipulate the state
-of Mu, including creating stacks and threads, allocating objects, accessing
-memory and manipulating stacks and frames.
+It is defined in the C programming language. A C header is available here:
+`<muapi.h>`__. Clients can also be written in other languages via language
+bindings, which is beyond this specification.
 
 Starting Up and Shutting Down
 =============================
 
-How to start a Mu and/or a client is implementation-specific.
+How to start a Mu instance or a client is implementation-specific.
 
-In the beginning, whether there are existing types, signatures, constants,
-global cells or functions already defined or declared, or Mu stacks or Mu
-threads already created is implementation-specific.
+When the client first gets in touch with a Mu instance, whether there are
+existing types, signatures, constants, global cells or functions already
+defined, declared or exposed, or Mu stacks or Mu threads already created is
+implementation-specific.
 
 How to stop a Mu and/or a client is implementation-specific. Stopping a Mu
 implies stopping all Mu threads in it.
 
-Client Context
-==============
+The Mu Micro VM and Client Contexts
+===================================
 
-Old name: Client Agent
+Mu IDs and names are represented as::
 
-The client interacts with Mu for almost all tasks through **client agents**.
+    typedef uint32_t MuID;
+    typedef char *MuName;
 
-A client agent maintains a registry that holds Mu values for the client. The
-values are referred by the client via opaque **handles**. The representation of
-handles is implementation-specific. Mu references held in client agents are
-part of the garbage collection roots.
+A Mu instance is represented as a pointer to the struct ``MuVM``::
 
-    NOTE: This design serves two purposes. Both purposes are inspired by the Lua
-    C API and JNI.
+    typedef struct MuVM MuVM;
+
+    struct MuVM {
+        void *header;   // Refer to internal stuff
+        MuCtx*  (*new_context)(MuVM *mvm);
+        MuID    (*id_of  )(MuVM *mvm, MuName name);
+        MuName  (*name_of)(MuVM *mvm, MuID id);
+        void    (*set_trap_handler      )(MuVM *mvm, MuTrapHandler trap_handler);
+        void    (*set_undef_func_handler)(MuVM *mvm, MuUndefFuncHandler undef_func_handler);
+    };
+
+The client interacts with Mu for almost all tasks through **client contexts**,
+or simply **context** when unambiguous.
+
+    NOTE: In older versions of the spec, it was called "client agent".
+
+A client context is represented as a pointer to the struct ``MuCtx``::
+
+    typedef struct MuCtx MuCtx;
+
+    struct MuCtx {
+        void *header;   // Refer to internal stuff
+        MuID        (*id_of  )(MuCtx *ctx, MuName name);
+        MuName      (*name_of)(MuCtx *ctx, MuID id);
+        void        (*close_context)(MuCtx *ctx);
+        void        (*load_bundle)(MuCtx *ctx, char *buf, int sz);
+        void        (*load_hail  )(MuCtx *ctx, char *buf, int sz);
+        ...
+    };
+
+Both the ``MuVM`` and the ``MuCtx`` struct contain many function pointer fields.
+Each function pointer must be called with the ``MuVM`` or ``MuCtx`` pointer as
+its first argument.
+
+    NOTE: This design is inspired by JNI. Exposing API functions as struct
+    members rather than as global C functions has two advantages:
+
+    1. A client can use multiple Mu implementations at the same time. Each
+       implementation should provide its own structures.
+
+    2. The client does not refer to any symbol in other dynamic libraries. So
+       the client does not need to link against any binary libraries at compile
+       time. This makes the client less coupled with a particular Mu
+       implementation. It also allows the Mu micro VM to provide its API
+       functions at the run time (JIT compile its own API functions, or even
+       implementing the API in Mu IR itself).
+
+The Mu instance is shared by all client threads, and its member functions can be
+called by any client thread without additional synchronisation. A client context
+can only be used by one client thread at a time.
+
+    NOTE: Client contexts are supposed to hold thread-local states similar to
+    what a Mu thread holds. For example, implementations may reserve blocks of
+    heap memory in client contexts so that memory allocation will not always
+    require global locks. This trick is used by many garbage collectors that
+    support parallel mutators, for example,
+    [Immix](http://users.cecs.anu.edu.au/~steveb/downloads/pdf/immix-pldi-2008.pdf).
+
+It holds Mu values for the client. The values are referred by the client via
+opaque **handles**. Those handles are defined as::
+
+    typedef void *MuValue;              // Any Mu value
+    typedef void *MuIntValue;           // int<n>
+    typedef void *MuFloatValue;         // float
+    typedef void *MuDoubleValue;        // double
+    typedef void *MuRefValue;           // ref<T>
+    typedef void *MuIRefValue;          // iref<T>
+    typedef void *MuStructValue;        // struct<...>
+    typedef void *MuArrayValue;         // array<T l>
+    typedef void *MuFuncRefValue;       // funcref<sig>
+    typedef void *MuThreadRefValue;     // threadref
+    typedef void *MuStackRefValue;      // stackref
+    typedef void *MuTagRef64Value;      // tagref64
+    typedef void *MuUPtrValue;          // uptr
+    typedef void *MuUFPValue;           // ufuncptr
+
+Each handle can only hold a Mu value of the type shown in the comments above.
+Handles have reference semantics: a handle refers to a value the client context
+holds.  Handles can be copied as if they are ``void*`` in C, and the resulting
+handles refer to the same value held by a context. Handles can be cast from
+MuValue to the more concrete type shown above, or the other way, and still refer
+to the same value held by the context.
+
+A handle is only valid within a client context. They must only be accessed with
+API functions that operates on the same context the handle is in. Handles are
+valid until either explicitly deleted, or the client context is closed
+(explained later). Specifically, like SSA variables in the IR, a handle of
+general reference types always refer to the same object, location or other
+entities.  This means a handle can keep Mu heap objects alive.
+
+..
+
+    NOTE: The decision of using opaque handles serves two purposes. Both
+    purposes are inspired by the Lua C API and JNI.
     
-    1. To segregate the type system of Mu and the client. The client may be
-       very different from Mu. For example, C and Java does not have
-       portable vector types. Lua does not have integer types. Python's ``int``
-       type has arbitrary precision while Mu ``int`` is fixed. None have the
-       equivalent Mu ``ref``, ``iref``, ``func``, ``thread`` and ``stack``
-       transparent or opaque reference types. Handling Mu values opaquely
-       allows the client to **precisely** express their desired Mu types and
-       values.
+    1. To segregate the type system of Mu and the client. The type system of C
+       is very different from Mu. For example, C does not have portable vector
+       types. It does not support ``int<n>`` for n other than 8, 16, 32, 64 or
+       128. General reference types ``ref``, ``iref``, ``funcref``,
+       ``threadref`` and ``stackref`` have no C counterparts, either, and their
+       representations are specific to Mu implementations.
 
     2. To simplify garbage collection. By recording all references held by the
        client, Mu can easily identify all roots. Making the representation
-       of handles implementation-specific gives the client several choices:
+       of handles implementation-specific gives the client many choices, for
+       instance:
 
        1. Handles can be raw pointers and all client-held references are pinned.
        2. Handles are indices in an indirection table. Since all memory accesses
           are done via one indirection, the Mu GC can still move objects.
 
-    Since Lua 4.0, it introduced a stack-based API to pass values to/from the C
-    program. That stack is unnecessary for Mu because Mu is not designed as an
-    embedded language or supposed to exchange data frequently with the client.
-    However, a concrete Mu implementation can use a stack as the registry and
-    use the indices as handles, but this should not be known to the client.
-
-Client agents are supposed to be used by a single client thread at a time, but
-the client can have multiple client agents at the same time and use them
-concurrently.
-
-    NOTE: Since a client agent is used by one thread, implementations may
-    reserve blocks of heap memory in client agents so that memory allocation
-    will not always require global locks. This trick is used by many garbage
-    collectors that support parallel mutators, for example,
-    [Immix](http://users.cecs.anu.edu.au/~steveb/downloads/pdf/immix-pldi-2008.pdf).
+    Lua 4.0, introduced a stack-based API to pass values to/from the C program.
+    That stack is unnecessary for Mu because Mu is not a stack-based VM. The API
+    is also not designed to frequently exchange data frequently with the client
+    (see the (unsafe) `Native Interface <native-interface>`__ for a more
+    efficient (and less safe) interface).
 
 ..
 
-    For Lua users: The client agent is the counterpart of ``lua_State``. Both
+    For Lua users: The client context is the counterpart of ``lua_State``. Both
     maintain a registry of values in order to segregate Lua or Mu types and
-    garbage collection from the C or client world. However, Mu client agents
+    garbage collection from the C or client world. However, Mu client context
     can also access the Mu memory (heap, stack or global) which is shared
-    between multiple client agents as well as multiple Mu Threads running
+    between multiple client context as well as multiple Mu Threads running
     concurrently in the same Mu instance. In Lua, ``lua_State`` instances are
     isolated.
 
 ..
 
-    For JNI users: The client agent is the counterpart of the context of a JNI
+    For JNI users: The client context is the counterpart of the context of a JNI
     invocation or an "attached" native thread, where there is a registry of Java
-    references.
+    references. Mu handles are like local references, and the Mu API does not
+    have global references. For that need, consider using global cells
+    (``.global`` in the IR) to store shared values and use the appropriate
+    atomic access and memory order.
+
+MuVM Functions
+==============
+
+TODO
 
 The ``new_agent`` Message
 -------------------------
