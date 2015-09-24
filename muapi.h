@@ -16,12 +16,12 @@ typedef void *MuDoubleValue;
 typedef void *MuRefValue;
 typedef void *MuIRefValue;
 typedef void *MuStructValue;
-typedef void *MuFuncValue;
-typedef void *MuThreadValue;
-typedef void *MuStackValue;
+typedef void *MuFuncRefValue;
+typedef void *MuThreadRefValue;
+typedef void *MuStackRefValue;
 typedef void *MuTagRef64Value;
-typedef void *MuPtrValue;
-typedef void *MuFPValue;
+typedef void *MuUPtrValue;
+typedef void *MuUFPValue;
 
 // Identifiers and names of Mu
 typedef uint32_t MuID;
@@ -44,9 +44,9 @@ typedef struct MuVM MuVM;
 typedef struct MuCtx MuCtx;
 
 // Signature of the trap handler
-typedef void (*MuTrapHandler)(MuCtx *ctx, MuThreadValue thread,
-        MuStackValue stack, int wpid, MuTrapHandlerResult *result,
-        MuStackValue *new_stack, MuValue *value, MuRefValue *exception);
+typedef void (*MuTrapHandler)(MuCtx *ctx, MuThreadRefValue thread,
+        MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
+        MuStackRefValue *new_stack, MuValue *value, MuRefValue *exception);
 
 // Signature of the undefined funciton handler
 typedef void (*MuUndefFuncHandler)(MuCtx *ctx, MuID func_id);
@@ -97,11 +97,11 @@ struct MuVM {
     MuCtx*  (*new_context)(MuVM *mvm);
     
     // Convert between IDs and names
-    MuID    (*id_of)(MuVM *mvm, MuName name);
+    MuID    (*id_of  )(MuVM *mvm, MuName name);
     MuName  (*name_of)(MuVM *mvm, MuID id);
 
     // Set handlers
-    void    (*set_trap_handler)(MuVM *mvm, MuTrapHandler trap_handler);
+    void    (*set_trap_handler      )(MuVM *mvm, MuTrapHandler trap_handler);
     void    (*set_undef_func_handler)(MuVM *mvm, MuUndefFuncHandler undef_func_handler);
 };
 
@@ -114,7 +114,7 @@ struct MuCtx {
     void *header;   // Refer to internal stuff
 
     // Convert between IDs and names
-    MuID        (*id_of)(MuCtx *ctx, MuName name);
+    MuID        (*id_of  )(MuCtx *ctx, MuName name);
     MuName      (*name_of)(MuCtx *ctx, MuID id);
 
     // Close the current context, releasing all resources
@@ -135,8 +135,8 @@ struct MuCtx {
     MuIntValue      (*handle_from_uint64)(MuCtx *ctx, uint64_t num, int len);
     MuFloatValue    (*handle_from_float )(MuCtx *ctx, float    num);
     MuDoubleValue   (*handle_from_double)(MuCtx *ctx, double   num);
-    MuPtrValue      (*handle_from_ptr   )(MuCtx *ctx, MuID mu_type, MuCPtr ptr);
-    MuFPValue       (*handle_from_fp    )(MuCtx *ctx, MuID mu_type, MuCFP fp);
+    MuUPtrValue     (*handle_from_ptr   )(MuCtx *ctx, MuID mu_type, MuCPtr ptr);
+    MuUFPValue      (*handle_from_fp    )(MuCtx *ctx, MuID mu_type, MuCFP fp);
 
     // Convert from Mu values to C values
     int8_t      (*handle_to_sint8 )(MuCtx *ctx, MuIntValue    opnd);
@@ -149,14 +149,14 @@ struct MuCtx {
     uint64_t    (*handle_to_uint64)(MuCtx *ctx, MuIntValue    opnd);
     float       (*handle_to_float )(MuCtx *ctx, MuFloatValue  opnd);
     double      (*handle_to_double)(MuCtx *ctx, MuDoubleValue opnd);
-    MuCPtr      (*handle_to_ptr   )(MuCtx *ctx, MuPtrValue    opnd);
-    MuCFP       (*handle_to_fp    )(MuCtx *ctx, MuFPValue     opnd);
+    MuCPtr      (*handle_to_ptr   )(MuCtx *ctx, MuUPtrValue   opnd);
+    MuCFP       (*handle_to_fp    )(MuCtx *ctx, MuUFPValue    opnd);
 
     // Make MuValue instances from Mu global SSA variables
-    MuValue     (*handle_from_const )(MuCtx *ctx, MuID id);
-    MuIRefValue (*handle_from_global)(MuCtx *ctx, MuID id);
-    MuFuncValue (*handle_from_func  )(MuCtx *ctx, MuID id);
-    MuValue     (*handle_from_expose)(MuCtx *ctx, MuID id);
+    MuValue         (*handle_from_const )(MuCtx *ctx, MuID id);
+    MuIRefValue     (*handle_from_global)(MuCtx *ctx, MuID id);
+    MuFuncRefValue  (*handle_from_func  )(MuCtx *ctx, MuID id);
+    MuValue         (*handle_from_expose)(MuCtx *ctx, MuID id);
 
     // Delete the value held by the MuCtx, making it unusable, but freeing up
     // the resource.
@@ -192,18 +192,18 @@ struct MuCtx {
     void        (*fence    )(MuCtx *ctx, MuMemOrd ord);
 
     // Thread and stack creation and stack destruction
-    MuStackValue    (*new_stack )(MuCtx *ctx, MuFuncValue func, MuValue *args, int nargs);
-    MuThreadValue   (*new_thread)(MuCtx *ctx, MuStackValue stack);
-    void            (*kill_stack)(MuCtx *ctx, MuStackValue stack);
+    MuStackRefValue     (*new_stack )(MuCtx *ctx, MuFuncRefValue func, MuValue *args, int nargs);
+    MuThreadRefValue    (*new_thread)(MuCtx *ctx, MuStackRefValue stack);
+    void                (*kill_stack)(MuCtx *ctx, MuStackRefValue stack);
 
     // Stack introspection
-    MuID        (*cur_func_ver   )(MuCtx *ctx, MuStackValue stack, int frame);
-    MuID        (*cur_inst       )(MuCtx *ctx, MuStackValue stack, int frame);
-    void        (*dump_keepalives)(MuCtx *ctx, MuStackValue stack, int frame, MuValue *results);
+    MuID        (*cur_func_ver   )(MuCtx *ctx, MuStackRefValue stack, int frame);
+    MuID        (*cur_inst       )(MuCtx *ctx, MuStackRefValue stack, int frame);
+    void        (*dump_keepalives)(MuCtx *ctx, MuStackRefValue stack, int frame, MuValue *results);
     
     // On-stack replacement
-    void        (*pop_frame )(MuCtx *ctx, MuStackValue stack);
-    void        (*push_frame)(MuCtx *ctx, MuStackValue stack, MuFuncValue func, MuValue *args, int nargs);
+    void        (*pop_frame )(MuCtx *ctx, MuStackRefValue stack);
+    void        (*push_frame)(MuCtx *ctx, MuStackRefValue stack, MuFuncRefValue func, MuValue *args, int nargs);
 
     // 64-bit tagged reference operations
     int             (*tr64_is_fp   )(MuCtx *ctx, MuTagRef64Value value);
@@ -222,11 +222,11 @@ struct MuCtx {
     void        (*disable_watchpoint)(MuCtx *ctx, int wpid);
 
     // Mu memory pinning, usually object pinning
-    MuPtrValue  (*pin  )(MuCtx *ctx, MuValue loc);      // loc is either MuRefValue or MuIRefValue
+    MuUPtrValue (*pin  )(MuCtx *ctx, MuValue loc);      // loc is either MuRefValue or MuIRefValue
     void        (*unpin)(MuCtx *ctx, MuValue loc);      // loc is either MuRefValue or MuIRefValue
 
     // Expose Mu functions as native callable things, usually function pointers
-    MuValue     (*expose  )(MuCtx *ctx, MuFuncValue func, MuCallConv call_conv, MuIntValue cookie);
+    MuValue     (*expose  )(MuCtx *ctx, MuFuncRefValue func, MuCallConv call_conv, MuIntValue cookie);
     void        (*unexpose)(MuCtx *ctx, MuValue value);
 };
 
