@@ -98,7 +98,7 @@ struct MuVM {
     
     // Convert between IDs and names
     MuID    (*id_of)(MuVM *mvm, MuName name);
-    MuName  (*name_of)(MuVM *mvm, MuID name);
+    MuName  (*name_of)(MuVM *mvm, MuID id);
 
     // Set handlers
     void    (*set_trap_handler)(MuVM *mvm, MuTrapHandler trap_handler);
@@ -115,7 +115,7 @@ struct MuCtx {
 
     // Convert between IDs and names
     MuID        (*id_of)(MuCtx *ctx, MuName name);
-    MuName      (*name_of)(MuCtx *ctx, MuID name);
+    MuName      (*name_of)(MuCtx *ctx, MuID id);
 
     // Close the current context, releasing all resources
     void        (*close_context)(MuCtx *ctx);
