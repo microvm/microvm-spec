@@ -286,6 +286,21 @@ An **instruction** has the following form:
 ``id`` is the ID of the instruction. ``instbody`` is instruction body which is
 specific to each instruction. See `<instruction-set>`__ for an exhaustive list.
 
+Function Exposing Definition
+============================
+
+Function declaration has the following form:
+
++------+-----+------+----------+--------+
+| opct | idt | idt  | opct     | idt    |
++======+=====+======+==========+========+
+| 0x07 | id  | func | callConv | cookie |
++------+-----+------+----------+--------+
+
+``id`` is the ID of the exposed value. ``func`` is the ID of the function to
+expose. ``callConv`` is the calling convention flag. ``cookie`` is the cookie,
+the ID of an ``int<64>`` constant.
+
 Name Binding
 ============
 
@@ -298,7 +313,7 @@ A name binding has the following form:
 +------+-----+--------+-------+-------+-----+
 | opct | idt | lent   | i8    | i8    | ... |
 +======+=====+========+=======+=======+=====+
-| 0x07 | id  | nbytes | byte1 | byte2 | ... |
+| 0x08 | id  | nbytes | byte1 | byte2 | ... |
 +------+-----+--------+-------+-------+-----+
 
 ``id`` is the ID to bind. ``nbytes`` is the number of bytes in the name and
@@ -357,16 +372,16 @@ form::
     .typedef @65546     = void
     // 01    0a 00 01 00  0a
 
-    //       @f                  @sig2
-    .typedef @65547     = func  <@65552>
+    //       @f                   @sig2
+    .typedef @65547     = funcref<@65552>
     // 01    0b 00 01 00  0b    10 00 01 00
 
     //       @thread
-    .typedef @65548     = thread
+    .typedef @65548     = threadref
     // 01    0c 00 01 00  0c
 
     //       @stack
-    .typedef @65549     = stack
+    .typedef @65549     = stackref
     // 01    0d 00 01 00  0d
 
     //       @tagref64
@@ -450,7 +465,10 @@ form::
         
     }
 
+    // .expose @func0_exposed = @func0 #DEFAULT @const1
+    07  50 00 01 00  04 00 01 00  00  21 00 01 00
+
     // Bind ID 65604 with the string "@sig2_v1.entry"
-    07  44 00 01 00  06  40 73 69 67 32 5f 76 31 2e 65 6e 74 72 79
+    08  44 00 01 00  06  40 73 69 67 32 5f 76 31 2e 65 6e 74 72 79
 
 .. vim: textwidth=80

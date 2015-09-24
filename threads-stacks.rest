@@ -13,7 +13,7 @@ resources. Mu also has a memory model. See the `Memory Model <memory-model>`__
 chapter for more information.
 
 This chapter discusses Mu threads and Mu stacks. In this chapter, "thread"
-means "Mu thread".
+means "Mu thread" unless explicitly stated otherwise.
 
 Concepts
 ========
@@ -121,7 +121,7 @@ the client orders the current thread to terminate in a trap handler.
 The ``@uvm.thread_exit`` instruction kills the current stack of the current
 thread.
 
-Mu may change the value of ``thread`` type to ``NULL`` if the thread it
+Mu may change the value of ``threadref`` type to ``NULL`` if the thread it
 refers to is terminated.
 
 Binding of Stack and Thread
@@ -207,7 +207,7 @@ stack enters the **DEAD** state.
 If a stack becomes unreachable from roots, the garbage collector may kill the
 stack.
 
-The Mu may change the value of ``stack`` type to ``NULL`` if the stack it
+The Mu may change the value of ``stackref`` type to ``NULL`` if the stack it
 refers to is in the **DEAD** state.
 
 On-stack Replacement

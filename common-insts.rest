@@ -63,14 +63,14 @@ return type is omitted, it returns ``void``.
 Thread and Stack operations
 ===========================
 
-- ``[0x201]@uvm.new_thread (%s: stack) -> thread``
+- ``[0x201]@uvm.new_thread (%s: stackref) -> threadref``
 
 Create a new thread for a given stack ``%s``. The stack must be in the **READY**
 state. After executing ``@uvm.new_thread``, the stack enters the **ACTIVE**
 state and the new thread starts running immediately. Return the handle to the
 newly created thread.
 
-- ``[0x202]@uvm.kill_stack (%s: stack)``
+- ``[0x202]@uvm.kill_stack (%s: stackref)``
 
 Destroy the given stack ``%s``. The stack ``%s`` must be in the **READY** state
 and will enter the **DEAD** state.
@@ -80,7 +80,7 @@ and will enter the **DEAD** state.
 Stop the current thread and kill the current stack. The current stack will enter
 the **DEAD** state. The current thread stops running.
 
-- ``[0x204]@uvm.current_stack -> stack``
+- ``[0x204]@uvm.current_stack -> stackref``
 
 Return the current stack.
 
@@ -227,7 +227,7 @@ the return value.
 Native Interface
 ================
 
-- ``[0x240]@uvm.native.pin <T> (%opnd: T) -> ptr<U>``
+- ``[0x240]@uvm.native.pin <T> (%opnd: T) -> uptr<U>``
 
 *T* must be ``ref<U>`` or ``iref<U>`` for some U.
 
@@ -244,7 +244,7 @@ whole object (as returned by the ``GETIREF`` instruction). If *opnd* is
 Remove one instance of the reference ``%opnd`` from the pinning multiset of the
 current thread. It has undefined behaviour if no such an instance exists.
 
-- ``[0x242]@uvm.native.expose [callconv] <[sig]> (%func: func<sig>, %cookie: int<64>) -> U``
+- ``[0x242]@uvm.native.expose [callconv] <[sig]> (%func: funcref<sig>, %cookie: int<64>) -> U``
 
 *callconv* is a platform-specific calling convention flag. *U* is determined by
 the calling convention and *sig*.

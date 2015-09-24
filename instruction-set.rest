@@ -27,8 +27,8 @@ present::
     .typedef @weakrefvoid = weakref<@void>
     .typedef @refi64  = ref<@i64>
     .typedef @irefi64 = iref<@i64>
-    .typedef @stack    = stack
-    .typedef @thread   = thread
+    .typedef @sref    = stackref
+    .typedef @tref    = threadref
     .typedef @tagref64 = tagref64
 
     .typedef @4xi32 = vector<@i32 4>
@@ -95,7 +95,7 @@ A global cell definition (see `<uvm-ir>`__) defines a global SSA variable whose
 value is an internal reference to the global cell.
 
 A function definition or a function declaration (see `<uvm-ir>`__) defines a
-global SSA variable whose value is a ``func`` value referring to the function.
+global SSA variable whose value is a ``funcref`` value referring to the function.
 Defining a previously undefined function or redefining a function does not
 change this variable.
 
@@ -260,14 +260,14 @@ Flag and Flag List
 *flagList* ::= ``[`` *flag* :sub:`rep` ``]``
 
 +--------+-------+-------+-----+
-| lent   | idt   | idt   | ... |
+| lent   | opct  | opct  | ... |
 +========+=======+=======+=====+
 | nflags | flag1 | flag2 | ... |
 +--------+-------+-------+-----+
 
 In the text form, a **flag** starts with a hash character ``#`` which is
 followed by many capital letters ``[A-Z]`` or underscores ``_``. In the binary
-form, flags are represented the same as opcodes (idt).
+form, flags are represented the same as opcodes (opct).
 
     Examples:
 
@@ -775,12 +775,12 @@ must have the same length and the conversion is done element-wise.
 
   + Both *T1* and *T2* are ``ref``.
   + Both *T1* and *T2* are ``iref``.
-  + Both *T1* and *T2* are ``func``.
+  + Both *T1* and *T2* are ``funcref``.
 
 * For PTRCAST, *T1* and *T2* must be two of the three cases:
 
-  + ``ptr<T>`` for some T.
-  + ``funcptr<sig>`` for some sig.
+  + ``uptr<T>`` for some T.
+  + ``ufuncptr<sig>`` for some sig.
   + ``int<n>`` for some n.
 
 Semantics:
@@ -820,8 +820,9 @@ REFCAST
       *opnd*, but may have a different referent type.
     * When converting between ``iref``, the result refers to a memory location
       with the same beginning as *opnd*.
-    * When converting between ``func``, the result refers to the same function
-      as *opnd*, but may treat the function as having a different signature.
+    * When converting between ``funcref``, the result refers to the same
+      function as *opnd*, but may treat the function as having a different
+      signature.
     * In all cases, if the operand is ``NULL``, the result is the ``NULL`` value
       of the result type.
 PTRCAST
@@ -872,7 +873,7 @@ PTRCAST
         .funcsig @vv = @void ()
         .funcsig @main_sig = @i32 (@i32 @iii8)
         .funcdecl @j <@main_sig>
-        %k = REFCAST <@main_sig @vv> @j     // is a func<@vv>
+        %k = REFCAST <@main_sig @vv> @j     // is a funcref<@vv>
 
 ``SELECT`` Instruction
 ----------------------
@@ -1172,7 +1173,7 @@ Inter-function Control Flow
 sig
     *function signature*: The signature of the callee.
 callee
-    *variable* of type ``func<sig>``: The callee.
+    *variable* of type ``funcref<sig>``: The callee.
 argList
     *argument list*: Argument list.
 excClause
@@ -1256,7 +1257,8 @@ function. After returning from the client, this instruction will be tried again.
       calls.
     - Arguments will not be automatically zero or sign-extended or truncated for
       the programmer. Conversions must be explicitly done before calling.  
-    - The ``func`` type in Mu is a dedicated function reference, not a pointer. 
+    - The ``funcref`` type in Mu is a dedicated function reference, not a
+      pointer. See ``CCALL`` which calls a native function.
     - All parameters are passed by value and parameters are SSA Values. To pass
       on-stack data or arrays, use ``alloca`` and pass ``iref``.  
     - The keep-alive clause is unique to Mu for OSR.
@@ -1883,11 +1885,11 @@ offset
     *variable* of type *T2*: The offset to move the *opnd*.
 
 opnd
-    *variable* of type ``iref<T>`` or ``ptr<T>``: The reference/pointer to
+    *variable* of type ``iref<T>`` or ``uptr<T>``: The reference/pointer to
     derive reference from.
 
 return value
-    Type is ``iref<U>`` or ``ptr<U>``: The derived reference/pointer.
+    Type is ``iref<U>`` or ``uptr<U>``: The derived reference/pointer.
 
     - For ``GETFIELDIREF``, *U* is the type of the *index*-th field of *T1*.
     - For ``GETELEMIREF``, *U* is the element type of *T1*.
@@ -1998,8 +2000,8 @@ elements, the ``GETVARPARTIREF`` has undefined behaviour.
         .typedef @Foo = struct <@i64 @float @double>
 
         %foo_r = NEW <@Foo>                                 // ref<@Foo>
-        %foo_p = COMMINST @uvm.native.pin <@Foo> (%foo_r)   // ptr<@Foo>
-        %foo_1 = GETFIELDIREF PTR <@Foo 1>                  // ptr<@float>
+        %foo_p = COMMINST @uvm.native.pin <@Foo> (%foo_r)   // uptr<@Foo>
+        %foo_1 = GETFIELDIREF PTR <@Foo 1>                  // uptr<@float>
 
         COMMINST @uvm.native.unpin <@Foo> (%foo_r)
         
@@ -2017,9 +2019,9 @@ reference, the instruction will *continue exceptionally*.
 Memory Order
 ~~~~~~~~~~~~
 
-A **memory order** is a flag in the following table. Their semantics are
-described in `<memory-model>`__. Different instructions have different
-requirements for their *memory orders*. See `<memory-model>`__.
+A **memory order** is one in the following table. Their semantics are described
+in `<memory-model>`__. Different instructions have different requirements for
+their *memory orders*. See `<memory-model>`__.
 
 =========== ======  =======================
 Keyword     Binary  Semantic
@@ -2046,8 +2048,8 @@ ord :sub:`opt`
 T
     *type*: The referent type of *loc*.
 loc
-    *variable* of type ``iref<T>`` or ``ptr<T>``: The memory location/address to
-    load from.
+    *variable* of type ``iref<T>`` or ``uptr<T>``: The memory location/address
+    to load from.
 excClause
     *exception clause*: Used to handle NULL reference errors.
 return value
@@ -2092,7 +2094,7 @@ ord :sub:`opt`
 T
     *type*: The referent type of *loc*.
 loc
-    *variable* of type ``iref<T>`` or ``ptr<T>``: The memory location/address to
+    *variable* of type ``iref<T>`` or ``uptr<T>``: The memory location/address to
     store into.
 excClause
     *exception clause*: Used to handle NULL reference errors.
@@ -2140,7 +2142,7 @@ ordSucc, ordFail
 T
     *type*, must be EQ-comparable: The referent type of *loc*.
 loc
-    *variable* of ``iref<T>`` or ``ptr<T>``: The memory location/address to
+    *variable* of ``iref<T>`` or ``uptr<T>``: The memory location/address to
     access.
 expected
     *variable* of the strong variant of *T*: The expected value in the
@@ -2222,7 +2224,7 @@ op
 T
     *type*: The referent type of *loc*.
 loc
-    *variable* of ``iref<T>`` or ``ptr<T>``: The memory location/address to
+    *variable* of ``iref<T>`` or ``uptr<T>``: The memory location/address to
     access.
 opnd
     *variable* of the strong variant of *T*: The right-hand-side of the
@@ -2587,8 +2589,8 @@ implementation-dependent and calling convention-dependent.
       system call number.
       
     * If it is something like `a SWAP-STACK operation implemented as a calling
-      convention <http://dl.acm.org/citation.cfm?id=2400695>`__, then *T* can be a
-      stack pointer, maybe ``ptr<void>``, or a pointer to some specific type.
+      convention <http://dl.acm.org/citation.cfm?id=2400695>`__, then *T* can be
+      a stack pointer, maybe ``uptr<void>``, or a pointer to some specific type.
 
 The semantic of this instruction is highly implementation-dependent. See
 `<native-interface>`__ for a detailed description of the native interface.
@@ -2632,17 +2634,17 @@ The semantic of this instruction is highly implementation-dependent. See
         .typedef @c_ssize_t = int<64>
         .typedef @c_int     = int<32>
         .typedef @c_void    = void
-        .typedef @c_ptrvoid = ptr<@c_void>  // the ptr type is still a planned feature
+        .typedef @c_ptrvoid = uptr<@c_void>
         .typedef @c_size_t  = int<64>
         .funcsig @write_sig = @c_ssize_t (@c_int @c_ptrvoid @c_size_t)
-        .typedef @write_ptr = funcptr<@write_sig>
+        .typedef @write_ptr = ufuncptr<@write_sig>
 
         // Define necessary constants and types
         .const @FD = 1      // 1 is for stdout
 
         .typedef @DynByteArray = hybrid<@void @i8>
         .typedef @irefi8 = iref<@i8>
-        .typedef @ptri8  = ptr<@i8>
+        .typedef @ptri8  = uptr<@i8>
         .const @ARY_SZ <@i64> = 13
         .const @CHAR_H  <@i8> = 0x48    // 'H'
         .const @CHAR_e  <@i8> = 0x65    // 'e'
@@ -2669,10 +2671,10 @@ The semantic of this instruction is highly implementation-dependent. See
         STORE <@i8> %v12 @CHAR_NL       // store '\n'
 
         // Before calling the C function, we need to pin the object 
-        %bufptr = COMMINST @uvm.native.pin <@irefi8> %v     // pins the underlying object of %v. %bufptr is a ptr<@i8>
+        %bufptr = COMMINST @uvm.native.pin <@irefi8> %v     // pins the underlying object of %v. %bufptr is a uptr<@i8>
         %bufptr_pv = PTRCAST <@ptri8 @c_ptrvoid> %bufptr    // cast to the correct type
 
-        // Cast the function to a funcptr type
+        // Cast the function to a ufuncptr type
         %callee = PTRCAST <@AddrType @write_ptr> @write_address
 
         // Then use the CCALL instruction to call the write function.
@@ -2693,13 +2695,13 @@ Thread and Stack
 sig
     *function signature*: The signature of the callee.
 func
-    *variable* of ``func<sig>``: The stack bottom function.
+    *variable* of ``funcref<sig>``: The stack bottom function.
 argList
     *argument list*: Argument list
 excClause
     *exception clause*: To handle stack allocation errors.
 return value:
-    Type is ``stack``: The newly created stack.
+    Type is ``stackref``: The newly created stack.
 
 +------+-----+------+---------+-----------+
 | opct | idt | idt  | argList | excClause |
@@ -2786,7 +2788,7 @@ function. After returning from the client, this instruction will be tried again.
 +------+-----+
 
 swappee
-    *variable* of type ``stack``: The stack to swap to.
+    *variable* of type ``stackref``: The stack to swap to.
 curStackClause
     *current stack clause*: Action to the current stack.
 T1
@@ -2842,7 +2844,7 @@ The ``SWAPSTACK`` instruction is an OSR point.
     3 and then raise an exception in the main coroutine to terminate the
     iteration::
 
-        .funcsig @sig1 = @void (@stack)
+        .funcsig @sig1 = @void (@sref)
         .const @I64_2 <@i64> = 2
         .const @I64_3 <@i64> = 3
 

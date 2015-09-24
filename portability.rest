@@ -62,9 +62,9 @@ implemented.
 
 The void type ``void`` is required.
 
-A function type ``func<Sig>`` is required if ``Sig`` is implemented.
+A function type ``funcref<Sig>`` is required if ``Sig`` is implemented.
 
-The opaque types ``thread`` and ``stack`` are both required.
+The opaque types ``threadref`` and ``stackref`` are both required.
 
 The tagged reference type ``tagref64`` is optional.
 
@@ -72,7 +72,7 @@ A function signature ``R (P0 P1 ...)`` is required if all of its parameter types
 and its return type are implemented and there are at most 256 parameters.
 Otherwise optional.
 
-Pointer types ``ptr<T>`` and ``funcptr<sig>`` are required for required and
+Pointer types ``uptr<T>`` and ``ufuncptr<sig>`` are required for required and
 native-safe types ``T`` and signatures ``sig``. Both are represented as
 integers, but their lengths are implementation-defined.
 
@@ -183,15 +183,15 @@ implementation-defined behaviours.
 The following types are required for both non-atomic and atomic ``LOAD`` and
 ``STORE`` for all implemented ``T`` and ``Sig``: ``int<8>``, ``int<16>``,
 ``int<32>``, ``int<64>``, ``float``, ``double``, ``ref<T>``, ``iref<T>``,
-``weakref<T>``, ``func<Sig>``, ``thread``, ``stack``, ``ptr<T>`` and
-``funcptr<Sig>``.
+``weakref<T>``, ``funcref<Sig>``, ``threadref``, ``stackref``, ``uptr<T>`` and
+``ufuncptr<Sig>``.
 
 The following types are required for non-atomic ``LOAD`` and ``STORE``:
 ``vector<int<32> 4>``, ``vector<float 4>`` and ``vector<double 2>``.
 
-``int<32>``, ``int<64>``, ``ref``, ``iref``, ``weakref``, ``func``, ``stack``,
-``thread``, ``ptr`` and ``funcptr`` are required for ``CMPXCHG`` and the
-``XCHG`` operation of the ``ATOMICRMW`` instruction. 
+``int<32>``, ``int<64>``, ``ref``, ``iref``, ``weakref``, ``funcref``,
+``threadref``, ``stackref``, ``uptr`` and ``ufuncptr`` are required for
+``CMPXCHG`` and the ``XCHG`` operation of the ``ATOMICRMW`` instruction. 
 
 ``int<32>`` and ``int<64>`` are required for all ``ATOMICRMW`` operations.
 

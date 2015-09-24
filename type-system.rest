@@ -43,13 +43,13 @@ The following type constructors are available in Mu:
 - array < T length >
 - hybrid < F V >
 - void
-- func < sig >
-- thread
-- stack
+- funcref < sig >
+- threadref
+- stackref
 - tagref64
 - vector < T length >
-- ptr < T >
-- funcptr < sig >
+- uptr < T >
+- ufuncptr < sig >
 
 Parameters of a type are in the angular brackets. They can be integer literals,
 types and function signatures. In the text form, the latter two are global
@@ -60,16 +60,19 @@ There are several kinds of types.
 * ``float`` and ``double`` are **floating point types**.
 * ``ref`` and ``weakref`` are **object referenct types**.
 * ``ref``, ``iref`` and ``weakref`` are **reference types**.
-* ``ref``, ``iref``, ``weakref``, ``func``, ``thread`` and ``stack`` are
-  **general reference types**.
-* ``int``, ``float``, ``double``, ``ref``, ``iref``, ``weakref``, ``func``,
-  ``thread``, ``stack`` and ``tagref64`` are **scalar types**.
+* ``funcref``, ``threadref`` and ``stackref`` are **opaque reference types**.
+* *Reference types* and *opaque reference types* are **general reference types**.
+* ``int``, ``float``, ``double``, *general reference types* and ``tagref64`` are
+  **scalar types**.
 * ``vector``, ``struct``, ``array`` and ``hybrid`` are **composite types**.
+
+  * ``void`` is neither a *scalar type* nor a *composite type*.
+
 * ``hybrid`` is the only **variable-length type**. All other types are
   **fixed-length types**.
-* ``ptr`` and ``funcptr`` are **pointer types**.
-* ``int``, ``ref``, ``iref``, ``func``, ``stack``, ``thread`` and pointer types
-  are **EQ-comparable types**.
+* ``uptr`` and ``ufuncptr`` are **pointer types**.
+* ``int``, ``ref``, ``iref``, ``funcref``, ``stackref``, ``threadref`` and
+  pointer types are **EQ-comparable types**.
 * ``int``, ``iref`` and pointer types are **ULT-comparable types**.
 * ``ref<T>`` is the **strong variant** of ``weakref<T>``; ``weakref<T>`` is the
   **weak variant** of ``ref<T>``. All other types are the strong variant or weak
@@ -83,8 +86,8 @@ itself or a member of any component of T.
     NOTE: This means a component is anything in a type, including itself and any
     arbitrarily nested members.
 
-The type parameter *T* in ``ptr<T>`` and the return type and all parameter types
-of *sig* in ``funcptr<sig>`` must be **native-safe**. It is defined as
+The type parameter *T* in ``uptr<T>`` and the return type and all parameter
+types of *sig* in ``ufuncptr<sig>`` must be **native-safe**. It is defined as
 following:
 
 * ``void``, ``int<n>``, ``float`` and ``double`` are *native-safe*.
@@ -93,13 +96,13 @@ following:
   native-safe if all of their type arguments *T1*, *T2*, ..., *T*, *F*, *V* are
   native-safe.
 
-* ``ptr<T>`` and ``funcptr<sig>`` are *native-safe* if *T* and the return type
-  and all parameter types in *sig* are native-safe. Otherwise the ``ptr`` or the
-  ``funcptr`` type is not well-formed.
+* ``uptr<T>`` and ``ufuncptr<sig>`` are *native-safe* if *T* and the return type
+  and all parameter types in *sig* are native-safe. Otherwise the ``uptr`` or
+  the ``ufuncptr`` type is not well-formed.
 
-* All other types are not native-safe. (Specifically, they are ``ref``, ``iref``,
-  ``weakref``, ``func``, ``thread``, ``stack`` as well as ``struct``, ``array``
-  or ``hybrid`` that contains them.)
+* All other types are not native-safe. (Specifically, they are ``ref``,
+  ``iref``, ``weakref``, ``funcref``, ``threadref``, ``stackref`` as well as
+  ``struct``, ``array`` or ``hybrid`` that contains them.)
 
 Integer Type
 ------------
@@ -320,17 +323,22 @@ Struct
 ``struct`` is a Cartesian product type of several types. *T1*, *T2*, *...* are
 its **field types**. A ``struct`` must have at least one member.
 
+    NOTE: For C programs: C does not allow empty structures, either, but many
+    programmers create empty structures in practice. C++ does allow empty
+    classes. g++ treats empty classes as having one ``char`` element. In Mu, if
+    it is desired to allocate an empty unit in the heap, the appropriate type is
+    ``void``.
+
 ``struct`` cannot be the type of an SSA variable if any of its field types
 cannot be the type of an SSA variable.
 
-    NOTE: For example, a ``struct`` with an ``array`` field cannot be the type
+    NOTE: For example, a ``struct`` with a ``weakref`` field cannot be the type
     of an SSA variable. However, there can be references to such structs.
 
 In the binary form, an integer literal ``nfields`` determines the number of
 fields. Exactly that number of type IDs follows the ``nfields`` literal.
 
-    For LLVM users: this is almost identical to LLVM's struct type, except it
-    does not allow embedded arrays.
+    For LLVM users: this is identical to LLVM's struct type.
 
 ..
 
@@ -365,9 +373,19 @@ An ``array`` is a sequence of homogeneous data structure in the memory. *T* is
 its **element type**, i.e. the type of its elements, and *length* is the length
 of the array.
 
-``array`` cannot be the type of any SSA variable.
+It is not recommended to have an SSA variable of ``array`` type.
 
-    NOTE: There can be references to arrays.
+    NOTE: The most useful feature of arrays is indexing by a variable index.
+    But an SSA variable has more in common with registers than memory, and SSA
+    variables are designed to be allocated in registers when possible. Mu
+    implementations, as supposed to be minimal, may not be able to implement
+    indexing more efficiently than storing the array to the memory and load
+    back and element.
+
+    Using arrays as an SSA variable is most useful when passing a ``struct``
+    value (not pointer) that contains an array member to a C function that
+    requires such a parameter, although such C functions are, themselves, very
+    rare.
 
 ..
 
@@ -445,7 +463,7 @@ Void Type
 The ``void`` type has no value. It can only be used in the following ways:
 
 * As the type of allocation units that do not represent values. Hence it is
-  usable as the referent type of reference types.
+  usable as the referent type of reference types and pointer types.
 * As the fixed part of a ``hybrid`` to indicate the absence of the fixed part.
 * As the type of instructions or the return type of functions that do not return
   values.
@@ -453,7 +471,7 @@ The ``void`` type has no value. It can only be used in the following ways:
 Opaque Reference Type
 ---------------------
 
-``func < sig >``
+``funcref < sig >``
 
     ``sig``
         *function signature*: The signature of the referred function.
@@ -464,30 +482,22 @@ Opaque Reference Type
 | 0x0B | sig |
 +------+-----+
 
-``func`` is a function reference type. It is an opaque reference to a Mu
+``funcref`` is a function reference type. It is an opaque reference to a Mu
 function and is not interchangeable with reference types. *sig* is the signature
 of the function it refers to.
 
-A ``NULL`` value of a ``func`` type does not refer to any function.
+A ``NULL`` value of a ``funcref`` type does not refer to any function.
 
-    NOTE: The value of a ``func`` may refer to a function that is declared but
-    not defined. The value of a ``func`` type does not change even the function
-    it refers to is redefined.
-
-..
-
-    For C users: The ``func`` type is a function **reference** type, but it is
-    not a function itself. It is similar to the "pointer to function" type in C.
-    In C, an expression of function type is always implicitly converted to a
-    "pointer to function" type unless appearing inside ``sizeof`` or
-    ``alignof``, in which case it is an error (see the "standard conversion"
-    rules of C11). There is no "function type" in Mu.
+    NOTE: The value of a ``funcref`` may refer to a function that is declared
+    but not defined. The value of a ``funcref`` type does not change even the
+    function it refers to becomes defined or redefined.
 
 ..
 
-    For LLVM users: the ``func`` type in Mu is not a pointer (it may be
-    implemented under the hood as a pointer to a function, but the client should
-    not depend on that). It is opaque.
+    For C and LLVM users: The ``funcref`` type is similar to the "pointer to
+    function" type in C and LLVM, but it only refer to Mu functions. It is not a
+    pointer (see the ``ufuncptr`` type). It may be implemented under the hood as
+    a pointer to a function, which will be an implementation detail.
 
 ..
 
@@ -499,10 +509,10 @@ A ``NULL`` value of a ``func`` type does not refer to any function.
         .funcsig @sig1 = @i64 (@i64 @i64)
         .funcsig @sig2 = @void ()
 
-        .typedef @func1 = func<@sig1>
-        .typedef @func2 = func<@sig2>
+        .typedef @func1 = funcref<@sig1>
+        .typedef @func2 = funcref<@sig2>
 
-``thread``
+``threadref``
 
 +------+
 | opct |
@@ -510,7 +520,7 @@ A ``NULL`` value of a ``func`` type does not refer to any function.
 | 0x0C |
 +------+
 
-``stack``
+``stackref``
 
 +------+
 | opct |
@@ -518,13 +528,13 @@ A ``NULL`` value of a ``func`` type does not refer to any function.
 | 0x0D |
 +------+
 
-``thread`` and ``stack`` are opaque reference types to Mu threads and Mu
+``threadref`` and ``stackref`` are opaque reference types to Mu threads and Mu
 stacks, respectively. They are not interchangeable with reference types. Only
-some special instructions (e.g. ``NEWSTACK``) or common instructions (e.g.
-``@uvm.new_thread``) can operate on them.
+some special instructions (e.g. ``NEWSTACK``, ``@uvm.new_thread``) or API
+calls can operate on them.
 
-Both ``thread`` and ``stack`` values can be ``NULL``, which does not refer to
-any threads or stacks.
+Both ``threadref`` and ``stackref`` values can be ``NULL``, which does not refer
+to any threads or stacks.
 
 Tagged Reference
 ----------------
@@ -599,7 +609,7 @@ It is allowed to have SSA variables of vector types.
 Pointer Types
 -------------
 
-``ptr < T >``
+``uptr < T >``
 
     ``T``
         *type*: The type of the referent.
@@ -610,7 +620,7 @@ Pointer Types
 | 0x10 | T   |
 +------+-----+
 
-``funcptr < sig >``
+``ufuncptr < sig >``
 
     ``sig``
         *function signature*: The signature of the pointed function.
@@ -621,25 +631,28 @@ Pointer Types
 | 0x11 | sig |
 +------+-----+
 
-``ptr`` and ``funcptr`` are pointer types which are represented by the integral
-address of the referent. They are part of the (unsafe) native interface.
+``uptr`` and ``ufuncptr`` are (untraced) pointer types which are represented by
+the integral address of the referent. They are part of the (unsafe) native
+interface. The "u" in their names stand for "untraced". Their values are not
+affected by the garbage collection, even if their addresses are obtained from
+pinning heap objects which are later unpinned. 
 
-``ptr`` is the data pointer type. It points to a region in the native address
+``uptr`` is the data pointer type. It points to a region in the native address
 space which represents the data type *T*.
 
-``funcptr`` is the function pointer type. It points to a native function whose
+``ufuncptr`` is the function pointer type. It points to a native function whose
 signature is *sig*.
 
 The type parameter *T* and both the return type and the parameter types of *sig*
-must be *native-safe*. See the `Native Interface <native-interface>`__.
+must be *native-safe*.
 
-    For LLVM users: ``ptr<T>`` is the counterpart of pointer types ``T*``.
-    ``funcptr<sig>`` is the counterpart of function pointers ``R (P1 P2 ...)*``.
+    For LLVM users: ``uptr<T>`` is the counterpart of pointer types ``T*``.
+    ``ufuncptr<sig>`` is the counterpart of function pointers ``R (P1 P2 ...)*``.
     The ``PTRCAST`` instruction can cast between different pointer types as well
     as integer types.
 
-    For C users: Similar to LLVM, ``ptr`` and ``funcptr`` are the equivalent of
-    C pointers to objects and functions, respectively. However, since Mu
+    For C users: Similar to LLVM, ``uptr`` and ``ufuncptr`` are the equivalent
+    of C pointers to objects and functions, respectively. However, since Mu
     interfaces with the native world at the ABI level rather than the C
     programming language level, pointers are defined as addresses and casting
     between pointers and integers has semantics.
@@ -649,24 +662,24 @@ must be *native-safe*. See the `Native Interface <native-interface>`__.
     Example::
 
         .typedef @i32           = int<32>       // int
-        .typedef @i32_p         = ptr<@i32>     // int*
+        .typedef @i32_p         = uptr<@i32>    // int*
 
         // ssize_t write(int fildes, const void *buf, size_t nbyte);
         // See man (2) write.
         .typedef @void          = void          // void
-        .typedef @void_p        = ptr<@void>    // void*
+        .typedef @void_p        = uptr<@void>   // void*
         .typedef @size_t        = int<64>       // size_t, ssize_t
         .funcsig @write_s       = @size_t (@i32 @void_p @size_t)  
-        .typedef @write_fp      = funcptr<@write_s>
+        .typedef @write_fp      = ufuncptr<@write_s>
         // @write_fp may point to the native function "write".
 
         // typedef void (*sig_t) (int);
         // sig_t signal(int sig, sig_t func);
         // See man (3) signal.
         .funcsig @sig_s         = @void (@i32)       
-        .typedef @sig_t         = funcptr<@sig_s>
+        .typedef @sig_t         = ufuncptr<@sig_s>
         .funcsig @signal_s      = @sig_t (@i32 @sig_t)
-        .typedef @signal_fp     = funcptr<@signal_s>
+        .typedef @signal_fp     = ufuncptr<@signal_s>
         // @signal_fp may point to the native function "signal".
 
 .. vim: tw=80

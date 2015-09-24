@@ -400,7 +400,7 @@ A **constant constructor** can be the following:
     data structure in the global memory or allocate it in the heap and assign
     its reference to a global cell. In fact, the ID or the name of any global
     cell is a constant SSA variable of an internal reference to it. The ID or
-    the name of a Mu function is a constant SSA variable of a ``func``.
+    the name of a Mu function is a constant SSA variable of a ``funcref``.
 
 ..
 
@@ -443,14 +443,14 @@ A **constant constructor** can be the following:
         .typedef @iref_void = iref<@void>
         .const @null_iref <@iref_void> = NULL
 
-        .typedef @some_func = func<@noparamsnoret>
+        .typedef @some_func = funcref<@noparamsnoret>
         .const @null_func <@some_func> = NULL
 
-        .typedef @thread = thread
-        .const @null_thread <@thread> = NULL
+        .typedef @tref = threadref
+        .const @null_tr <@tref> = NULL
 
-        .typedef @stack = stack
-        .const @null_stack <@stack> = NULL
+        .typedef @sref = stackref
+        .const @null_sr <@sref> = NULL
 
         .typedef @4xfloat = vector <@float 4>
         .const @vec1 <@4xfloat> = VEC { @float1 @float2 @float3 @float4 }
@@ -464,8 +464,8 @@ A **constant constructor** can be the following:
 
         .const @record2 <@record2_t> = {@g1 @f1}
 
-        .typedef @ptri64          = ptr<@i64>
-        .typedef @fpnoparamsnoret = funcptr<@noparamsnoret>
+        .typedef @ptri64          = uptr<@i64>
+        .typedef @fpnoparamsnoret = ufuncptr<@noparamsnoret>
 
         // Address should be looked up before generating the bundle.
         .const @ptrconst <@ptri64> = 0x12345678

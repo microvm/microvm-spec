@@ -122,15 +122,16 @@ Initial Values
 The initial value of any memory location is defined as the following, according
 the type of data value the memory location represents:
 
-* The initial value of ``int`` is 0.
+* The initial value of ``int`` and pointer types is 0 (numerical value or
+  address).
 * The initial value of floating point types is positive zero.
-* The initial value of ``ref``, ``iref``, ``weakref``, ``func``, ``stack``
-  and ``thread`` is ``NULL``.
+* The initial value of ``ref``, ``iref``, ``weakref``, ``funcref``, ``stackref``
+  and ``threadref`` is ``NULL``.
 * The initial value of ``tagref64`` is a floating point number which is
   positive zero.
-* The initial values of all fields or elements in ``struct``, ``array`` and
-  the variable part of ``hybrid`` are the initial values according to their
-  respective types.
+* The initial values of all fields or elements in ``struct``, ``array``,
+  ``vector`` and the variable part of ``hybrid`` are the initial values
+  according to their respective types.
 
 Garbage Collection
 ------------------
@@ -268,7 +269,7 @@ Memory Operations on Pointers
 Load, store, compare exchange and atomic-x operations can work with native
 memory in addition to Mu memory locations. In this case, the *loc* parameter of
 the above operations become a region of bytes in the native memory (usually
-represented as ``ptr<T>``) rather than memory locations (usually represented as
+represented as ``uptr<T>``) rather than memory locations (usually represented as
 ``iref<T>``).
 
 Only *native-safe* types can be accessed via pointers.

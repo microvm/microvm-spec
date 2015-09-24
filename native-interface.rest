@@ -87,12 +87,12 @@ Pointers
 --------
 
 A **pointer** is an address in the memory space of the current process.  A
-pointer can be a **data pointer** (type ``ptr<T>``) or **function pointer**
-(type ``funcptr<sig>``). The former assumes a data value is stored in a region
+pointer can be a **data pointer** (type ``uptr<T>``) or **function pointer**
+(type ``ufuncptr<sig>``). The former assumes a data value is stored in a region
 beginning with the address. The latter assumes a piece of executable machine
 code is located at the address.
 
-``ptr<T>``, ``funcptr<sig>`` and ``int<n>``, where ``T`` is a type, ``sig`` is a
+``uptr<T>``, ``ufuncptr<sig>`` and ``int<n>``, where ``T`` is a type, ``sig`` is a
 function signature, can be cast to each other using the ``PTRCAST`` instruction.
 The address is preserved and the ``int<n>`` type has the numerical value of the
 address. Type checking is not performed.
@@ -259,8 +259,8 @@ Changes in the Mu IR and the API
 
 **New types**:
 
-* ``ptr < T >``
-* ``funcptr < sig >``
+* ``uptr < T >``
+* ``ufuncptr < sig >``
 
 See `Type System <type-system>`__
 
@@ -299,7 +299,7 @@ See `Instruction Set <instruction-set>`__ and `Common Instructions
 * ``CCALL``
 
 Memory addressing instructions take an additional ``PTR`` flag. If this flag is
-present, the location operand must be ``ptr<T>`` rather than ``iref<T>``. For
+present, the location operand must be ``uptr<T>`` rather than ``iref<T>``. For
 example:
 
 * ``%new_ptr = GETFIELDIREF PTR <@some_struct 3>   %ptr_to_some_struct``
@@ -325,10 +325,10 @@ See `Instruction Set <instruction-set>`__.
 **Modified API messages**:
 
 The following messages: ``get_field_iref``, ``get_elem_iref``, ``shift_iref``,
-``get_fixed_part_iref``, ``get_var_part_iref``, ``load``, ``store``,
-``cmpxchg`` and ``atomicrmw`` work for both ``ptr<T>`` and ``iref<T>`` operands.
-No changes to the parameters are required. The return values for memory
-addressing messages are ``ptr<U>`` rather than ``iref<U>`` for some type U.
+``get_fixed_part_iref``, ``get_var_part_iref``, ``load``, ``store``, ``cmpxchg``
+and ``atomicrmw`` work for both ``uptr<T>`` and ``iref<T>`` operands.  No
+changes to the parameters are required. The return values for memory addressing
+messages are ``uptr<U>`` rather than ``iref<U>`` for some type U.
 
     TODO: Currently the API assumes each handle has an attached type, and does
     not require the client to supply the types for handles when using them. Is
