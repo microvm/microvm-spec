@@ -17,6 +17,7 @@ typedef void *MuRefValue;           // ref<T>
 typedef void *MuIRefValue;          // iref<T>
 typedef void *MuStructValue;        // struct<...>
 typedef void *MuArrayValue;         // array<T l>
+typedef void *MuVectorValue;        // vector<T l>
 typedef void *MuFuncRefValue;       // funcref<sig>
 typedef void *MuThreadRefValue;     // threadref
 typedef void *MuStackRefValue;      // stackref
@@ -172,6 +173,11 @@ struct MuCtx {
     // Manipulate Mu values of the struct<...> type
     MuValue     (*extract_value)(MuCtx *ctx, MuStructValue str, int index);
     MuValue     (*insert_value )(MuCtx *ctx, MuStructValue str, int index, MuValue newval);
+
+    // Manipulate Mu values of the array or vector type
+    // str can be MuArrayValue or MuVectorValue
+    MuValue     (*extract_element)(MuCtx *ctx, MuValue str, MuIntValue index);
+    MuValue     (*insert_element )(MuCtx *ctx, MuValue str, MuIntValue index, MuValue newval);
 
     // Heap allocation
     MuRefValue  (*new_fixed )(MuCtx *ctx, MuID mu_type);

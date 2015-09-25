@@ -1444,8 +1444,8 @@ client must implement its own RTTI, probably in the Java style.
 Aggregate Type Operations
 =========================
 
-These instructions operate on the ``struct`` and the ``vector`` types as SSA
-variables.
+These instructions operate on the ``struct``, the ``array`` and the ``vector``
+types as SSA variables.
 
 Struct Operations
 -----------------
@@ -1550,8 +1550,8 @@ field values as *opnd* except the field specified by *index* which has the value
         %b2 = INSERTVALUE <@Baz 0> %b @H    // %b2 == {999.0d 2.2d} and is a @Baz
         %t2 = INSERTVALUE <@Bar 1> @T %c    // %t2 == {1.0d {999.9d 2.2d} 3.0d} and is a @Bar
 
-Vector Operations
------------------
+Array and Vector Operations
+---------------------------
 
 ``EXTRACTELEMENT`` Instruction
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1559,11 +1559,11 @@ Vector Operations
 ``EXTRACTELEMENT`` ``<`` *T1* *T2* ``>`` *opnd* *index*
 
 T1
-    *type*, must be a ``vector``: The type of *vec*.
+    *type*, must be an ``array`` or ``vector`` type: The type of *opnd*
 T2
-    *type*, must be an ``int``: The type of *index*.
+    *type*, must be an ``int`` type: The type of *index*.
 opnd
-    *variable* of type *T1*: The vector to extract from.
+    *variable* of type *T1*: The array or vector to extract from.
 index
     *variable* of type *T2*: The index of the element to extract.
 return value
@@ -1575,11 +1575,11 @@ return value
 | 0x72 | T1  | T2  | opnd | index |
 +------+-----+-----+------+-------+
 
-The ``EXTRACTELEMENT`` instruction extracts the element at *index* from a vector
-value *opnd* of vector type *T1*.
+The ``EXTRACTELEMENT`` instruction extracts the element at *index* from an array
+or vector value *opnd* of vector type *T1*.
 
 The *index* may have any integer type and is treated as unsigned. If index
-exceeds the length of the vector, it has undefined behaviour.
+exceeds the length of the array or vector, it has undefined behaviour.
 
     For LLVM users: This is the counterpart of the ``extractelement``
     instruction of LLVM.
@@ -1594,17 +1594,18 @@ exceeds the length of the vector, it has undefined behaviour.
 ``INSERTELEMENT`` ``<`` *T1* *T2* ``>`` *opnd* *index* *newVal*
 
 T1
-    *type*, must be a ``vector``: The type of *vec*.
+    *type*, must be an ``array`` or ``vector`` type: The type of *opnd*.
 T2
-    *type*, must be an ``int``: The type of *index*.
+    *type*, must be an ``int`` type: The type of *index*.
 opnd
-    *variable* of type *T1*: The vector to insert into.
+    *variable* of type *T1*: The array or vector to insert into.
 index
     *variable* of type *T2*: The index of the element to insert.
 newVal
     *variable* of the element type of *T1*: The new value for that element.
 return value
-    Type is *T1*: A new vector with the *index*-th element being *newVal*.
+    Type is *T1*: A new array or vector with the *index*-th element being
+    *newVal*.
 
 +------+-----+-----+------+-------+--------+
 | opct | idt | idt | idt  | idt   | idt    |
@@ -1612,12 +1613,12 @@ return value
 | 0x73 | T1  | T2  | opnd | index | newVal |
 +------+-----+-----+------+-------+--------+
 
-The ``INSERTELEMENT`` instruction creates a new vector value which has the same
-element values as *opnd* except the element at *index* which has the value of
-*newVal*.
+The ``INSERTELEMENT`` instruction creates a new array or vector value which has
+the same element values as *opnd* except the element at *index* which has the
+value of *newVal*.
 
 The *index* may have any integer type and is treated as unsigned. If index
-exceeds the length of the vector, it has undefined behaviour.
+exceeds the length of the array or vector, it has undefined behaviour.
 
     For LLVM users: This is the counterpart of the ``insertelement`` instruction
     of LLVM.
