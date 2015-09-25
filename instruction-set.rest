@@ -1682,8 +1682,8 @@ inclusively, where n is the length of *T1*, then it has undefined behaviour.
         .const @S6 <@float> = 9.7f
         .const @S7 <@float> = 9.3f
 
-        .const @V0 <@4xfloat> = VEC { @S0 @S1 @S2 @S3 }     // { 3.1f 4.1f 5.9f 2.6f }
-        .const @V1 <@4xfloat> = VEC { @S4 @S5 @S6 @S7 }     // { 5.3f 5.8f 9.7f 9.3f }
+        .const @V0 <@4xfloat> = { @S0 @S1 @S2 @S3 }     // { 3.1f 4.1f 5.9f 2.6f }
+        .const @V1 <@4xfloat> = { @S4 @S5 @S6 @S7 }     // { 5.3f 5.8f 9.7f 9.3f }
 
         .const @I32_2 <@i32> = 2
         .const @I32_3 <@i32> = 3
@@ -1692,12 +1692,12 @@ inclusively, where n is the length of *T1*, then it has undefined behaviour.
         .const @I32_6 <@i32> = 6
         .const @I32_7 <@i32> = 7
 
-        .const @M0 <@4xi32> = VEC { @I32_1 @I32_0 @I32_2 @I32_1 }
+        .const @M0 <@4xi32> = { @I32_1 @I32_0 @I32_2 @I32_1 }
 
         .typedef @8xi32     = vector <@i32 8>
         .typedef @8xfloat   = vector <@float 8>
 
-        .const @M1 <@8xi32> = VEC { @I32_7 @I32_5 @I32_6 @I32_4 @I32_2 @I32_1 @I32_3 @I32_0 }
+        .const @M1 <@8xi32> = { @I32_7 @I32_5 @I32_6 @I32_4 @I32_2 @I32_1 @I32_3 @I32_0 }
 
         %a = EXTRACTELEMENT <@4xfloat @i64> @V0 @I64_2      // 5.9f
         %b = INSERTELEMENT  <@4xfloat @i64> @V0 @I64_3 @S7  // { 3.1f 4.1f 5.9f 9.3f }

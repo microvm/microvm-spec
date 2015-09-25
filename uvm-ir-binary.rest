@@ -176,21 +176,21 @@ A double constant constructor has the following form:
 
     NOTE: this is equivalent to a double literal in the text form.
 
-Struct Constant Constructor
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+List Constant Constructor
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A struct constant constructor has the following form:
+A list constant constructor has the following form:
 
 +------+---------+
 | opct | idList  |
 +======+=========+
-| 0x04 | fields  |
+| 0x04 | elems   |
 +------+---------+
 
-``fields`` is a list of IDs, each of which refers to another constant which is
-the value of the corresponding field of the struct.
+``elems`` is a list of IDs, each of which refers to another constant which is
+the value of the corresponding field of the struct or element of array/vector.
 
-    NOTE: this is equivalent to the struct literal ``{fields}`` in the text
+    NOTE: this is equivalent to the struct literal ``{elems}`` in the text
     form.
 
 NULL Constant Constructor

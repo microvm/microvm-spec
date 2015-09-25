@@ -351,24 +351,21 @@ A **constant constructor** can be the following:
     the same bit-wise representation as the 32-bit or 64-bit integer of
     ``intlit``, respectively.
 
-- A **struct constructor** creates a struct constant. It is:
+- A **list constructor** creates a struct/array/vector constant. It is:
 
   + an opening brace ``{``, followed by
   + a sequence of global names of other global variables separated by spaces,
     and
   + a closing brace ``}``.
 
+  The sequence of names must have the same number of names as the number of
+  fields/elements as the type requires.
+
   A constant must not be recursive.
 
 - A **null constructor** create a null value of *general reference types* except
   ``weakref`` (defined in `<type-system>`__). It is written as the **null
   literal**: ``NULL``. 
-
-- A **vector constructor** create a vector constant. It is:
-
-  + the literal ``VEC`` followed by an open brace ``{``, followed by
-  + a sequence of global names of other constants separated by spaces, and
-  + a closing brace ``}``.
 
 ..
 
@@ -453,7 +450,7 @@ A **constant constructor** can be the following:
         .const @null_sr <@sref> = NULL
 
         .typedef @4xfloat = vector <@float 4>
-        .const @vec1 <@4xfloat> = VEC { @float1 @float2 @float3 @float4 }
+        .const @vec1 <@4xfloat> = { @float1 @float2 @float3 @float4 }
 
         // global cells and functions are global variables, too, and they are constants
         .global @g1 <@i64>
