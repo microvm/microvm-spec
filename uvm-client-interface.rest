@@ -70,6 +70,8 @@ A client context is represented as a pointer to the struct ``MuCtx``::
         void        (*load_hail  )(MuCtx *ctx, char *buf, int sz);
         ...
     };
+    
+The full list of member function pointers is listed in the header `<muapi.h>`__.
 
 Both the ``MuVM`` and the ``MuCtx`` struct contain many function pointer fields.
 Each function pointer must be called with the ``MuVM`` or ``MuCtx`` pointer as
@@ -119,17 +121,17 @@ opaque **handles**. Those handles are defined as::
 
 Each handle can only hold a Mu value of the type shown in the comments above.
 Handles have reference semantics: a handle refers to a value the client context
-holds.  Handles can be copied as if they are ``void*`` in C, and the resulting
+holds.  Handles can be copied as if they are pointers in C, and the resulting
 handles refer to the same value held by a context. Handles can be cast from
 MuValue to the more concrete type shown above, or the other way, and still refer
 to the same value held by the context.
 
 A handle is only valid within a client context. They must only be accessed with
 API functions that operates on the same context the handle is in. Handles are
-valid until either explicitly deleted, or the client context is closed
-(explained later). Specifically, like SSA variables in the IR, a handle of
-general reference types always refer to the same object, location or other
-entities.  This means a handle can keep Mu heap objects alive.
+valid until either the value held by the context is explicitly deleted, or the
+client context is closed (explained later). Specifically, like SSA variables in
+the IR, a handle of general reference types always refer to the same object,
+location or other entities.  This means a handle can keep Mu heap objects alive.
 
 ..
 
@@ -180,461 +182,280 @@ entities.  This means a handle can keep Mu heap objects alive.
 MuVM Functions
 ==============
 
-TODO
+In the following functions, the first argument ``mvm`` must be the same
+``MuVM*`` pointer to the ``MuVM`` structure that contains the function pointer.
 
-The ``new_agent`` Message
--------------------------
+::
 
-A client agent can be created using the ``new_agent`` message to Mu.
+    MuCtx* (*new_context)(MuVM *mvm);
 
-- receiver: Mu
-- message: ``new_agent``
-- parameters: None
-- return value: A client agent
-
-This message creates a client agent.
+The ``newcontext`` function creates a new client context.
 
     For Lua users: This is similar to ``lua_newstate``, but multiple client
     agents share the Mu memory and can be used concurrently.
 
+::
+
+    MuID    (*id_of  )(MuVM *mvm, MuName name);
+    MuName  (*name_of)(MuVM *mvm, MuID id);
+
+The ``id_of`` function looks up the corresponding ID by a name. The ``name_of``
+function looks up the name by an ID. Looking up names or IDs that do not exist
+has undefined behaviour.
+
+::
+
+    void    (*set_trap_handler      )(MuVM *mvm, MuTrapHandler trap_handler);
+    void    (*set_undef_func_handler)(MuVM *mvm, MuUndefFuncHandler undef_func_handler);
+
+The ``set_trap_handler`` function sets the handler for traps. The
+``set_undef_func_handler`` function sets the handler for undefined functions.
+See the *Trap and Undefined Function Handling* section below for more
+information.
+
+MuCtx Functions
+===============
+
+In the following functions, the first argument ``ctx`` must be the same
+``MuCtx*`` pointer to the ``MuCtx`` structure that contains the function
+pointer.
+
+Basic functions
+---------------
+
+::
+
+    MuID        (*id_of  )(MuCtx *ctx, MuName name);
+    MuName      (*name_of)(MuCtx *ctx, MuID id);
+
+They are the same as the ``MuVM`` functions. More often than not (such as trap
+handling), a client function only has access to a ``MuCtx*`` pointer rather than
+a ``MuVM*`` pointer.
+
+::
+
+    void        (*close_context)(MuCtx *ctx);
+
+The ``close_context`` function closes the current client context. After calling
+this function, this ``MuCtx*`` may no longer point to a valid ``MuCtx``
+structure and, thus, must not be used again. All values held by this context are
+released. Specifically, all values of reference type are cleared so they no
+longer strongly refer to objects and keep them alive. All handles created from
+this context become invalid.
+
+Implementations may release additional resources, such as context-specific
+(thread-local) memory allocation pools.
+
+Bundle and HAIL loading
+-----------------------
+
+::
+
+    void        (*load_bundle)(MuCtx *ctx, char *buf, int sz);
+    void        (*load_hail  )(MuCtx *ctx, char *buf, int sz);
+
+The ``load_bundle`` function loads a Mu IR bundle, and the ``load_hail``
+function loads a HAIL script. The content is held in the memory pointed to by
+``buf``, and ``sz`` is the length of the content in bytes. It contains the
+binary form if it begins with the 4-byte magic of the binary IR or the binary
+HAIL script, otherwise it is the text form.
+
+Concurrency: The content of the bundle or the effect of the HAIL script is fully
+visible to other evaluations in the client that *happen after* this call.
+
 ..
-
-    Example Java signature: ``ClientAgent MicroVM.newAgent()``
-
-    Example C signature: ``int new_agent()`` where the Mu instance is implicit
-    and the return value is an integer identifier of a particular client agent
-    of the global Mu instance.
-
-    Example C signature: ``client_agent *new_agent(microvm *vm)`` where the
-    Mu instance and the client agent are represented as pointers.
-
-The ``close_agent`` Message
----------------------------
-
-- receiver: client agent
-- message: ``close_agent``
-- parameters:
-
-  + ``agent``: A client agent
-
-- return value: None
-
-This message closes a client agent, destroying the client agent and all handles
-created by it. The Mu implementation may release resources reserved by the
-client agent. Closed client agents cannot be used again.
-
-    For Lua users: This is similar to ``lua_close``.
-
-..
-
-    Example Java signature: ``void ClientAgent.close()``
-
-    Example C signature: ``void close_agent(int agent_id)``
-
-    Example C signature: ``void close_agent(client_agent *agent)``
-
-Bundle Loading
-==============
-
-The client delivers Mu IR code in the unit of **bundles** (see `<uvm-ir>`__).
-
-The API provides a ``load_bundle`` message, but the concrete way how a bundle is
-delivered from the client to Mu is implementation-specific.
-
-    NOTE: this means it can be delivered by text files, binary files, char
-    buffers, strings or directly as built AST in the implementation's internal
-    format.
-
-Multiple bundles can be sequentially delivered to Mu. If a Mu implementation
-implements parallel bundle delivery, the result must be equivalent to as if they
-were delivered in a specific sequence.
-
-In a bundle, if any identified entity except function definition has the same ID
-or name as any existing identified entities defined in previous bundles, it is
-an error.
-
-If a function definition has the same ID and name as a previous function
-definition or function declaration, it must also have the same function
-signature and the new function definition **redefines** the previous function
-definition or declaration. If the signatures are different or the ID or name is
-the same as any identified entities other than function definitions or function
-declarations, it is an error.
-
-After a function definition redefines another function definition or
-declaration, subsequent calls to the function will call the newly defined
-version of the function.
-
-All existing activations of any functions remain unchanged, that is, they remain
-to be the old versions of the functions. 
-
-    NOTE: Specifically, existing traps in older versions of functions remain
-    valid. During OSR, redefining a function will not affect any existing
-    function activations unless they are explicitly popped by the client.
-
-The ``load_bundle`` Message
----------------------------
-
-- receiver: client agent
-- message: ``load_bundle``
-- parameters:
-
-  + ``bundle``: Mu IR bundle
-
-- return value: None
-
-Load the Mu IR bundle ``bundle`` into Mu.
 
     For Lua users: This is similar to ``lua_load``, but a Mu bundle itself is
     not an executable thing like a Lua top-level function.
 
+    For JVM users: This is similar to class loading. ``load_bundle`` loads the
+    code and some Mu-level constants, but some Java-level constants, such as
+    Strings, may be mapped to heap objects in Mu, and can be created and
+    initialised using HAIL.
+
+Converting values to/from handles
+---------------------------------
+
+::
+
+    MuIntValue      (*handle_from_int8  )(MuCtx *ctx, int8_t   num, int len);
+    MuIntValue      (*handle_from_uint8 )(MuCtx *ctx, uint8_t  num, int len);
+    MuIntValue      (*handle_from_int16 )(MuCtx *ctx, int16_t  num, int len);
+    MuIntValue      (*handle_from_uint16)(MuCtx *ctx, uint16_t num, int len);
+    MuIntValue      (*handle_from_int32 )(MuCtx *ctx, int32_t  num, int len);
+    MuIntValue      (*handle_from_uint32)(MuCtx *ctx, uint32_t num, int len);
+    MuIntValue      (*handle_from_int64 )(MuCtx *ctx, int64_t  num, int len);
+    MuIntValue      (*handle_from_uint64)(MuCtx *ctx, uint64_t num, int len);
+    MuFloatValue    (*handle_from_float )(MuCtx *ctx, float    num);
+    MuDoubleValue   (*handle_from_double)(MuCtx *ctx, double   num);
+    MuUPtrValue     (*handle_from_ptr   )(MuCtx *ctx, MuID mu_type, MuCPtr ptr);
+    MuUFPValue      (*handle_from_fp    )(MuCtx *ctx, MuID mu_type, MuCFP fp);
+
+where ``MuCPtr`` and ``MuCFP`` are convenient definitions for C types:
+
+::
+
+    typedef void *MuCPtr;
+    typedef void (*MuCFP)();
+
+The ``handle_from_XXX`` functions convert C values to Mu values held in the
+context and return handles to them. Specifically:
+
+* ``handle_from_int8``:     Convert a C ``int8_t`` value to a Mu integer of type
+  ``int<len>``, truncated or sign-extended.
+
+* ``handle_from_uint8``:    Convert a C ``uint8_t`` value to a Mu integer of
+  type ``int<len>``, truncated or zero-extended.
+
+* ``handle_from_int16``:    Convert a C ``int16_t`` value to a Mu integer of
+  type ``int<len>``, truncated or sign-extended.
+
+* ``handle_from_uint16``:   Convert a C ``uint64_t`` value to a Mu integer of
+  type ``int<len>``, truncated or zero-extended.
+
+* ``handle_from_int32``:    Convert a C ``int32_t`` value to a Mu integer of
+  type ``int<len>``, truncated or sign-extended.
+
+* ``handle_from_uint32``:   Convert a C ``uint64_t`` value to a Mu integer of
+  type ``int<len>``, truncated or zero-extended.
+
+* ``handle_from_int64``:    Convert a C ``int64_t`` value to a Mu integer of
+  type ``int<len>``, truncated or sign-extended.
+
+* ``handle_from_uint64``:   Convert a C ``uint64_t`` value to a Mu integer of
+  type ``int<len>``, truncated or zero-extended.
+
+* ``handle_from_float``:    Convert a C ``float`` value to a Mu ``float`` value.
+  * ``handle_from_double``:   Convert a C ``double`` value to a Mu ``double``
+    value.
+
+* ``handle_from_ptr``:      Convert a C object pointer to a Mu pointer value.
+  The Mu type is ``mu_type`` which must be ``uptr<T>`` for some type ``T``.
+
+* ``handle_from_fp``:       Convert a C function pointer to a Mu function
+  pointer value. The Mu type is ``mu_type`` which must be ``ufuncptr<sig>`` for
+  some signature ``sig``.
+
 ..
 
-    Example Java signatures::
-
-        void ClientAgent.loadBundleText  (File bundle)
-        void ClientAgent.loadBundleText  (Reader bundle)
-        void ClientAgent.loadBundleText  (String bundle)
-        void ClientAgent.loadBundleBinary(File bundle)
-        void ClientAgent.loadBundleBinary(InputStream bundle)
-        void ClientAgent.loadBundleBinary(byte[] bundle)
-        void ClientAgent.loadBundleBinary(byte[] bundle, int start, int length)
-
-    Example C signatures::
-
-        void load_bundle_text_from_fd    (client_agent *ca, int bundle)
-        void load_bundle_text_from_file  (client_agent *ca, FILE *bundle)
-        void load_bundle_text_from_str   (client_agent *ca, char *bundle)
-        void load_bundle_binary_from_fd  (client_agent *ca, int bundle)
-        void load_bundle_binary_from_file(client_agent *ca, FILE *bundle)
-        void load_bundle_binary_from_buf (client_agent *ca, char *bundle, int length)
-
-Client Agent Regisry Operations
-===============================
-
-Details About Handles
----------------------
-
-A handle refers to a value in the registry of a client agent. In the client, a
-handle can have any type determined by the Mu implementation. A handle is only
-valid for the client agent that created it.
-
-The registry of a client agent is initially empty.
-
-All handles that are returned from a client agent are new handles created by
-that client agent.
-
-The ``put_xxx`` messages introduce new handles to various Mu values. The
-``delete_handle`` message destroys handles.  The ``to_client_value`` message
-converts values of Mu to client types. Other messages may manipulate Mu values
-and return handles to the new results of Mu types.
-
-Handles can be deleted by the ``delete_handle`` message. Using a deleted handles
-has undefined behaviour.
-
-The ``put_primitive`` Message
------------------------------
-
-- receiver: client agent
-- message: ``put_primitive``
-- parameters:
-
-  + ``uvm_type``: the Mu type of the value
-  + ``val``: the value represented in the client language.
-
-- return value: A handle to the converted Mu value. It has the Mu type of
-  ``uvm_type``.
-
-This message is only applicable for **integer types**, **floating point types**
-and **vector types**.
-
-Convert a client value ``val`` to a Mu value of type ``uvm_type``.
-
-For the case where the value is integer or integer vector, if the client value
-``val`` is shorter than the Mu type ``uvm_type``, the API implementation should
-provide two versions of this message for zero extension and sign extension. If
-the client value ``val`` is longer than the Mu type ``uvm_type``, it will be
-truncated.
-
-    For Lua users: This is the counterpart of ``lua_pushnumber``,
+    For Lua users: These are the counterpart of ``lua_pushnumber``,
     ``lua_pushboolean``, ``lua_pushinteger``, ``lua_pushstring`` and so on. But
-    Mu has much fewer primitive data types.
+    Mu has much fewer primitive data types. Strings usually cannot be created
+    this way since they are not primitive values.
 
-..
-
-    For JNI users: This is similar to the ``NewLocalReference`` function, but
+    For JNI users: These are similar to the ``NewLocalReference`` function, but
     Mu handles can refer to not just reference types.
 
-..
+::
 
-    Example Java signatures::
+    int8_t      (*handle_to_sint8 )(MuCtx *ctx, MuIntValue    opnd);
+    uint8_t     (*handle_to_uint8 )(MuCtx *ctx, MuIntValue    opnd);
+    int16_t     (*handle_to_sint16)(MuCtx *ctx, MuIntValue    opnd);
+    uint16_t    (*handle_to_uint16)(MuCtx *ctx, MuIntValue    opnd);
+    int32_t     (*handle_to_sint32)(MuCtx *ctx, MuIntValue    opnd);
+    uint32_t    (*handle_to_uint32)(MuCtx *ctx, MuIntValue    opnd);
+    int64_t     (*handle_to_sint64)(MuCtx *ctx, MuIntValue    opnd);
+    uint64_t    (*handle_to_uint64)(MuCtx *ctx, MuIntValue    opnd);
+    float       (*handle_to_float )(MuCtx *ctx, MuFloatValue  opnd);
+    double      (*handle_to_double)(MuCtx *ctx, MuDoubleValue opnd);
+    MuCPtr      (*handle_to_ptr   )(MuCtx *ctx, MuUPtrValue   opnd);
+    MuCFP       (*handle_to_fp    )(MuCtx *ctx, MuUFPValue    opnd);
 
-        Handle ClientAgent.putByte  (int typeID, byte val)
-        Handle ClientAgent.putShort (int typeID, short val)
-        Handle ClientAgent.putInt   (int typeID, int val)
-        Handle ClientAgent.putLong  (int typeID, long val)
-        Handle ClientAgent.putFloat (int typeID, float val)
-        Handle ClientAgent.putDouble(int typeID, double val)
-        Handle ClientAgent.putBigInt(int typeID, BigInteger val)
+The ``handle_to_XXX`` functions convert Mu values to C values. Specifically:
 
-        Handle ClientAgent.putByte  (int typeID, byte val, boolean signExt)
-        Handle ClientAgent.putShort (int typeID, byte val, boolean signExt)
-        ...
+* ``handle_to_sint8``: Convert a Mu ``int`` value to a C ``int8_t`` value,
+  truncated or sign-extended.
 
-        Handle ClientAgent.putIntVec     (int typeID, int[] val, boolean signExt)
-        Handle ClientAgent.putFloatVec   (int typeID, float[] val)
-        Handle ClientAgent.putDoubleVec  (int typeID, double[] val)
+* ``handle_to_uint8``: Convert a Mu ``int`` value to a C ``uint8_t`` value,
+  truncated or zero-extended.
 
-    Example Java usage::
+* ``handle_to_sint16``: Convert a Mu ``int`` value to a C ``int16_t`` value,
+  truncated or sign-extended.
 
-        ClientAgent ca = ...;
-        Handle a = ca.putInt (idOf("@i32"), 0x12345678);
-        Handle b = ca.putLong(idOf("@i64"), 0x123456789abcdef0L);
-        Handle c = ca.putInt (idOf("@i64"), 0x12345678, false);       // zero extended
-        Handle d = ca.putInt (idOf("@i64"), 0x12345678, true);        // sign extended
-        Handle e = ca.putLong(idOf("@i32"), 0xfedcba9876543210L);     // truncated to 0x76543210
+* ``handle_to_uint16``: Convert a Mu ``int`` value to a C ``uint16_t`` value,
+  truncated or zero-extended.
 
-        Handle f = ca.putBigInt(idOf("@i128"), new BigInteger("12233445566778899aabbccddeeff001", 16));
+* ``handle_to_sint32``: Convert a Mu ``int`` value to a C ``int32_t`` value,
+  truncated or sign-extended.
 
-        Handle g = ca.putIntVec(idOf("@4xi32"), new int[] {1,2,3,4}, false);
+* ``handle_to_uint32``: Convert a Mu ``int`` value to a C ``uint32_t`` value,
+  truncated or zero-extended.
 
-    Example C signatures::
+* ``handle_to_sint64``: Convert a Mu ``int`` value to a C ``int64_t`` value,
+  truncated or sign-extended.
 
-        handle_t put_schar     (client_agent_t *ca, int type_id, signed char val)
-        handle_t put_uchar     (client_agent_t *ca, int type_id, unsigned char val)
-        handle_t put_short     (client_agent_t *ca, int type_id, short val)
-        handle_t put_ushort    (client_agent_t *ca, int type_id, unsigned short val)
-        handle_t put_int       (client_agent_t *ca, int type_id, int val)
-        handle_t put_uint      (client_agent_t *ca, int type_id, unsigned int val)
-        handle_t put_long      (client_agent_t *ca, int type_id, long val)
-        handle_t put_ulong     (client_agent_t *ca, int type_id, unsigned long val)
-        handle_t put_longlong  (client_agent_t *ca, int type_id, long long val)
-        handle_t put_ulonglong (client_agent_t *ca, int type_id, unsigned long long val)
-        handle_t put_ulonglong (client_agent_t *ca, int type_id, unsigned long long val)
-        handle_t put_float     (client_agent_t *ca, int type_id, float val)
-        handle_t put_double    (client_agent_t *ca, int type_id, double val)
+* ``handle_to_uint64``: Convert a Mu ``int`` value to a C ``uint64_t`` value,
+  truncated or zero-extended.
 
-        handle_t put_4xint_vec       (client_agent_t *ca, int type_id, __m128 val)
-        handle_t put_4xfloat_vec     (client_agent_t *ca, int type_id, __m128 val)
-        handle_t put_2xdouble_vec    (client_agent_t *ca, int type_id, __m128 val)
-        handle_t put_int_vec_from_ary(client_agent_t *ca, int type_id, int *ary)
+* ``handle_to_float``: Convert a Mu ``float`` value to a C ``float`` value.
 
-    Example C usage::
+* ``handle_to_double``: Convert a Mu ``double`` value to a C ``double`` value.
+  
+* ``handle_to_ptr``: Convert a Mu ``uptr<T>`` value to a C ``void*`` value.
 
-        client_agent_t *ca = ...;
-        handle_t a = put_int (ca, id_of("@i32"), 42);
-        handle_t b = put_long(ca, id_of("@i64"), 42L);
-        handle_t c = put_int (ca, id_of("@i64"), 42);       // sign extended
-        handle_t d = put_uint(ca, id_of("@i64"), 42U);      // zero extended
-        handle_t e = put_long(ca, id_of("@i32"), 42L);      // truncated
-
-The ``put_constant`` message
-----------------------------
-
-- receiver: client agent
-- message: ``put_constant``
-- parameters:
-
-  + ``id``: the ID of the Mu constant
-
-- return value: A handle of the constant value. It has the same type as the SSA
-  variable of ``id``.
-
-The ``put_constant`` message creates a handle to a Mu constant value.
-
-    For Lua users: Lua does not have declared constants, but this is similar to
-    the ``lua_getglobal`` function where the global value is considered a
-    constant.
+* ``handle_to_fp``: Convert a Mu ``ufuncptr<sig>`` value to a C ``void(*)()``
+  value.
 
 ..
 
-    For JNI users: This is similar to the ``GetStaticObjectField`` routine when
-    the field is final. But Mu constants are never references.
+    For Lua users: These are the counterpart of ``lua_tonumber``,
+    ``lua_toboolean``, ``lua_tostring`` and so on. But Mu has much fewer
+    primitive data types.
+
+    For JNI users: Primitive types in JNI do not need to be converted. They are
+    not held by handles and they are already compatible with C data types.
+
+Create handles from Mu global variables
+---------------------------------------
+
+::
+
+    MuValue         (*handle_from_const )(MuCtx *ctx, MuID id);
+    MuIRefValue     (*handle_from_global)(MuCtx *ctx, MuID id);
+    MuFuncRefValue  (*handle_from_func  )(MuCtx *ctx, MuID id);
+    MuValue         (*handle_from_expose)(MuCtx *ctx, MuID id);
+
+These instructions create handles which has the same value as the Mu global
+variables whose ID is ``id``. Specifically,
+
+* ``handle_from_const``: Creates a handle from a Mu constant.
+* ``handle_from_global``: Creates a handle from a Mu global cell.
+* ``handle_from_func``: Creates a handle from a Mu function.
+* ``handle_from_expose``: Creates a handle from an exposed function.
 
 ..
 
-    Example Java signature: ``Handle ClientAgent.putConstant(int id)``
+    For Lua users: In Lua, global variables are top-level and they may refer to
+    values or functions. These API functions are similar to the
+    ``lua_getglobal`` function.
 
-    Example C signature: ``handle_t put_constant(client_agent_t *ca, int id)``
+    For JNI users: This is similar to the ``GetStaticObjectField``,
+    ``GetStaticFieldID`` or ``GetStaticMethodID`` which allows the C program to
+    access fields (including final fields) or methods. Mu does not support OOP
+    directly, so methods may be just Mu functions that take objects as
+    arguments.
 
-The ``put_global`` message
---------------------------
+Deleting values held by the context
+-----------------------------------
 
-- receiver: client agent
-- message: ``put_global``
-- parameters:
+::
 
-  + ``id``: the ID of the global cell
+    void        (*delete_value)(MuCtx *ctx, MuValue opnd);
 
-- return value: A handle to a internal reference value of the global cell. It
-  has the same type as the SSA variable of ``id``.
-
-
-The ``put_global`` message creates a handle whose value is the internal
-reference to a global cell.
-
-    For Lua users: This is the counterpart of the ``lua_getglobal`` function,
-    but "global cells" in Mu are memory locations while Lua global values are
-    values.
-
-..
-
-    For JNI users: This is similar to the ``GetStaticFieldID`` routine, but Mu
-    internal reference values are first-class values.
-
-..
-
-    Example Java signature: ``Handle ClientAgent.putGlobal(int id)``
-
-    Example C signature: ``handle_t put_global(client_agent_t *ca, int id)``
-
-The ``put_function`` message
------------------------------
-
-- receiver: client agent
-- message: ``put_function``
-- parameters:
-
-  + ``id``: the ID of the Mu function
-
-- return value: A handle to a function value of the Mu function. It
-  has the same type as the SSA variable of ``id``.
-
-The ``put_function`` message creates a handle whose value is a function value
-that refers to the Mu function.
-
-    For Lua users: This is the counterpart of the ``lua_getglobal`` function
-    where the global value is a Lua function, but "functions" in Mu are special.
-
-..
-
-    For JNI users: This is similar to the ``GetStaticMethodID`` routine, but Mu
-    function reference values are first-class values.
-
-..
-
-    Example Java signature: ``Handle ClientAgent.putFunction(int id)``
-
-    Example C signature: ``handle_t put_function(client_agent_t *ca, int id)``
-
-The ``delete_handle`` message
------------------------------
-
-- receiver: client agent
-- message: ``delete_handle``
-- parameters:
-
-  + ``handle``: A handle.
-
-- return value: None
-
-Delete the handle.
-
-..
-
-    NOTE: For efficiency, the implementation may provide a message that deletes
-    more than one handle at a time.
+Delete a value held by the context. After calling this function, the handle
+``opnd`` cannot be used. If it was copied in C by assignment, all copies refer
+to the same value held by the context, and they all become invalid.
 
 ..
 
     For Lua users: This is similar to the ``lua_pop`` function.
 
-..
-
     For JNI users: This is similar to the ``DeleteLocalRef`` routine.
 
-..
+Reference type comparison
+-------------------------
 
-    Example Java signature: ``void ClientAgent.deleteHandle(Handle handle)``
-
-    Example Java signature: ``void ClientAgent.deleteHandles(Handle... handles)``
-
-    Example C signature: ``void delete_handle(client_agent_t *ca, handle_t handle)``
-
-The ``to_client_value`` message
--------------------------------
-
-- receiver: client agent
-- message: ``to_client_value``
-- parameters:
-
-  + ``handle``: a handle
-
-- return value: The Mu value represented as a value in the client language.
-
-This message is only applicable for **integer types** and **floating point
-types**.
-
-Convert the Mu value of ``handle`` to a client value.
-
-For the case where the Mu value is an integer, if the client type has fewer
-bits than the Mu type, the value will be truncated. If the client type has more
-bits than the Mu type, the API implementation should provide two versions of
-this message for zero extension and sign extension.
-
-If the Mu type cannot be converted to the client type, it has undefined
-behaviour.
-
-    For Lua users: This is the counterpart of ``lua_tonumber``,
-    ``lua_toboolean``, ``lua_tostring`` and so on. But Mu has much fewer
-    primitive data types.
-
-..
-
-    Example Java signatures::
-
-        byte    ClientAgent.toByte  (Handle handle)
-        short   ClientAgent.toShort (Handle handle)
-        int     ClientAgent.toInt   (Handle handle)
-        long    ClientAgent.toLong  (Handle handle)
-        float   ClientAgent.toFloat (Handle handle)
-        double  ClientAgent.toDouble(Handle handle)
-        BigInteger ClientAgent.toBigInt(Handle handle)
-
-        // dump Mu vectors to arrays
-        int[]   ClientAgent.toInts  (Handle handle)
-        float[] ClientAgent.toFloats(Handle handle)
-        ...
-
-        int     ClientAgent.toInt   (Handle handle, boolean signExt)
-        long    ClientAgent.toLong  (Handle handle, boolean signExt)
-        BigInteger ClientAgent.toBigInt(Handle handle, boolean signExt)
-        ...
-
-    Example Java usage::
-
-        ClientAgent ca = ...;
-        int  v1 = ca.toInt (h1);
-        long v2 = ca.toLong(h2);
-        long v3 = ca.toLong(h3, false);   // zero extended
-        long v4 = ca.toLong(h4, true);    // sign extended
-        float  v5 = ca.toLong(h5, true);
-        double v6 = ca.toLong(h6, true);
-
-    Example C signatures::
-
-        signed char   to_schar (client_agent_t *ca, handle_t handle)
-        unsigned char to_uchar (client_agent_t *ca, handle_t handle)
-        ...
-        int           to_int   (client_agent_t *ca, handle_t handle)
-        unsigned int  to_uint  (client_agent_t *ca, handle_t handle)
-        ...
-        float         to_float (client_agent_t *ca, handle_t handle)
-        double        to_double(client_agent_t *ca, handle_t handle)
-        
-        __m128        to_m128  (client_agent_t *ca, handle_t handle)
-
-        // dump Mu vector to an int array
-        void          to_ints  (client_agent_t *ca, handle_t handle, int *result)
-
-    Example C usage::
-
-        client_agent_t *ca = ...;
-
-        int a           = to_int (ca, h1);       // sign extended
-        unsigned int b  = to_uint(ca, h2);       // zero extended
-
-        int vec[4];
-        to_ints(ca, h3, vec)
+TODO
 
 Struct Operations
 =================

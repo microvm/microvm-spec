@@ -11,7 +11,8 @@ or even Ahead-of-time compiling.
 
 Mu IR itself has two defined representations: a text form for human readability
 and a binary form for compact encoding. Concrete Mu implementations may
-introduce their own formats as long as they are equivalent.
+introduce their own formats as long as they are equivalent, in which case the
+interface to use and to load them is implementation-specific.
 
 This document describes the text form and the aspects not specific to the binary
 form. For the binary form, see `<uvm-ir-binary>`__.
@@ -513,10 +514,14 @@ A global cell definition has the form::
 Function Definition and Declaration
 ===================================
 
-**Functions** represent executable code in Mu.
+**Functions** are callable in Mu. A function is an identified entity. A function
+may have multiple versions. A **version of function** has its control flow graph
+which defines how it is executed. A version of function is also an identified
+entity.
 
-A **function definition** defines a **version of function**. It has the
-following form::
+A **function definition** defines a *version of function* and, if the function
+has not been declared, implicitly defines the *function*. It has the following
+form::
 
     .funcdef Name VERSION VerName <Sig> (Params) { Body }
 
@@ -527,8 +532,6 @@ where:
 * ``Sig`` is a global name for the signature of the function
 * ``Params`` is a list of names for the formal parameter list, and
 * ``Body`` is a sequence of instructions, constants and labels.
-
-A version of function is an identified entity.
 
 ..
 
@@ -550,7 +553,7 @@ A version of function is an identified entity.
             ...
         }
 
-A **function declaration** declares a function without defining it. It has the
+A **function declaration** defines a function with no versions. It has the
 following form::
 
     .funcdecl Name <Sig>
@@ -561,11 +564,12 @@ where:
 * ``Sig`` is a global name for the signature of the function.
 
 It is an error to have multiple function declarations and/or function
-definitions of the same name in the same bundle.
+definitions of the same function name in the same bundle.
 
-The semantic of defining an previously undefined function and redefining
-existing functions is described in `Client Interface
-<uvm-client-interface>`__.
+It is an error to declare a function which is previously declared or defined.
+
+See the *Bundle Loading* section for the semantics of bundle loading and
+function redefinition.
 
 Function Body
 =============
@@ -698,5 +702,33 @@ How such an exposed value can be called is implementation-specific.
     Example::
 
         .expose @name = @func #DEFAULT @cookie
+
+Bundle Loading
+==============
+
+The API provides a ``load_bundle`` function. See `the API
+<uvm-client-interface>`__. This function can be called by multiple client
+threads on their client contexts, and the result is always equivalent to as if
+they were loaded in a specific sequence.
+
+In a bundle, if any identified entity has the same ID or name as any existing
+identified entities defined in previous bundles, it is an error.
+
+In a function definition, if the function ID or name is the same as an existing
+function (which can be created either explicitly by a ``.funcdecl`` or
+implicitly by a ``.funcdef``), it must also have the same function signature,
+otherwise it is an error. The new function definition **redefines** the
+function.
+
+After a function definition redefines a function, all calls to the function that
+happen after the bundle loading operation will call the newly defined version of
+the function.
+
+All existing activations of any functions remain unchanged, that is, they remain
+to be the old versions of the functions. 
+
+    NOTE: Specifically, existing traps in older versions of functions remain
+    valid. During OSR, redefining a function will not affect any existing
+    function activations unless they are explicitly popped by the client.
 
 .. vim: textwidth=80
