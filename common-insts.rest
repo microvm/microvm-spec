@@ -270,4 +270,150 @@ Remove the exposed value.
 If a Mu function is called via its exposed value, this instruction returns the
 attached cookie. Otherwise it returns an arbitrary value.
 
+Metacircular Client Interface
+=============================
+
+These are additional instructions that enables Mu IR programs to behave like a
+client. For conciseness, the prefix "@uvm.meta" is often omitted in this section
+of the document when unambiguous.
+
+Some types and signatures are pre-defined. They are always available. Note that
+the following are not strict text IR syntax because some types are defined in
+line::
+
+    .typedef @uvm.meta.bytes   = hybrid <int<64> int<8>>    // ID: 0x260
+    .typedef @uvm.meta.bytes.r = ref<@uvm.meta.bytes.r>     // ID: 0x261
+    .typedef @uvm.meta.refs    = hybrid <int<64> ref<void>> // ID: 0x262
+    .typedef @uvm.meta.refs.r  = ref<@uvm.meta.refs.r>      // ID: 0x263
+
+    .funcsig @uvm.meta.trap_handler.sig       = void (stackref int<32> ref<void>)   // ID: 0x264
+    .funcsig @uvm.meta.undef_func_handler.sig = void (int<32> ref<void>)            // ID: 0x265
+
+In ``bytes`` and ``refs``, the fixed part is the length of the variable part.
+``bytes`` represents a byte array. ASCII strings are also represented this way.
+
+ID/name conversion
+------------------
+
+- ``[0x250]@uvm.meta.id_of (%name: @uvm.meta.bytes.r) -> int<32>``
+- ``[0x251]@uvm.meta.name_of (%id: int<32>) -> @uvm.meta.bytes.r``
+
+``id_of`` converts a textual Mu name ``%name`` to the numerical ID. The name
+must be a global name.
+
+``name_of`` converts the ID ``%id`` to its corresponding name. If the name does
+not exist (if defined in binary only, or it is an instruction without name), it
+returns ``NULL``. The returned object must not be modified.
+
+They have undefined behaviours if the name or the ID in the argument do not
+exist, or ``%name`` is ``NULL``.
+
+Bundle/HAIL loading
+-------------------
+
+- ``[0x252]@uvm.meta.load_bundle (%buf: @uvm.meta.bytes.r)``
+- ``[0x253]@uvm.meta.load_hail   (%buf: @uvm.meta.bytes.r)``
+
+``load_bundle`` and ``load_hail`` loads Mu IR bundles and HAIL scripts,
+respectively. ``%buf`` is the content. The first 4 characters in ``%buf``
+determines whether it is binary or text.
+
+Stack introspection
+-------------------
+
+- ``[0x254]@uvm.meta.cur_func_Ver       (%stack: stackref, %frame: int<32>) -> int<32>``
+- ``[0x255]@uvm.meta.cur_inst           (%stack: stackref, %frame: int<32>) -> int<32>``
+- ``[0x256]@uvm.meta.dump_keepalives    (%stack: stackref, %frame: int<32>) -> @uvm.meta.refs.r``
+
+``cur_func_ver`` returns the ID of the frame. Returns 0 for native frames.
+
+``cur_inst`` returns the ID of the current instruction of the frame. Returns 0
+if the frame is just created or the frame is native.
+
+``dump_keepalives`` returns an list of references. There are as many elements as
+there are keep-alive variables. Each reference has type ``ref<T>`` where T is
+the type of the corresponding keep-alive variable. The returned list and the
+objects pointed to must not be modified. Must not be used on native frames.
+
+``%stack`` and ``%frame`` selects a frame in the stack ``%stack``. 0 is the top,
+1 is the next top, ... ``%stack`` must not be null.
+
+On-stack replacement
+--------------------
+
+- ``[0x257]@uvm.meta.pop_frame (%stack: stackref)``
+- ``[0x258]@uvm.meta.push_frame <[sig]> (%stack: stackref, %func: funcref<sig>, ...)``
+
+``pop_frame`` pops the top frame of the stack ``%stack``.
+
+``push_frame`` creates a new frame on top of the stack ``%stack`` for the Mu
+function ``%func``. ``%func`` must have the signature ``sig``. There are many
+arguments after ``%func``. Each will be an argument to ``%func``. Their types
+must match the argument types of ``%func``.
+
+The function's return type must match the expected return type of the previous
+frame.
+
+``%stack`` and ``%func`` must not be ``NULL``.
+
+Watchpoint operations
+---------------------
+
+- ``[0x259]@uvm.meta.enable_watchpoint  (%wpid: int<32>)``
+- ``[0x25a]@uvm.meta.disable_watchpoint (%wpid: int<32>)``
+
+``enable_watchpoint``    enables  all watchpoints of watchpoint ID ``%wpid``.
+``disenable_watchpoint`` disables all watchpoints of watchpoint ID ``%wpid``.
+
+Trap and undefined function handling
+------------------------------------
+
+- ``[0x25b]@uvm.meta.set_trap_handler (%handler: funcref<@uvm.meta.trap_handler.sig>, %userdata: ref<void>)``
+- ``[0x25c]@uvm.meta.set_undef_func_handler (%handler: funcref<@uvm.meta.undef_func_handler.sig>, %userdata: ref<void>)``
+
+These instructions register trap handlers and undefined function handlers,
+respectively. ``%handler`` is the function to be called and ``%userdata`` will
+be their last argument when called.
+
+A trap handler takes three parameters:
+
+1. The stack where the trap takes place.
+2. The watchpoint ID, or 0 if triggered by the ``TRAP`` instruction.
+3. The user data, which is provided when registering.
+
+A trap handler is run by the same Mu thread that caused the trap and is
+guaranteed to run on a different stack from the one that caused the trap.
+
+A trap handler *usually* terminates by either executing the ``@uvm.thread_exit``
+instruction (probably also kill the old stack before exiting), or ``SWAPSTACK``
+back to another stack while killing the stack the trap handler was running on.
+
+An undefined function handler takes two arguments:
+
+1. The ID of the function.
+2. The user data.
+
+The undefined function handler runs on a different stack by a different thread
+than that caused this event.
+
+When the undefined function returns, the old function call or the ``NEWSTACK``
+instruction is tried again.
+
+Notes about dynamism
+--------------------
+
+These additional instructions are not dynamic. Unlike the C-based API, these
+instructions do not use handles. Arguments, such as the additional arguments of
+``push_frame`` are also statically typed. If the client needs dynamically typed
+handles, it can always make its own. For example, ``push_frame`` can be wrapped
+by a Mu function which takes a dynamic argument list, checks the argument types,
+and executes a static ``@uvm.meta.push_frame`` instruction on the unboxed
+values.
+
+Some dynamic lookups, such as looking up constants by ID, are not available,
+either. It can be worked around by maintaining a ``HashMap<id,value>`` (in the
+form of Mu IR programs) which is updated with each bundle loading. In other
+words, if the client does not maintain such a map, Mu will have to maintain it
+for the client.
+
 .. vim: tw=80
