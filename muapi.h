@@ -48,10 +48,11 @@ typedef struct MuCtx MuCtx;
 // Signature of the trap handler
 typedef void (*MuTrapHandler)(MuCtx *ctx, MuThreadRefValue thread,
         MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
-        MuStackRefValue *new_stack, MuValue *value, MuRefValue *exception);
+        MuStackRefValue *new_stack, MuValue *value, MuRefValue *exception,
+        MuCPtr userdata);
 
 // Signature of the undefined funciton handler
-typedef void (*MuUndefFuncHandler)(MuCtx *ctx, MuID func_id);
+typedef void (*MuUndefFuncHandler)(MuCtx *ctx, MuID func_id, MuCPtr userdata);
 
 // Memory orders
 typedef int MuMemOrd;
@@ -103,8 +104,8 @@ struct MuVM {
     MuName  (*name_of)(MuVM *mvm, MuID id);
 
     // Set handlers
-    void    (*set_trap_handler      )(MuVM *mvm, MuTrapHandler trap_handler);
-    void    (*set_undef_func_handler)(MuVM *mvm, MuUndefFuncHandler undef_func_handler);
+    void    (*set_trap_handler      )(MuVM *mvm, MuTrapHandler trap_handler, MuCPtr userdata);
+    void    (*set_undef_func_handler)(MuVM *mvm, MuUndefFuncHandler undef_func_handler, MuCPtr userdata);
 };
 
 // A local context. It can only be used by one thread at a time. It holds many
@@ -240,6 +241,6 @@ struct MuCtx {
 
     // Expose Mu functions as native callable things, usually function pointers
     MuValue     (*expose  )(MuCtx *ctx, MuFuncRefValue func, MuCallConv call_conv, MuIntValue cookie);
-    void        (*unexpose)(MuCtx *ctx, MuValue value);
+    void        (*unexpose)(MuCtx *ctx, MuCallConv call_conv, MuValue value);
 };
 

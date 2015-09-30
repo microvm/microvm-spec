@@ -2,8 +2,6 @@
 Mu Client Interface
 ===================
 
-NOTE: This chapter is being rewritten.
-
 A C header is available here: `<muapi.h>`__
 
 Overview
@@ -48,8 +46,8 @@ A Mu instance is represented as a pointer to the struct ``MuVM``::
         MuCtx*  (*new_context)(MuVM *mvm);
         MuID    (*id_of  )(MuVM *mvm, MuName name);
         MuName  (*name_of)(MuVM *mvm, MuID id);
-        void    (*set_trap_handler      )(MuVM *mvm, MuTrapHandler trap_handler);
-        void    (*set_undef_func_handler)(MuVM *mvm, MuUndefFuncHandler undef_func_handler);
+        void    (*set_trap_handler      )(MuVM *mvm, MuTrapHandler trap_handler, MuCPtr userdata);
+        void    (*set_undef_func_handler)(MuVM *mvm, MuUndefFuncHandler undef_func_handler, MuCPtr userdata);
     };
 
 The client interacts with Mu for almost all tasks through **client contexts**,
@@ -205,13 +203,16 @@ has undefined behaviour.
 
 ::
 
-    void    (*set_trap_handler      )(MuVM *mvm, MuTrapHandler trap_handler);
-    void    (*set_undef_func_handler)(MuVM *mvm, MuUndefFuncHandler undef_func_handler);
+    void    (*set_trap_handler      )(MuVM *mvm, MuTrapHandler trap_handler, MuCPtr userdata);
+    void    (*set_undef_func_handler)(MuVM *mvm, MuUndefFuncHandler undef_func_handler, MuCPtr userdata);
 
 The ``set_trap_handler`` function sets the handler for traps. The
 ``set_undef_func_handler`` function sets the handler for undefined functions.
 See the *Trap and Undefined Function Handling* section below for more
 information.
+
+``userdata`` will be passed to the handlers as the last element when they are
+called.
 
 MuCtx Functions
 ===============
@@ -291,9 +292,7 @@ Converting values to/from handles
     MuUPtrValue     (*handle_from_ptr   )(MuCtx *ctx, MuID mu_type, MuCPtr ptr);
     MuUFPValue      (*handle_from_fp    )(MuCtx *ctx, MuID mu_type, MuCFP fp);
 
-where ``MuCPtr`` and ``MuCFP`` are convenient definitions for C types:
-
-::
+where ``MuCPtr`` and ``MuCFP`` are convenient definitions for C types::
 
     typedef void *MuCPtr;
     typedef void (*MuCFP)();
@@ -455,1010 +454,498 @@ to the same value held by the context, and they all become invalid.
 Reference type comparison
 -------------------------
 
-TODO
+::
 
-Struct Operations
-=================
+    int         (*ref_eq )(MuCtx *ctx, MuValue lhs,     MuValue rhs);
+    int         (*ref_ult)(MuCtx *ctx, MuIRefValue lhs, MuIRefValue rhs);
 
-The ``extract_value`` message
------------------------------
+The ``ref_eq`` function compares two values of general reference type for
+equality according to the semantics of the ``EQ`` instruction. Both ``lhs`` and
+``rhs`` must have the same general reference type.
 
-- receiver: client agent
-- message: ``extract_value``
-- parameters:
+The ``ref_ult`` function compares two internal reference ``lhs`` and ``rhs`` for
+"less-than" according to the semantics of the ``ULT`` instruction. Both ``lhs``
+and ``rhs`` must have the same internal reference type.
 
-  + ``str``: The handle of a struct value.
-  + ``index``: The index of the field of the struct.
-
-- return value: A handle to the value of the field.
-
-The ``extract_value`` message extracts the ``index``-th field from struct value
-of ``str``.
-
-    For Lua users: This is similar to the ``lua_getfield``, but Mu struct
-    fields are statically typed.
+The return value is 1 for true and 0 for false.
 
 ..
 
-    For JNI users: This is similar to the ``Get<type>Field`` routine, but Mu
-    allows structs as values rather than heap objects.
+    For Lua users: ``ref_eq`` is equivalent to the ``lua_rawequal`` function for
+    reference types.
 
-..
+    For JNI users: ``ref_eq`` is equivalent to the ``IsSameObject`` function.
 
-    Example Java signature: ``Handle ClientAgent.extractValue(Handle handle, int index)``
+Aggregate type operations
+-------------------------
 
-    Example C signature: ``handle_t extract_value(agent_t *ca, handle_t handle, int index)``
+::
 
-The ``insert_value`` message
-----------------------------
+    MuValue     (*extract_value)(MuCtx *ctx, MuStructValue str, int index);
+    MuValue     (*insert_value )(MuCtx *ctx, MuStructValue str, int index, MuValue newval);
+    MuValue     (*extract_element)(MuCtx *ctx, MuValue seq, MuIntValue index);
+    MuValue     (*insert_element )(MuCtx *ctx, MuValue seq, MuIntValue index, MuValue newval);
 
-- receiver: client agent
-- message: ``insert_value``
-- parameters:
+These functions manipulates values of composite types. Specifically,
 
-  + ``str``: The handle of a struct value.
-  + ``index``: The index of the field of the struct.
-  + ``newval``: The handle of a struct value.
+* ``extract_value`` returns the value of a field at ``index`` in a struct value
+  ``str``.
 
-- return value: A handle to a new struct value with the field different.
-
-The ``insert_value`` message creates a new struct value which is the
-same as ``str`` except the ``index``-th field become ``newval``.
-
-..
-
-    NOTE: For efficiency, the implementation may provide a message that updates
-    more than one field at a time.
-
-..
-
-    For Lua users: This is similar to the ``lua_setfield``, but this messages
-    creates values, not updating existing values.
-
-..
-
-    For JNI users: This is similar to the ``Set<type>Field`` routine, but Mu
-    allows structs as values rather than heap objects.
-
-..
-
-    Example Java signature: ``Handle ClientAgent.insertValue(Handle str, int index, Handle newval)``
-
-    Example C signature: ``handle_t insert_value(agent_t *ca, handle_t str, int index, handle_t newval)``
-
-    Example in Scala::
-    
-        def ClientAgent.insertValue(str: Handle, updates: Map[Int, Handle]): Handle
-
-        val newVal: Handle = ca.insertValue(someHandle, Map(
-            1 -> handle1,
-            3 -> handle2,
-            5 -> handle3))
-
-Memory Operations
-=================
-
-The ``new`` message
--------------------
-
-- receiver: client agent
-- message: ``new``
-- parameters:
-
-  + ``type``: The ID of the Mu type of the allocated object. Must not be
-    ``hybrid``.
-
-- return value: A handle of an object reference of the object.
-
-The ``new`` message allocates a Mu object of a fixed-length type in the Mu
-heap.
-
-    For Lua users: This is similar to the ``lua_newtable`` or
-    ``lua_createtable`` function, but Mu can allocate many types on the heap. In
-    this sense, it is also similar to ``lua_newuserdata``, but the allocated Mu
-    object has associated metadata to identify references in the object.
-
-..
-
-    For JNI users: This is similar to the ``AllocObject`` routine. Mu is not
-    aware of "initialiser".
-
-..
-
-    Example Java signature: ``Handle ClientAgent.newFixed(int typeID)``. Note that
-    ``new`` is a keyword in Java.
-
-    Example C signature: ``handle_t new_fixed(agent_t *ca, int type_id)``. To avoid
-    conflicting with the C++ ``new`` keyword, it is recommended to rename this
-    message.
-
-The ``new_hybrid`` message
---------------------------
-
-- receiver: client agent
-- message: ``new_hybrid``
-- parameters:
-
-  + ``type``: The ID of the Mu type of the allocated object. Must be
-    ``hybrid``.
-  + ``length``: A handle to a Mu integer value.
-
-- return value: A handle to an object reference of the allocated array.
-
-``length`` is treated as unsigned.
-
-The ``new_hybrid`` message allocates a Mu object of ``hybrid`` type with a
-variable part of length ``length`` in the Mu heap.
-
-    For Lua users: This is similar to the ``lua_newtable`` or
-    ``lua_createtable`` function which is used to allocate an array.
-
-..
-
-    For JNI users: This is similar to the ``New<xxx>Array`` routine, but the Mu
-    type ``hybrid`` is different from Java arrays.
-
-..
-
-    Example Java signature: ``Handle ClientAgent.newHybrid(int typeID, int length)``
-
-    Example C signature: ``handle_t new_hybrid(agent_t *ca, int type_id, int length)``
-
-The ``refcast`` message
------------------------
-
-- receiver: client agent
-- message: ``refcast``
-- parameters:
-
-  + ``handle``: A handle to a value of general reference type.
-  + ``new_type``: The ID of the new type for ``handle``.
-
-- return value: A handle to the converted general reference.
-
-The ``refcast`` message converts the value of ``hanlde`` of a general reference
-type (see `<type-system>`__) to a new type ``new_type`` according to the rules
-of the ``REFCAST`` instruction.
-
-The type of ``handle`` and the type ``new_type`` must match the constraint of
-the type parameters *T1* and *T2* of the ``REFCAST`` instruction (see
-`<instruction-set>`__).
-
-..
-
-    Example Java signature: ``Handle ClientAgent.refcast(Handle handle, int new_type_id)``
-
-    Example C signature: ``handle_t refcast(agent_t *ca, handle_t handle, int new_type_id)``
-
-The ``get_iref`` message
-------------------------
-
-- receiver: client agent
-- message: ``get_iref``
-- parameters:
-
-  + ``handle``: A handle to an object reference value.
-
-- return value: A handle to the internal reference.
-
-The ``get_iref`` message converts an object reference ``handle`` to an internal
-reference to the same object.
-
-    Example Java signature: ``Handle ClientAgent.getIRef(Handle handle)``
-
-    Example C signature: ``handle_t get_iref(agent_t *ca, handle_t handle)``
-
-The ``get_field_iref`` message
-------------------------------
-
-- receiver: client agent
-- message: ``get_field_iref``
-- parameters:
-
-  + ``handle``: A handle to an internal reference/pointer of a struct.
-  + ``index``: An integer of the client type: the index of the field.
-
-- return value: A handle to an internal reference/pointer field.
-
-The ``get_field_iref`` message converts an internal reference ``handle`` to an
-internal reference to the ``index``-th field of the struct.
-
-    Example Java signature: ``Handle ClientAgent.getFieldIRef(Handle handle, int index)``
-
-    Example C signature: ``handle_t get_field_iref(agent_t *ca, handle_t handle, int index)``
-
-The ``get_elem_iref`` message
------------------------------
-
-- receiver: client agent
-- message: ``get_elem_iref``
-- parameters:
-
-  + ``handle``: A handle to an internal reference/pointer of an array or vector.
-  + ``index``: A handle of a Mu integer: the index of the element.
-
-- return value: A handle to an internal reference/pointer of an array or vector element.
-
-``index`` is treated as signed.
-
-The ``get_field_iref`` message converts an internal reference ``handle`` to to
-an internal reference to the ``index``-th element of the array or vector.
-
-    Example Java signature: ``Handle ClientAgent.getElemIRef(Handle handle, Handle index)``
-
-    Example C signature: ``handle_t get_elem_iref(agent_t *ca, handle_t handle, handle_t index)``
-
-The ``shift_iref`` message
---------------------------
-
-- receiver: client agent
-- message: ``shift_iref``
-- parameters:
-
-  + ``handle``: A handle to an internal reference/pointer.
-  + ``offset``: A handle of a Mu integer: the offset.
-
-- return value: A handle to the shifted internal reference/pointer.
-
-``offset`` is treated as signed.
-
-The ``shift_iref`` message shifts the internal reference ``handle`` forward by
-``offset``. 
-
-    Example Java signature: ``Handle ClientAgent.ShiftIRdf(Handle handle, Handle offset)``
-
-    Example C signature: ``handle_t shift_iref(agent_t *ca, handle_t handle, handle_t offset)``
-
-The ``get_fixed_part_iref`` and the ``get_var_part_iref`` message
------------------------------------------------------------------
-
-- receiver: client agent
-- message: ``get_fixed_part_iref``, ``get_var_part_iref``
-- parameters:
-
-  + ``handle``: A handle of an internal reference/pointer to a ``hybrid`` type.
-
-- return value: A handle of an internal reference/pointer to the fixed part or the 0-th
-  element in the variable part.
-
-The ``get_fixed_part_iref`` message converts an internal reference/pointer ``handle``
-to an internal reference/pointer to the fixed part of it.
-
-The ``get_var_part_iref`` message converts an internal reference/pointer ``handle`` to
-an internal reference/pointer to the 0-th element of the variable part of it. It has
-undefined behaviour if ``handle`` is an internal reference and the variable part has 0 elements.
-
-    Example Java signatures::
-
-        Handle ClientAgent.getFixedPartIRef(Handle handle)
-        Handle ClientAgent.getVarPartIRef(Handle handle)
-
-    Example C signatures::
-    
-        handle_t get_fixed_part_iref(agent_t *ca, handle_t handle)
-        handle_t get_var_part_iref(agent_t *ca, handle_t handle)
-
-The ``load`` message
---------------------
-
-- receiver: client agent
-- message: ``load``
-- parameters:
-
-  + ``ord``: The memory order
-  + ``loc``: A handle of an internal reference/pointer.
-
-- return value: A handle of the loaded value.
-
-The ``load`` message performs a load operation with arguments (*ord*, *T*,
-*loc*) where *T* is the referent type of *loc*.
-
-    For JNI users: This is similar to the ``Get<type>Field`` routine.
-
-..
-
-    Example Java signature: ``Handle ClientAgent.load(MemoryOrder ord, Handle loc)``
-
-    Example C signatures: ``handle_t load(agent_t *ca, memory_order_t ord, handle_t loc)``
-
-The ``store`` message
----------------------
-
-- receiver: client agent
-- message: ``store``
-- parameters:
-
-  + ``ord``: The memory order
-  + ``loc``: A handle of an internal reference/pointer.
-  + ``newval``: A handle of the new value.
-
-- return value: None
-
-``newval`` must have the unmarked type of the referent type of ``loc``.
-
-The ``store`` message performs a *store* operation with argument (*ord*,
-*T*, *loc*, *newval*) where *T* is the referent type of *loc*.
-
-    For JNI users: This is similar to the ``Set<type>Field`` routine.
-
-..
-
-    Example Java signatures: ``void ClientAgent.store(MemoryOrder ord, Handle loc, Handle newval)``
-
-    Example C signatures: ``void store(agent_t *ca, memory_order_t ord, handle_t loc, handle_t newval)``
-
-The ``cmpxchg`` message
------------------------
-
-- receiver: client agent
-- message: ``cmpxchg``
-- parameters:
-
-  + ``ord_succ``: The memory order when successful.
-  + ``ord_fail``: The memory order when failed.
-  + ``weak``: A client Boolean value: Weak if true. Strong if false.
-  + ``loc``: A handle of an internal reference/pointer: the memory
-    location/address.
-  + ``expected``: A handle: the expected value.
-  + ``desired``: A handle: the desired value.
-
-- return value: A pair of values:
+* ``insert_value`` returns a new struct value which is the same as ``str``
+  except the field at ``index`` is replaced with ``newval``.
   
-  + ``is_succ``: A client Boolean value: true if successful, false otherwise.
-  + ``oldval``: A handle of the old value.
+* ``extract_element`` returns the value of an element at ``index`` in an array
+  or vector value ``seq``.
 
-``expected`` and ``desired`` must have the unmarked type of the referent type of
-``loc``.
+* ``insert_element`` returns a new array or vector value which is the same as
+  ``seq`` except the element at ``index`` is replaced with ``newval``.
 
-The ``cmpxchg`` message performs a *compare exchange* operation with
-argument (*weak*, *ord_sicc*, *ord_fail*, *T*, *loc*, *expected*, *desired*),
-where *T* is the referent type of *loc*.
-
-..
-
-    Example in Java::
-        
-        class CmpXchgResult { boolean isSucc; Handle oldval; }
-        CmpXchgResult ClientAgent.cmpxchg(MemoryOrder ordSucc, MemoryOrder ordFail,
-            boolean weak, Handle loc, Handle expected, Handle desired)
-
-    Example in Scala::
-        
-        def ClientAgent.cmpxchg(ordSucc: MemoryOrder, ordFail: MemoryOrder,
-            weak: Boolean, loc: Handle, expected: Handle, desired: Handle): (Boolean, Handle)
-
-    Example in C::
-
-        void cmpxchg(agent_t *ca, memory_order_t ord_succ, memory_order_t ord_fail,
-            bool weak, handle_t loc, handle_t expected, handle_t desired, bool *is_succ, handle_t *oldval)
-
-The ``atomicrmw`` message
--------------------------
-
-- receiver: client agent
-- message: ``atomicrmw``
-- parameters:
-
-  + ``ord``: The memory order.
-  + ``op``: The operation
-  + ``loc``: A handle of an internal reference/pointer.
-  + ``opnd``: A handle: the right-hand-side operand.
-
-- return value: A handle to the old value.
-
-``opnd`` must have the unmarked type of the referent type of ``loc``.
-
-The ``atomicrmw`` message performs an *atomic-x* operation with argument (*ord*,
-*T*, *loc*, *opnd*), where *T* is the referent type of *loc*, and the *x* in
-*atomic-x* is *op*.
-
-    Example Java signature: ``Handle ClientAgent.atomicrmw(MemoryOrder ord, AtomicRMWOp op, Handle loc, Handle opnd)``
-
-    Example C signature: ``handle_t atomicrmw(agent_t *ca, memory_order_t ord, atomic_rmw_op_t op, handle_t loc, handle_t opnd)``
-
-The ``fence`` message
----------------------
-
-- receiver: client agent
-- message: ``fence``
-- parameters:
-
-  + ``ord``: The memory order.
-
-- return value: None
-
-The ``fence`` is a memory fence of memory order ``ord``.
-
-    Example Java signature: ``void ClientAgent.fence(MemoryOrder ord)``
-
-    Example C signature: ``void fence(agent_t *ca, memory_order_t ord)``
-
-Stack and Thread Creation
-=========================
-
-The ``new_stack`` message
--------------------------
-
-- receiver: client agent
-- message: ``new_stack``
-- parameters:
-
-  + ``func``: A handle of function value: the stack-bottom function.
-  + ``arg_list``: A list of handles. Each handle is an argument to ``func``.
-
-- return value: A handle of stack: the new stack.
-
-The ``new_stack`` message creates a new Mu stack, using ``func`` as the
-stack-bottom function and ``arg_list`` as its arguments.
-
-    For Lua users: This is similar to the ``lua_call`` function, but Mu
-    functions execute on Mu stacks instead of client stacks.
-
-    This is also similar to the ``coroutine.create`` Lua function followed by
-    ``coroutine.resume`` supplying its initial arguments. But a Mu stack cannot
-    run until it is bound to a Mu thread.
+``str`` must have struct type. ``seq`` must have array or vector type.
+``newval`` must have the type of the field at ``index``, or the element type.
+``index`` can be any integer type and is considered unsigned.
 
 ..
 
-    Example Java signature: ``Handle ClientAgent.newStack(Handle func, Handle[] argList)``
+    For Lua users: ``extract_value`` and ``insert_value`` are similar to the
+    ``lua_getfield`` and the ``lua_setfield`` functions, but Mu struct fields
+    are statically typed. ``extract_element`` and ``insert_element`` are similar
+    to ``lua_gettable`` and ``lua_settable`` with numerical indices, but Mu has
+    arrays and vectors as value types.
 
-    Example C signature: ``handle_t new_stack(agent_t *ca, handle_t func, int nargs, handle_t* args)``
+    For JNI users: ``extract_value`` and ``insert_value`` are similar
+    ``Get<type>Field`` and ``Set<type>Field``. ``extract_element`` and
+    ``insert_element`` are similar to the ``GetObjectArrayElement`` and
+    ``SetObjectArrayElement`` if accessing arrays of references. These Mu
+    functions work with value types. The ``pin`` and ``unpin`` Mu API function
+    are similar to ``Get<PrimitiveType>ArrayElemets`` and
+    ``Release<PrimitiveType>ArrayElements`` when the array is in the heap.
 
-    Example Java usage::
+Heap memory allocation
+======================
 
-        ClientAgent ca = ...;
+::
 
-        // Assume @gcd is <@i64 (@i64 @i64)>
+    MuRefValue  (*new_fixed )(MuCtx *ctx, MuID mu_type);
+    MuRefValue  (*new_hybrid)(MuCtx *ctx, MuID mu_type, MuIntValue length);
+    
+``new_fixed`` allocates an object in the heap which has ``mu_type`` type.
+``mu_type`` must be a fixed-length type.
 
-        Handle func = ca.putFunction(idOf("@gcd"));
-        Handle arg0 = ca.putLong(idOf("@i64"), 42);
-        Handle arg1 = ca.putLong(idOf("@i64"), 21);
+``new_hybrid`` allocates an object in the heap which has ``mu_type`` type.
+``my_type`` must be a hybrid. ``length`` is the length of the variable part.
 
-        Handle stack = ca.newStack(func, new Handle[] {arg0, arg1});
-
-        Handle thread = ca.newThread(stack);  // see below.
-
-        ca.deleteHandles(func, arg0, arg1, stack);
-
-The ``new_thread`` message
---------------------------
-
-- receiver: client agent
-- message: ``new_thread``
-- parameters:
-
-  + ``sta``: A handle of a stack value.
-
-- return value: A handle of a thread value: the newly created thread.
-
-The ``new_thread`` message creates a new Mu thread with ``sta`` as its initial
-stack.
-
-    For Lua users: When used together with ``new_stack``, this is similar to
-    ``coroutine.create`` and ``coroutine.resume``. But Mu threads are
-    concurrent. There are patterns to implement Lua-like coroutines using the
-    ``SWAPSTACK`` Mu instruction.
+The return value is the object reference of the allocated object, or ``NULL`` (A
+``NULL`` pointer in C, which means it does not return a handle. It is not a
+handle to a ``NULL`` Mu reference.) when the allocation failed.
 
 ..
 
-    Example Java signature: ``Handle ClientAgent.newThread(Handle stack)``
+    For Lua users: They are similar to the ``lua_newtable`` or
+    ``lua_createtable`` function, but Mu can allocate many different types on
+    the heap. In this sense, it is also similar to ``lua_newuserdata``, but the
+    allocated Mu object has associated metadata to identify references in the
+    object.
 
-    Example C signature: ``handle_t new_thread(agent_t *ca, handle_t stack)``
+    For JNI users: They are similar to the ``AllocObject`` and the
+    ``New<xxx>Array`` routines. Mu is not aware of "initialiser".
 
-The ``kill_stack`` message
---------------------------
+Cast between general reference types
+------------------------------------
 
-- receiver: client agent
-- message: ``kill_stack``
-- parameters:
+::
 
-  + ``sta``: A handle of a stack value.
+    MuValue     (*refcast)(MuCtx *ctx, MuValue opnd, MuID new_type);
 
-- return value: None
+``refcast`` casts a value of general reference types to a new type ``new_type``.
+The rules on the old type and the new type and the resulting value follow the
+same rules as the ``REFCAST`` instruction.
 
-The ``kill_stack`` message kills the stack.
+Memory addressing
+-----------------
 
-If the stack contains native frames, the behaviour is implementation-defined.
+::
+
+    MuIRefValue     (*get_iref           )(MuCtx *ctx, MuRefValue opnd);
+    MuIRefValue     (*get_field_iref     )(MuCtx *ctx, MuIRefValue opnd, int field);
+    MuIRefValue     (*get_elem_iref      )(MuCtx *ctx, MuIRefValue opnd, MuIntValue index);
+    MuIRefValue     (*shift_iref         )(MuCtx *ctx, MuIRefValue opnd, MuIntValue offset);
+    MuIRefValue     (*get_fixed_part_iref)(MuCtx *ctx, MuIRefValue opnd);
+    MuIRefValue     (*get_var_part_iref  )(MuCtx *ctx, MuIRefValue opnd);
+
+* ``get_iref`` converts an object reference into an internal reference to the
+  memory location of the whole object.
+
+* ``get_field_iref`` gets an iref to the ``field``-th field of the struct
+  referred by the iref ``opnd``.
+
+* ``get_elem_iref`` gets an iref to the ``index``-th element of the array or
+  vector referred by the iref ``opnd``.
+
+* ``shift_iref`` assumes ``opnd`` refers to an element in a general memory
+  array. It returns the iref of ``opnd`` moved by ``offset`` (forward if
+  positive, backward if negative).
+
+* ``get_fixed_part_iref`` gets an iref to the fixed part of the hybrid referred
+  by iref ``opnd``.
+
+* ``get_var_part_iref`` gets an iref to the 0-th element of the variable part of
+  the hybrid referred by iref ``opnd``.
+
+``index`` and ``offset`` can be any integer types, and are considered signed.
+
+Memory accessing
+----------------
+
+::
+
+    MuValue     (*load     )(MuCtx *ctx, MuMemOrd ord, MuIRefValue loc);
+    void        (*store    )(MuCtx *ctx, MuMemOrd ord, MuIRefValue loc, MuValue newval);
+    MuValue     (*cmpxchg  )(MuCtx *ctx, MuMemOrd ord_succ, MuMemOrd ord_fail,
+                        int weak, MuIRefValue loc, MuValue expected, MuValue desired,
+                        int *is_succ);
+    MuValue     (*atomicrmw)(MuCtx *ctx, MuMemOrd ord, MuAtomicRMWOp op,
+                        MuIRefValue loc, MuValue opnd);
+    void        (*fence    )(MuCtx *ctx, MuMemOrd ord);
+
+where::
+
+    // Memory orders
+    typedef int MuMemOrd;
+
+    #define MU_NOT_ATOMIC  0x00
+    #define MU_RELAXED     0x01
+    #define MU_CONSUME     0x02
+    #define MU_ACQUIRE     0x03
+    #define MU_RELEASE     0x04
+    #define MU_ACQ_REL     0x05
+    #define MU_SEQ_CST     0x06
+
+    // Operations for the atomicrmw API function
+    typedef int MuAtomicRMWOp;
+
+    #define MU_XCHG        0x00
+    #define MU_ADD         0x01
+    #define MU_SUB         0x02
+    #define MU_AND         0x03
+    #define MU_NAND        0x04
+    #define MU_OR          0x05
+    #define MU_XOR         0x06
+    #define MU_MAX         0x07
+    #define MU_MIN         0x08
+    #define MU_UMAX        0x09
+    #define MU_UMIN        0x0A
+
+* ``load`` performs a *load* operation with arguments (``ord``, *T*, ``loc``).
+
+* ``store`` performs a *store* operation with arguments (``ord``, *T*, ``loc``,
+  ``newval``).
+
+* ``cmpxchg`` performs a *compare exchange* operation with arguments (``weak``,
+  ``ord_sicc``, ``ord_fail``, *T*, ``loc``, ``expected``, ``desired``).
+  ``*is_succ`` is set to 1 if successful, or 0 if failed.
+
+* ``atomicrmw`` performs an *atomic-x* operation with argument (``ord``, *T*,
+  ``loc``, ``opnd``), where the *x* in *atomic-x* is ``op``.
+
+* ``fence`` is a fence of memory order ``ord``.
+
+In the above operations, *T* is the type of the referent type of internal
+reference ``loc``. The type of ``newval``, ``expected``, ``desired``, ``opnd``
+and the return values of ``store``, ``cmpxchg`` and ``atomicrmw`` is the strong
+variant of *T* (``weakref<T>`` becomes ``ref<T>``).
+
+These instructions are guaranteed to be compatible with the Mu memory model.
+
+..
+
+    For C users: Functions in ``stdatomic.h`` may be implemented in an
+    incompatible way to Mu.
+
+    For JNI users: ``load`` and ``store`` are similar to ``Get<type>Field`` and
+    ``Set<type>Field``.
+
+Stack and thread operations
+===========================
+
+::
+
+    MuStackRefValue     (*new_stack )(MuCtx *ctx, MuFuncRefValue func, MuValue *args, int nargs);
+    MuThreadRefValue    (*new_thread)(MuCtx *ctx, MuStackRefValue stack);
+    void                (*kill_stack)(MuCtx *ctx, MuStackRefValue stack);
+
+``new_stack`` creates a new Mu stack with ``func`` as the bottom function.
+Arguments are provided in the ``args`` array. ``nargs`` is the number of
+arguments. The type of arguments must match the signature of ``func``. Returns a
+stackref to the new stack. The new stack stops in the very beginning of
+``func``, and its state is ``READY<void>``. ``func`` must have at least one
+version (i.e. must be defined).
+
+``new_thread`` creates a new Mu thread and binds it to ``stack``. ``stack`` must
+be in the ``READY<void>`` state. Returns a threadref to the new thread.
+
+``kill_stack`` kills the ``stack``. The stack must be in the ``READY<T>`` state,
+where *T* can be void. The stack enters the ``DEAD`` state.  If the stack
+contains native frames, the behaviour is implementation-defined.
+
+``func`` and ``stack`` must not be ``NULL``.
+
+    For Lua users: ``new_stack`` is similar to creating a coroutine by creating
+    a new ``lua_State`` and pushing the function and its arguments.
+    ``new_thread`` is like resuming a coroutine, but on a different stack, and
+    Mu supplies the arguments when creating the stack rather than creating the
+    thread. The real counterpart of ``lua_resume`` is the ``SWAPSTACK``
+    instruction, which is not available in the API. ``kill_stack`` is similar to
+    ``lua_close``.
+
 
     For JVM users: The JVM does not distinguish stacks and threads. The closest
     counterpart is the JVM TI function ``StopThread``, but the Mu ``kill_stack``
     message does not unwind the stack. It simply marks the whole stack for
     deletion.
 
-..
+Stack introspection
+-------------------
 
-    For Lua users: Coroutines in Lua are garbage collected. Mu will reclaim
-    unreachable stacks, too, but can also explicitly kill them.
+::
 
-..
+    MuID        (*cur_func_ver   )(MuCtx *ctx, MuStackRefValue stack, int frame);
+    MuID        (*cur_inst       )(MuCtx *ctx, MuStackRefValue stack, int frame);
+    void        (*dump_keepalives)(MuCtx *ctx, MuStackRefValue stack, int frame, MuValue *results);
 
-    Example Java signature: ``void ClientAgent.killStack(Handle stack)``
+* ``cur_func_ver`` returns the ID of the current function version of ``frame``
+  in ``stack``. Returns 0 if the frame is native.
 
-    Example C signature: ``void kill_stack(agent_t *ca, handle_t stack)``
+* ``cur_inst`` returns the ID of the current instruction of ``frame`` in
+  ``stack``. Returns 0 if the frame is just created or if the frame is native.
 
-Stack Introspection and On-stack Replacement
-============================================
-
-The ``current_func_ver`` message
---------------------------------
-
-- receiver: client agent
-- message: ``current_func_ver``
-- parameters:
-
-  + ``stack``: A handle of a stack.
-  + ``frame``: An integer: The number of frames below the top. 0 means top.
-
-- return value: The ID of the version of function of the current frame, or 0 if
-  it is a native frame.
-
-The ``current_func_ver`` message returns the id of the current function version
-of a frame in ``stack``.
-
-The frame is the ``frame``-th frame below the top frame.  (If ``frame`` is 0, it
-is the top frame. 1 is the frame below the top. 2 is the one below 1, and so
-on.)
-
-    For JVM users: The closest JVM TI function is ``GetFrameLocation``.
+* ``dump_keepalives`` dumps the values of the keep-alive variables of the
+  current instruction in the selected frame. Cannot called on native frames.
+  As many handles as the keep-alive variables are written in the ``results``
+  array.
 
 ..
 
-    Example Java signature: ``Handle ClientAgent.currentInstruction(Handle stack, int frame)``
+    NOTE: The current instruction ID uniquely decides the list of keep-alive
+    variables, so the client can always know how long the ``results`` array
+    should be allocated.
 
-    Example C signature: ``handle_t current_instruction(agent_t *ca, handle_t stack, int frame)``
-
-
-The ``current_instruction`` message
------------------------------------
-
-- receiver: client agent
-- message: ``current_instruction``
-- parameters:
-
-  + ``stack``: A handle of a stack.
-  + ``frame``: An integer: The number of frames below the top. 0 means top.
-
-- return value: The ID of the current instruction of a frame in ``stack``, or 0
-  if the frame is the "stack-bottom frame" of a newly created stack.
-
-See ``current_func_ver`` about how the frame is selected.
-
-    For JVM users: The closest JVM TI function is ``GetFrameLocation``.
+The frame is the ``frame``-th frame below the top frame, starting with 0.  (If
+``frame`` is 0, it is the top frame. 1 is the frame below the top. 2 is the one
+below 1, and so on.)
 
 ..
 
-    Example Java signature: ``Handle ClientAgent.currentInstruction(Handle stack, int frame)``
+    For Lua users: The debug interface provides many similar introspection
+    functions.
 
-    Example C signature: ``handle_t current_instruction(agent_t *ca, handle_t stack, int frame)``
+    For JVM users: The JVM TI function ``GetFrameLocation`` gets both the method
+    ID and the location of instruction. It is like a combination of
+    ``cur_func_ver`` and ``cur_inst``. JVM TI has ``GetLocalVariable`` which
+    gets any local variable, but Mu only preserves some user-specified local
+    variables for introspection. The user, however, can write the ``KEEPALIVE``
+    clause to request all local variables to be available.
 
-The ``dump_keepalives`` message
--------------------------------
+On-stack replacement
+--------------------
 
-- receiver: client agent
-- message: ``dump_keepalives``
-- parameters:
+::
 
-  + ``stack``: A handle of a stack.
-  + ``frame``: An integer: The number of frames below the top. 0 means top.
+    void        (*pop_frame )(MuCtx *ctx, MuStackRefValue stack);
+    void        (*push_frame)(MuCtx *ctx, MuStackRefValue stack, MuFuncRefValue func, MuValue *args, int nargs);
 
-- return value: A list of handles, each has the value of a local variable in the
-  keep-alive clause of the current instruction in the selected frame.
+* ``pop_frame`` pops the top frame of the stack. Popping native frames has
+  implementation-defined behaviour.
 
-The ``dump_keepalives`` dumps the values of the keep-alive variables of the
-current instruction in the selected frame. Returns a list of handles.
+* ``push_frame`` creates a new frame on the top of ``stack`` for function
+  ``func``, using the values in the ``args`` array as its arguments. ``nargs``
+  is the number of arguments. Arguments must match the signature of ``func``.
 
-See ``current_func_ver`` about how the frame is selected.
-
-This message cannot be used on native frames.
-
-    For JVM users: The closest JVM TI function is ``GetLocalVariable``. Mu will
-    not keep all local variables alive. It does not allow setting the value of
-    local variables, either. However, if an internal reference to a stack memory
-    cell is kept alive, the client can access that memory using the memory
-    accessing API messages.
-
-..
-
-    Example Java signature: ``List<Handle> ClientAgent.dumpKeepalives(Handle stack, int frame)``
-
-    Example C signature: ``void current_instruction(agent_t *ca, handle_t stack, int frame, handle_t* output_handles)``
-
-The ``pop_frame`` message
--------------------------
-
-- receiver: client agent
-- message: ``pop_frame``
-- parameters:
-
-  + ``stack``: A handle of a stack.
-
-- return value: None
-
-The ``pop_frame`` message pops the top frame of the stack.
-
-Popping native frames has implementation-defined behaviours.
-
-    For JVM users: This is the counterpart of the ``PopFrame`` JVM TI function.
+  The previous stack top frame must be pausing on the ``CALL`` instruction. The
+  return type of ``func`` must be the same as return type of the ``CALL``
+  instruction of the previous top. After ``push_frame``, the stack enters the
+  ``READY<void>`` state. When the stack is rebound, it continues from the
+  beginning of ``func``. The return value or exceptions from ``func`` are
+  received by the ``CALL`` instruction.
 
 ..
 
-    Example Java signature: ``void ClientAgent.popFrame(Handle stack)``
+    For JVM users: ``pop_frame`` is similar to the ``PopFrame`` JVM TI function.
 
-    Example C signature: ``void pop_frame(agent_t *ca, handle_t stack)``
 
-The ``push_frame`` message
---------------------------
+Tagged reference operations
+---------------------------
 
-- receiver: client agent
-- message: ``push_frame``
-- parameters:
+::
 
-  + ``stack``: A handle of a stack.
-  + ``func``: A handle of a Mu function.
-  + ``arg_list``: A list of handles. Each handle is an argument to ``func``.
+    int             (*tr64_is_fp   )(MuCtx *ctx, MuTagRef64Value value);
+    int             (*tr64_is_int  )(MuCtx *ctx, MuTagRef64Value value);
+    int             (*tr64_is_ref  )(MuCtx *ctx, MuTagRef64Value value);
+    MuDoubleValue   (*tr64_to_fp   )(MuCtx *ctx, MuTagRef64Value value);
+    MuIntValue      (*tr64_to_int  )(MuCtx *ctx, MuTagRef64Value value);
+    MuRefValue      (*tr64_to_ref  )(MuCtx *ctx, MuTagRef64Value value);
+    MuIntValue      (*tr64_to_tag  )(MuCtx *ctx, MuTagRef64Value value);
+    MuTagRef64Value (*tr64_from_fp )(MuCtx *ctx, MuDoubleValue value);
+    MuTagRef64Value (*tr64_from_int)(MuCtx *ctx, MuIntValue value);
+    MuTagRef64Value (*tr64_from_ref)(MuCtx *ctx, MuRefValue ref, MuIntValue tag);
 
-- return value: None
+``tr64_is_fp``, ``tr64_is_int`` and ``tr64_is_ref`` checks if the ``tagref64``
+value ``value`` holds a FP number, an integer or a reference. Returns 1 or 0 for
+true or false.
 
-The ``push_frame`` message creates a new frame on the top of ``stack`` for
-function ``func``, using the values in ``arg_list`` as its arguments.
+``tr64_to_fp``, ``tr64_to_int`` and ``tr64_to_ref`` extracts the FP number,
+integer or reference that ``value`` is holding. ``tr64_to_tag`` extracts the tag
+stored together with the reference. They have undefined behaviour if ``value``
+does not hold the expected type.
 
-The previous stack top frame must be pausing on the ``CALL`` instruction. The
-return type of ``func`` must be the same as return type of the ``CALL``
-instruction of the previous top. After ``push_frame``, the stack enters the
-``READY<void>`` state. When the stack is rebound, it continues from the
-beginning of ``func``. The return value or exceptions from ``func`` are received
-by the ``CALL`` instruction.
+``tr64_from_fp``, ``tr64_from_int`` and ``tr64_from_ref`` creates a ``tagref64``
+value from a FP number, an int or an object reference together with a tag.
 
-    Example Java signature: ``void ClientAgent.pushFrame(Handle stack, Handle
-    func, List<Handle> argList)``
+The FP number type is ``double``, the integer type is ``int<52>``, the reference
+type is ``ref<void>``, the tag type is ``int<6>``.
 
-    Example C signature: ``void push_frame(agent_t *ca, handle_t stack, handle_t
-    func, handle_t *arg_list, int nargs)``
+Watchpoint operations
+---------------------
 
-Tagged Reference Messages
-=========================
+::
 
-The ``tr64_is_fp``, ``tr64_is_int`` and ``tr64_is_ref`` messages
-----------------------------------------------------------------
+    void        (*enable_watchpoint )(MuCtx *ctx, int wpid);
+    void        (*disable_watchpoint)(MuCtx *ctx, int wpid);
 
-- receiver: client agent
-- messages: ``tr64_is_fp``, ``tr64_is_int``, ``tr64_is_ref``
-- parameters:
+* ``enable_watchpoint`` enables all watchpoints of ID ``wpid``.
+* ``disable_watchpoint`` disables all watchpoints of ID ``wpid``.
 
-  + ``handle``: A handle of a ``tagref64`` value.
+Enabling or disabling any non-existing ``wpid`` has undefined behaviour.
 
-- return value: A Boolean value: True if the tagged reference contains the
-  expected type.
+Object pinning
+--------------
 
-The ``tr64_is_fp``, ``tr64_is_int`` and ``tr64_is_ref`` messages test if the
-tagged reference ``handle`` currently holds a floating point, integer or
-reference value, respectively.
+::
 
-    Example Java signatures::
+    MuUPtrValue (*pin  )(MuCtx *ctx, MuValue loc);      // loc is either MuRefValue or MuIRefValue
+    void        (*unpin)(MuCtx *ctx, MuValue loc);      // loc is either MuRefValue or MuIRefValue
 
-        boolean ClientAgent.tr64IsFP (Handle handle)
-        boolean ClientAgent.tr64IsInt(Handle handle)
-        boolean ClientAgent.tr64IsRef(Handle handle)
+* ``pin`` adds one instance of memory location ``loc`` to the pinning set
+  local to the current client context ``ctx``. Returns a pointer which has the
+  resulting address. The pointer has the same referent type as loc.
 
-    Example C signatures::
+* ``unpin`` removes one instance of memory location ``loc`` from the pinning set
+  local to the current client context ``ctx``. Attempting to unpin locations
+  that has not yet been added has undefined behaviour.
 
-        bool tr64_is_fp (agent_t *ca, handle_t handle)
-        bool tr64_is_int(agent_t *ca, handle_t handle)
-        bool tr64_is_ref(agent_t *ca, handle_t handle)
+``loc`` can be either ``ref<T>`` or ``iref<T>``. If it is ``ref<T>``, it pins
+the underlying memory location as obtained by ``get_iref``. In both cases, the
+result is ``uptr<T>``.
 
-The ``tr64_to_fp``, ``tr64_to_int``, ``tr64_to_ref`` and ``tr64_to_tag`` messages
----------------------------------------------------------------------------------
+..
 
-- receiver: client agent
-- messages: ``tr64_to_fp``, ``tr64_to_int``, ``tr64_to_ref``, ``tr64_to_tag``
-- parameters:
+    For Lua users: Lua userdata are always available as pointers. This assumes
+    userdata are always pinned.
 
-  + ``handle``: A handle of a ``tagref64`` value.
+    For JNI users: The ``Get<PrimitiveType>ArrayElements`` and
+    ``Release<PrimitiveType>ArrayElements>`` has similar semantics as pinning
+    and unpinning. Also note that the argument of ``unpin`` is the same
+    reference as what is pinned, not the resulting (untraced) pointer.
 
-- return value: A handle to a Mu value extracted from the tagged reference.
+Exposing Mu functions for native callback
+-----------------------------------------
 
-  * ``tr64_to_fp`` : A handle of a ``double`` value.
-  * ``tr64_to_int``: A handle of a ``int<52>`` value.
-  * ``tr64_to_ref``: A handle of a ``ref<void>`` value.
-  * ``tr64_to_tag``: A handle of a ``int<6>`` value.
+::
 
-The ``tr64_to_fp``, ``tr64_to_int``, ``tr64_to_ref`` and ``tr64_to_tag``
-messages extract the value from the tagged reference ``handle``.
+    MuValue     (*expose  )(MuCtx *ctx, MuFuncRefValue func, MuCallConv call_conv, MuIntValue cookie);
+    void        (*unexpose)(MuCtx *ctx, MuCallConv call_conv, MuValue value);
 
-``tr64_to_fp``  expects ``handle`` to hold a floating point value.
+where::
 
-``tr64_to_int`` expects ``handle`` to hold an integer value.
+    typedef int MuCallConv;
 
-``tr64_to_ref`` expects ``handle`` to hold a reference. Extract the reference.
+    #define MU_DEFUALT     0x00
 
-``tr64_to_tag`` expects ``handle`` to hold a reference. Extract the ``int<6>``
-tag stored together with the reference.
+* ``expose`` exposes a Mu function ``func`` according to the calling convention
+  ``call_conv``. ``cookie`` is the attached cookie. The return value is specific
+  to the calling convention.
 
-    Example Java signatures::
+* ``unexpose`` invalidates an exposed value ``value`` created by the
+  ``@uvm.native.expose`` instruction or the ``expose`` API function with calling
+  convention ``call_conv``. 
 
-        Handle ClientAgent.tr64ToFP (Handle handle)
-        Handle ClientAgent.tr64ToInt(Handle handle)
-        Handle ClientAgent.tr64ToRef(Handle handle)
-        Handle ClientAgent.tr64ToTag(Handle handle)
+See the `Native Interface <native-interface>`__ chapter for details of expose
+and unexpose. See the platform-specific native interface for the return value
+type.
 
-    Example C signatures::
-
-        handle_t tr64_to_fp (agent_t *ca, handle_t handle)
-        handle_t tr64_to_int(agent_t *ca, handle_t handle)
-        handle_t tr64_to_ref(agent_t *ca, handle_t handle)
-        handle_t tr64_to_tag(agent_t *ca, handle_t handle)
-
-The ``tr64_from_fp``, ``tr64_from_int`` and ``tr64_from_ref`` messages
-----------------------------------------------------------------------
-
-- receiver: client agent
-- messages: ``tr64_from_fp``, ``tr64_from_int``, ``tr64_from_ref``
-- parameters for ``tr64_from_fp``:
-
-  + ``handle``: A handle of a ``double`` value.
-
-- parameters for ``tr64_from_int``:
-
-  + ``handle``: A handle of an ``int<52>`` value.
-
-- parameters for ``tr64_from_ref``:
-
-  + ``ref``: A handle of a ``ref<void>`` value.
-  + ``tag``: A handle of a ``int<6>`` value.
-
-- return value: A handle of the constructed ``tagref64`` value.
-
-The ``tr64_from_fp``, ``tr64_from_int`` and ``tr64_from_ref`` messages construct
-new ``tagref64`` values from their component(s).
-
-``tr64_from_fp`` constructs a ``tagref64`` from a ``double`` value.
-
-``tr64_from_int`` constructs a ``tagref64`` from an ``int<52>`` value.
-
-``tr64_from_fp`` constructs a ``tagref64`` from a ``ref<void>`` reference and an
-integer tag of type ``int<6>``.
-
-    Example Java signatures::
-
-        Handle ClientAgent.tr64FromFP (Handle handle)
-        Handle ClientAgent.tr64FromInt(Handle handle)
-        Handle ClientAgent.tr64FromRef(Handle ref, Handle tag)
-
-    Example C signatures::
-
-        handle_t tr64_from_fp (agent_t *ca, handle_t handle)
-        handle_t tr64_from_int(agent_t *ca, handle_t handle)
-        handle_t tr64_from_ref(agent_t *ca, handle_t ref, handle_t tag)
+Implementations may define other calling conventions in addition to
+``MU_DEFAULT``.
 
 Trap and Undefined Function Handling
 ====================================
 
-The ``TRAP`` and the ``WATCHPOINT`` instructions represent places that a Mu
-program requires assistance from the client. When a Mu program calls a Mu
-function that is declared but not defined, Mu also asks the client to define the
-function. In both cases, Mu pauses the running Mu thread, preserves the stack
-state and execute the corresponding call-backs.
+A trap handler is called when a ``TRAP`` or ``WATCHPOINT`` instruction is
+executed. An undefined function handler is called when a function without
+version is either called or used by the ``NEWSTACK`` instruction or the
+``new_stack`` API function.
 
-Watch points can be enabled or disabled by the client via client agents.
+Mu is allowed to call these handlers concurrently. Mu does not guarantee the
+order in which these handlers are called.
 
-The ``enable_watchpoint`` and ``disable_watchpoint`` messages
--------------------------------------------------------------
+The Mu thread that triggers the trap is temporarily unbound from the stack.
 
-- receiver: client agent
-- messages: ``enable_watchpoint`` and ``disable_watchpoint``
-- parameters:
+    NOTE: This unbinding is only conceptual. It is a valid implementation to use
+    the same Mu thread to execute the trap handler.
 
-  + ``wpid``: A 32-bit integer. The ID of the watch point.
+The signature of trap handlers is::
 
-- returns: None
+    typedef void (*MuTrapHandler)(MuCtx *ctx, MuThreadRefValue thread,
+            MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
+            MuStackRefValue *new_stack, MuValue *value, MuRefValue *exception,
+            MuCPtr userdata);
 
-The ``enable_watchpoint`` message enables the watch point ``wpid``.
+where::
 
-The ``disable_watchpoint`` message disables the watch point ``wpid``.
+    typedef int MuTrapHandlerResult;
 
-Enabling or disabling any watch points that are not defined has undefined
-behaviour. A specific watch point is defined by the first occurrence of a
-``WATCHPOINT`` instruction with the specific watch point ID.
+    #define MU_THREAD_EXIT          0x00
+    #define MU_REBIND_PASS_VALUE    0x01
+    #define MU_REBIND_PASS_VOID     0x02
+    #define MU_REBIND_THROW_EXC     0x03
 
-    Example Java signatures::
+``ctx`` is a new client context created for this particular trap event.
+``thread`` is a threadref to the thread that causes the trap. ``stack`` is
+stackref to the stack the thread was bound to when trap happened. Both
+``thread`` and ``stack`` are held by ``ctx``. ``wpid`` is the watchpoint ID if
+it is caused by a ``WATCHPOINT`` instruction, or 0 if by ``TRAP``. ``userdata``
+is the pointer provided when registering the handler.
 
-        void ClientAgent.enableWatchPoint (int wpID)
-        void ClientAgent.disableWatchPoint(int wpID)
+``ctx`` will be closed when the trap handler returns, so the client must not
+close it manually.
 
-    Example C signatures::
+Before returning, the trap handler should set ``*result``:
 
-        void enable_watchpoint (agent_t *ca, int wpid)
-        void disable_watchpoint(agent_t *ca, int wpid)
+* ``MU_THREAD_EXIT``: The thread ``thread`` terminates.
+* ``Mu_REBIND_PASS_VALUE``: The thread ``thread`` will be rebound to a stack
+  ``*new_stack``. The value ``*value`` is passed to ``*new_stack``. The type of
+  ``*value`` must match the type expected by ``*new_stack``.
+* ``Mu_REBIND_PASS_VOID``: The thread ``thread`` will be rebound to a stack
+  ``*new_stack``. It passes ``void`` to it.
+* ``Mu_REBIND_THROW_EXC``: The thread ``thread`` will be rebound to a stack
+  ``*new_stack``. It throws exception ``*exception`` to the stack.
 
-The ``handle_trap`` call-back
------------------------------
+In all cases, if ``*new_stack``, ``*value`` and/or ``*exception`` are used, they
+must be set and must be held by ``ctx``.
 
-- name: ``handle_trap``
-- parameters:
+The signature of undefined function handlers is::
 
-  + ``ca``: A client agent for this call.
-  + ``thread``: A handle to the thread which hit the trap.
-  + ``stack``: A handle to the stack which the thread was bound to.
-  + ``watchpoin_id``: The watch point ID. 0 if it is ``TRAP``.
+    typedef void (*MuUndefFuncHandler)(MuCtx *ctx, MuID func_id, MuCPtr userdata);
 
-- returns: How the ``thread`` should continue. It can be one of the following
-  tagged structures:
+``funct_id`` is the ID of the callee function. ``userdata`` is the pointer
+provided when registering the handler.
 
-  + ``EXIT``: The thread terminates.
-  + ``REBIND_PASS_VALUE(new_stack, value)``: Rebind ``thread`` with a stack,
-    passing a value.
-
-    * ``new_stack``: A handle in ``ca`` to a stack. Must be in state
-      ``READY<T>`` for some *T*.
-    * ``value``: A handle in ``ca`` to a value passed to the stack. Must have
-      type *T*.
-
-  + ``REBIND_PASS_VOID(new_stack)``: Rebind ``thread`` with a stack, passing
-    void.
-
-    * ``new_stack``: A handle in ``ca`` to a stack. Must be in state
-      ``READY<void>``.
-
-  + ``REBIND_THROW_EXC(new_stack, exc)``: Rebind ``thread`` with a stack,
-    throwing an exception.
-
-    * ``new_stack``: A handle in ``ca`` to a stack.
-    * ``exc``: A handle in ``ca`` to a value passed. Must have type ``ref<T>``
-      for some *T*.
-
-This call-back is called when a trap (either a ``TRAP`` or an enabled
-``WATCHPOINT``) is hit.
-
-A client agent ``ca`` is provided to the client for this particular call. It
-initially has two handles, namely ``thread`` and ``stack``. It is automatically
-closed after this handler returned.
-
-The ``thread`` and the ``stack`` are already unbound when entering this
-handler.
-
-The return value tells the Mu how the ``thread`` shall continue. It may
-terminate or bind to a stack to continue. In all cases, the ``new_stack`` field
-may or may not be the ``stack`` parameter. The ``stack`` will not be
-automatically killed even with ``EXIT``.
-
-When multiple Mu threads hit traps concurrently, Mu guarantees that this
-call-back is called for each hit. However, a Mu implementation may decide
-whether all calls to this call-back can be executed concurrently or only
-sequentially.
-
-The ``handle_undefined_function`` call-back
--------------------------------------------
-
-- name: ``handle_undefined_function``
-- parameters:
-
-  + ``function_id``: The ID of the undefined function.
-
-- returns: nothing
-
-This call-back is called when an undefined function is called (by ``CALL``,
-``INVOKE`` or ``TAILCALL``), used by ``NEWSTACK`` or any intrinsic functions
-that may call a Mu function. 
-
-``function_id`` is the ID of the callee function. After returning, the Mu
-program will re-execute the same instruction again.
+After returning, the Mu program will re-execute the same instruction again.
 
     NOTE: This means that the client must define the undefined function, or Mu
     will keep calling this call-back again and again.
 
-Since there may be multiple Mu threads running, more than one thread may call
-undefined functions simultaneously. The implementation is only required to have
-all of them handled, sequentially or parallelly.
-
-Native Interface
-================
-
-The ``ptrcast`` Message
------------------------
-
-- receiver: client agent
-- message: ``ptrcast``
-- parameters:
-
-  + ``handle``: A handle to a value of either ``int<n>``, ``ptr<T>`` or
-    ``funcptr<sig>`` type.
-  + ``new_type``: The ID of the new type for ``handle``.
-
-- return value: A handle to the converted pointer or integer value.
-
-The ``refcast`` message converts the value of ``handle`` of n integer or pointer
-type (see `<type-system>`__) to a new type ``new_type`` according to the rules
-of the ``PTRCAST`` instruction.
-
-The type of ``handle`` and the type ``new_type`` must match the constraint of
-the type parameters *T1* and *T2* of the ``PTRCAST`` instruction (see
-`<instruction-set>`__).
-
-The ``pin`` message
--------------------
-
-- receiver: client agent
-- message: ``pin``
-- parameters:
-
-  + ``handle``: A handle to a value of either ``ref<T>`` or ``iref<T>`` type.
-
-- return value: A handle to the pointer of the bytes for the memory location of
-  ``handle``. The type is ``ptr<T>``.
-
-Pin the memory location of handle ``handle``.
-
-The ``unpin`` message
----------------------
-
-- receiver: client agent
-- message: ``unpin``
-- parameters:
-
-  + ``handle``: A handle to a value of either ``ref<T>`` or ``iref<T>`` type.
-
-- return value: None
-
-Unpin the memory location of handle ``handle``.
-
-Exposing Mu Functions
----------------------
-
-- receiver: client agent
-- message: ``expose``
-- parameters:
-
-  + ``func``: A handle to a value of ``func<sig>`` type.
-  + ``callConv``: The calling convention.
-  + ``cookie``: A handle to a value of ``int<64>`` type.
-
-- return value: A handle to an exposed value. The type is decided by the
-  ``callConv``.
-
-Expose a Mu function ``func`` using the calling convention ``callConv`` with
-cookie ``cookie`` attached.
-
-- receiver: client agent
-- message: ``unexpose``
-- parameters:
-
-  + ``callConv``: The calling convention.
-  + ``handle``: A handle to an exposed value. The type is decided by the
-    ``callConv``.
-
-- return value: None
-
-Remove the exposed value.
-
 Signal Handling
 ===============
 
-The concrete call-back for the client to handle signals is
-implementation-specific. 
-
-In an environment where Mu is present, the client should not register signal
-handlers. Mu should register signal handlers for itself or the client. On
-receiving the signal, Mu shall check if it designates a run-time error in any Mu
-IR code. If so, it shall be handled within Mu. If it does not occur in any Mu IR
-code, it shall be forwarded to the client via a call-back. Errors within the Mu
-runtime are fatal and will not be handled. The previous signal handler
-registered by external libraries shall be preserved by Mu in case the external
-library shall take the responsibility of handling the signal.
-
-    NOTE: Both the client and Mu may need to handle signals. Mu needs to handle
-    some hardware traps including divide-by-zero errors and floating point
-    exceptions. These should be implemented by signal handling in UNIX-like
-    operating systems. Meanwhile the client may also need to handle such
-    erroneous cases, for example, when implementing an interpreter.
-    
-    According to how the operating system works, only one signal handler can be
-    registered by a process at the same time. This comes to a compromise in the
-    design: in the presence of Mu, the signal flows from Mu, the client and the
-    external libraries.
-
-    Theoretically Mu should be the only entity in the process that registers
-    signal handlers and all other entities, including the client or other
-    libraries designed with Mu in mind, when having the need to handle signals,
-    should use the call-back or message-passing mechanisms provided by Mu.
+Signal handling is implementation-dependent. Mu may register signal handlers.
 
 .. vim: tw=80
