@@ -22,7 +22,7 @@ via pointers, bypassing the handle-based API.
 
 A **HAIL script** has a text format and a binary format. The text format is
 similar to the text-based Mu IR, and the binary format is similar to the binary
-form Mu IR
+form Mu IR.
 
 Lexical Structures
 ==================

@@ -4,6 +4,19 @@ Native Interface
 
 This chapter defines the Mu native interface.
 
+    NOTE: The term **foreign function interface** may have been used in many
+    other places by experienced VM engineers to mean a heavy-weighted complex
+    interface with another language. JikesRVM users use **foreign function
+    interface** to refer to JNI and use **syscall** to refer to a light-weight
+    unsafe mechanism to call arbitrary C functions with minimal overhead.
+    
+    The ``CCALL`` instruction is more similar to the latter. It has minimum
+    overhead, but provides no protection to malicious code. So it must be used
+    with care. 
+
+    To reduce confusion, we use the term **unsafe native interface** or just
+    **native interface** instead of *foreign function interface*.
+
 The **native interface** is a *light-weight* *unsafe* interface through which
 *Mu IR programs* communicate with *native programs*.
 
@@ -79,7 +92,9 @@ This interface has several aspects:
 Raw Memory Access
 =================
 
-This section defines mechanisms for raw memory access.
+This section defines mechanisms for raw memory access. *Pointers* give Mu
+programs access to the native (raw) memory, while *pinning* gives native
+programs access to the Mu memory.
 
 Pointers
 --------
@@ -106,9 +121,6 @@ address. Type checking is not performed.
     There are segmented architectures, including x86, whose "pointers" are
     segments + offsets. However, apparently the trend is to move to a "flat"
     memory space.
-
-Exposing Mu Memory to the Native World
-======================================
 
 Pinning
 -------
@@ -139,7 +151,32 @@ his multi-set. A memory location is pinned as long as there is at least one
 Calling between Mu and Native Functions
 =======================================
 
-Mu Functions calling Native functions
+Calling Conventions
+-------------------
+
+The calling conventions involving native programs are platform-dependent and
+implementation-dependent. It should be defined by platform-specific binary
+interfaces (ABI) as supplements to this Mu specification. Mu implementations
+should advertise what ABI it implements.
+
+Calling conventions are identified by flags (``#XXXXXX``) in the IR. Mu defines
+the flag ``#DEFAULT`` and its numerical value 0x00 for the default calling
+convention of platforms. This flag is always available. Other calling
+conventions can be defined by implementations.
+
+The calling convention determines the type of value that are callable by the
+``CCALL`` instruction (described below), and the type of the exposed value for
+Mu functions (described below). The type is usually a ``ufuncptr<sig>`` for C
+functions, which are called via their addresses. Other examples are:
+
+* If it is desired to make system calls directly from Mu, then the type can be
+  an integer, i.e. the system call number.
+  
+* If it is something like `a SWAP-STACK operation implemented as a calling
+  convention <http://dl.acm.org/citation.cfm?id=2400695>`__, then the callee can
+  be a stack pointer in the form of ``uptr<void>``.
+
+Mu Functions Calling Native Functions
 -------------------------------------
 
 The ``CCALL`` instruction calls a native function. Determined by calling
@@ -147,7 +184,7 @@ conventions, the native function may be represented in different ways, and the
 arguments are passed in different ways. The return value of the call will be the
 return value of the ``CCALL`` instruction, which is a Mu SSA variable.
 
-Native Functions calling Mu Functions
+Native Functions Calling Mu Functions
 -------------------------------------
 
 A Mu function can be **exposed** as a native function pointer in three ways:
@@ -160,7 +197,7 @@ A Mu function can be **exposed** as a native function pointer in three ways:
    function, and the ``@uvm.native.unexpose`` common instruction deletes the
    exposed value.
 
-3. Dynamically, the ``expose`` and ``unexpose`` API messages do the same thing
+3. Dynamically, the ``expose`` and ``unexpose`` API function do the same thing
    as the above instructions.
 
 A "cookie", which is a 64-bit integer value, can be attached to each exposed
@@ -252,8 +289,8 @@ behaviours.
     NOTE: Similar to native frames, Mu programs may have even more necessary
     clean-up operations, such as GC barriers.
 
-Changes in the Mu IR and the API
-================================
+Changes in the Mu IR and the API introduced by the native interface
+===================================================================
 
 **New types**:
 
@@ -312,7 +349,7 @@ example:
 
 See `Instruction Set <instruction-set>`__.
 
-**New API messages**:
+**New API functions**:
 
 * ``ptrcast``
 * ``pin``
@@ -320,24 +357,14 @@ See `Instruction Set <instruction-set>`__.
 * ``expose``
 * ``unexpose``
 
-**Modified API messages**:
+**Modified API functions**:
 
-The following messages: ``get_field_iref``, ``get_elem_iref``, ``shift_iref``,
-``get_fixed_part_iref``, ``get_var_part_iref``, ``load``, ``store``, ``cmpxchg``
-and ``atomicrmw`` work for both ``uptr<T>`` and ``iref<T>`` operands.  No
-changes to the parameters are required. The return values for memory addressing
-messages are ``uptr<U>`` rather than ``iref<U>`` for some type U.
-
-    TODO: Currently the API assumes each handle has an attached type, and does
-    not require the client to supply the types for handles when using them. Is
-    the micro VM doing too much for the client? But I think the type information
-    always has to be maintained by the micro VM.
-
-The ``current_func_ver`` message, in addition to returning the function version
+The ``cur_func_ver`` function, in addition to returning the function version
 ID, it may also return 0 if the selected frame is a native frame. (Multiple
 native frames are counted as one between two Mu frames.)
 
-The ``pop_frame`` message may pop native frames.
+The ``pop_frame`` function has implementation-defined behaviours when popping
+native frames.
 
 During OSR, if the top frame is a native frame, the state of the stack is
 ``READY<T>`` where *T* is the return type of the previous frame on top of the

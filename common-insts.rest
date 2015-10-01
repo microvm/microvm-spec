@@ -39,12 +39,18 @@ instructions or changing the grammar.
     Common instructions are not Mu functions and cannot be called by the
     ``CALL`` instruction, nor can it be directly used from the high-level
     language that the client implements. The Mu client must understand common
-    instructions because it is the only source of IR code of Mu. For
-    special high-level language functions that cannot be directly implemented in
-    the high-level programming language, like the methods in the
-    ``java.lang.Thread`` class, the client must translate those things that are
-    special in the high-level language to appropriate Mu IR code, which may or
-    may not involve common instructions.
+    instructions because it is the only source of IR code of Mu. That is to say,
+    *there is no way any higher-level program can express anything which Mu
+    knows but the client does not*. For special high-level language functions
+    that cannot be directly implemented in the high-level programming language,
+    like the methods in the ``java.lang.Thread`` class, the client must
+    implement those special high-level language functions in "ordinary" Mu IR
+    code, which may or may not involve common instructions. For example,
+    creating a thread is a "magic" in Java, but it is not more special than
+    executing an instruction (``@uvm.new_thread``) in Mu. Some Java libraries
+    require Mu to make a ``CCALL`` to some C functions which are provided by the
+    JVM, and they slip under the level of Mu. But Mu and the client always know
+    the fact that "it call C function" and it is not magic.
 
 This document uses the following notation:
 
@@ -115,22 +121,23 @@ Construct a ``tagref64`` value from an object reference ``%ref`` and a tag
 - ``[0x217]@uvm.tr64.to_fp (%tr: tagref64) -> double``
 
 Extract the floating point value from ``%tr``, assuming ``%tr`` contains a
-floating point value.
+floating point value. It has undefined behaviour if the assumption is wrong.
 
 - ``[0x218]@uvm.tr64.to_int (%tr: tagref64) -> int<52>``
 
 Extract the integer value from ``%tr``, assuming ``%tr`` contains an integer
-value.
+value. It has undefined behaviour if the assumption is wrong.
 
 - ``[0x219]@uvm.tr64.to_ref (%tr: tagref64) -> ref<void>``
 
 Extract the object reference from ``%tr``, assuming ``%tr`` contains reference
-value.
+value. It has undefined behaviour if the assumption is wrong.
 
 - ``[0x21a]@uvm.tr64.to_ref (%tr: tagref64) -> int<6>``
 
 Extract the ``int<6>`` tag accompanying the object reference from ``%tr``,
-assuming ``%tr`` contains reference value.
+assuming ``%tr`` contains reference value. It has undefined behaviour if the
+assumption is wrong.
 
 Math Instructions
 =================
@@ -142,6 +149,10 @@ Math Instructions
        Java 1.8.
     2. Floating point math functions. Example: trigonometric functions, testing
        NaN, fused multiply-add, ...
+
+    It requires some work to decide a complete list of such functions. To work
+    around the limitations for now, please call native functions in libc or
+    libm using ``CCALL``.
 
 Futex Instructions
 ==================
@@ -352,7 +363,8 @@ arguments after ``%func``. Each will be an argument to ``%func``. Their types
 must match the argument types of ``%func``.
 
 The function's return type must match the expected return type of the previous
-frame.
+frame. If the previous frame is a native frame, the new function must have the
+same return type as the previous Mu callee.
 
 ``%stack`` and ``%func`` must not be ``NULL``.
 

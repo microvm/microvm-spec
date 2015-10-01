@@ -581,9 +581,10 @@ Memory addressing
 * ``get_elem_iref`` gets an iref to the ``index``-th element of the array or
   vector referred by the iref ``opnd``.
 
-* ``shift_iref`` assumes ``opnd`` refers to an element in a general memory
-  array. It returns the iref of ``opnd`` moved by ``offset`` (forward if
-  positive, backward if negative).
+* ``shift_iref`` assumes ``opnd`` refers to an element in a memory array
+  (including arrays, vectors and the variable part of hybrids in the memory, see
+  `Mu and the Memory <uvm-memory>`__). It returns the iref of ``opnd`` moved by
+  ``offset`` (forward if positive, backward if negative).
 
 * ``get_fixed_part_iref`` gets an iref to the fixed part of the hybrid referred
   by iref ``opnd``.
@@ -754,18 +755,24 @@ On-stack replacement
     void        (*push_frame)(MuCtx *ctx, MuStackRefValue stack, MuFuncRefValue func, MuValue *args, int nargs);
 
 * ``pop_frame`` pops the top frame of the stack. Popping native frames has
-  implementation-defined behaviour.
+  implementation-defined behaviour. Popping a Mu frame changes the state of the
+  stack to ``READY<T>`` where T is the return type of the function of the popped
+  frame.
 
 * ``push_frame`` creates a new frame on the top of ``stack`` for function
   ``func``, using the values in the ``args`` array as its arguments. ``nargs``
   is the number of arguments. Arguments must match the signature of ``func``.
 
-  The previous stack top frame must be pausing on the ``CALL`` instruction. The
-  return type of ``func`` must be the same as return type of the ``CALL``
-  instruction of the previous top. After ``push_frame``, the stack enters the
-  ``READY<void>`` state. When the stack is rebound, it continues from the
-  beginning of ``func``. The return value or exceptions from ``func`` are
-  received by the ``CALL`` instruction.
+  If the previous stack top frame is a Mu frame, it must be pausing on the
+  ``CALL`` instruction. The return type of ``func`` must be the same as return
+  type of the ``CALL`` instruction of the previous top.
+
+  If the previous stack top frame is a native frame, the new function must
+  have the same return type as the previous Mu callee.
+
+  After ``push_frame``, the stack enters the ``READY<void>`` state. When the
+  stack is rebound, it continues from the beginning of ``func``. The return
+  value or exceptions from ``func`` are received by the caller.
 
 ..
 

@@ -224,21 +224,7 @@ required for all types and signatures that are implemented and suitable.
 Common Instructions
 ===================
 
-Required:
-
-+ @uvm.new_thread
-+ @uvm.current_stack
-+ @uvm.kill_stack
-+ @uvm.thread_exit
-+ @uvm.futex.wait for ``int<32>`` memory locations
-+ @uvm.futex.wake for ``int<32>`` memory locations
-+ @uvm.native.pin
-+ @uvm.native.unpin
-+ @uvm.native.expose
-+ @uvm.native.unexpose
-+ @uvm.native.get_cookie
-
-Required when ``tagref64`` is implemented:
+Required only when ``tagref64`` is implemented:
 
 * @uvm.tr64.is_fp
 * @uvm.tr64.is_int
@@ -250,6 +236,8 @@ Required when ``tagref64`` is implemented:
 * @uvm.tr64.from_fp
 * @uvm.tr64.from_int
 * @uvm.tr64.from_ref
+
+All other common instructions are always required.
 
 The Mu implementation may add common instructions.
 

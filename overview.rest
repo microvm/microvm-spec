@@ -183,6 +183,23 @@ replacement (i.e. OSR. Discussed later.)
 
 See `Client Interface <uvm-client-interface>`__ for more details.
 
+Unsafe Native Interface
+-----------------------
+
+The (unsafe) native interface is designed to directly interact with native
+programs. It gives Mu program direct access to the memory via pointers, and
+allows pinning Mu objects so that they can be accessed by native programs. It
+also allows Mu to call a native (usually C) function directly, and allows native
+programs to call back to selected Mu functions. (The .NET CLR takes similar
+approach, i.e. giving the high-level program "unsafe" access to the lower
+level.)
+
+This interface is different from the client API. The main purpose is to
+implement the system-interfacing part of the high-level language, such as the IO
+and the networking library.
+
+See `Native Interface <native-interface>`__ for more details.
+
 Multi-Threading
 ---------------
 

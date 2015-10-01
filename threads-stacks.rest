@@ -52,6 +52,9 @@ A thread is always bound to one stack, with one exception: when executing a
 current stack. It either rebinds to a stack (may be the old stack or another
 stack) or terminates after returning from the trap handler.
 
+    TODO: https://github.com/microvm/microvm-meta/issues/42 Extend the unbinding
+    to undefined function handling.
+
 States of Stacks
 ================
 
@@ -85,12 +88,14 @@ undefined function      ACTIVE                          N/A
 stack-related errors    ACTIVE                          N/A
 ======================= =============================== =======================
 
+    TODO: https://github.com/microvm/microvm-meta/issues/42 Executing undefined
+    functions would result in traps, too.
+
 Stack and Thread Creation
 =========================
 
 Mu stacks and Mu threads can be created by Mu instructions ``NEWSTACK`` and
-``@uvm.new_thread``, or the Mu client interface messages ``new_stack`` and
-``new_thread``.
+``@uvm.new_thread``, or the API function ``new_stack`` and ``new_thread``.
 
 When a stack is created, a Mu function and all of its parameter must be
 provided. The stack will contain a frame created for this function. This frame
@@ -109,8 +114,8 @@ initial stack must be in the **READY<void>** state and will enter the **ACTIVE**
 state after the thread is created. A newly created thread can execute
 immediately.
 
-    NOTE: There is not a separate step to "start" a thread as in Java. A thread
-    starts when it is created.
+    NOTE: Unlike Java, there is not a separate step to "start" a thread. A
+    thread starts when it is created.
 
 Thread Termination
 ==================
@@ -131,26 +136,26 @@ Binding
 -------
 
 Some actions, including the ``@uvm.new_thread`` and the ``SWAPSTACK``
-instruction, the ``new_thread`` API message and the trap handler, can bind a
+instruction, the ``new_thread`` API function and the trap handler, can bind a
 thread to a stack.
 
 When **binding** a thread to a stack, the state of the stack changes from
 **READY<T>** to **ACTIVE**. In this process, one of the following three actions
 shall be performed on the stack:
 
-A binding operation can **pass a value** of type *T* to the stack. In this
-case, the stack must be in the **READY<T>** state where *T* is not ``void``,
-and it **receives the value**.
+- A binding operation can **pass a value** of type *T* to the stack. In this
+  case, the stack must be in the **READY<T>** state where *T* is not ``void``,
+  and it **receives the value**.
 
-A binding operation can **pass void** to the stack. In this case, the
-stack must be in the **READY<void>** state and it **receives void**.
+- A binding operation can **pass void** to the stack. In this case, the stack
+  must be in the **READY<void>** state and it **receives void**.
 
     NOTE: "Pass void" is just a more explicit way to say "not pass a value, but
     continue normally".
 
-A binding operation can **raise an exception** to the stack. In this case, the
-stack can be in **READY<T>** with any *T* (including ``void``) and it **receives
-the exception**.
+- A binding operation can **raise an exception** to the stack. In this case, the
+  stack can be in **READY<T>** with any *T* (including ``void``) and it
+  **receives the exception**.
 
 It gives undefined behaviour if the stack is not in the expected state.
 
@@ -159,10 +164,17 @@ binds to the provided initial stack and *passes void* to it. When a newly
 created stack is bound to a thread and *receives void*, it continues execution
 from the beginning of the stack-bottom function.
 
-The state of a stack is **READY<void>** after the ``push_frame`` API message.
+The state of a stack is **READY<void>** after the ``push_frame`` API function.
 When such a stack is rebound receiving void, it continues from the beginning of
 the function. When such a stack is rebound receiving exception, the exception is
 thrown out of the top frame.
+
+When binding to a frame and the top frame is a native frame, it must be calling
+back to Mu. The value passed from Mu becomes the value returned from Mu. If the
+native frame expects void return value, passing void will return to the native
+code. The expected type is previous Mu callee which has been popped via OSR
+(this is the only case when a native frame can be the top frame of an unbound
+stack).
 
 Unbinding
 ---------
@@ -200,7 +212,7 @@ thread to a different stack.
 Stack Destruction
 =================
 
-The ``@uvm.kill_stack`` instruction, the ``kill_stack`` API message and all
+The ``@uvm.kill_stack`` instruction, the ``kill_stack`` API function and all
 operations that perform unbinding operations can destroy a stack. A destroyed
 stack enters the **DEAD** state. 
 
@@ -214,7 +226,7 @@ On-stack Replacement
 ====================
 
 The client can pop and push frames from or to a stack. The ``pop_frame`` API
-message pops the top frame from a stack. The ``push_frame`` message creates a
+function pops the top frame from a stack. The ``push_frame`` function creates a
 new frame for a given function and its arguments on the top of a stack.
 
 After popping a frame from a stack, the next stack below the top becomes the new

@@ -17,20 +17,14 @@ Main specification:
 - `Threads and Stacks <threads-stacks>`__
 - `Memory and Garbage Collection <uvm-memory>`__
 - `Memory Model <memory-model>`__
-- `Portability and Implementation Advices <portability>`__
 - `Native Interface <native-interface>`__
+- `Heap Allocation and Initialisation Language (HAIL) <hail>`__
+- `Portability and Implementation Advices <portability>`__
 
 Platform-specific parts: These extends the main specification. The main
 specification considers these parts as implementation-specific.
 
 - `AMD64 Unix Native Interface <native-interface-x64-unix>`__
-
-Working in progress:
-
-(If there is any documents too experimental to be put into the content, it will
-be listed here.)
-
-- `Heap Allocation and Initialisation Language (HAIL) <hail>`__
 
 Old documents:
 

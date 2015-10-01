@@ -470,6 +470,10 @@ A **constant constructor** can be the following:
         .const @fpconst  <@fpnoparamsnoret> = 0x7ff00000000
         .const @nullptr  <@ptri64> = 0
 
+        // Array constant. Not recommended to use unless intracting with native function.
+        .typedef @i64ary = array<@i64 3>
+        .const @constary <@i64ary> = {@oct1 @oct2 @dec1}
+
 
 Global Cell Definition
 ======================
@@ -627,17 +631,28 @@ instruction is defined separately in `<instruction-set>`__.
 
 ..
 
-    NOTE: It is allowed to give names to instructions that does not return
-    values (expressed as "returning void"). In this case, the client can refer
-    to this instruction using their names. So ``%br = BRANCH %head`` is still
-    valid. This is useful when performing stack introspection. Such an
-    instruction can be interpreted in two ways:
+    NOTE: It is allowed to give names to instructions that has void return
+    values. In this case, the client can refer to such instructions using their
+    names. It is usually used for OSR point instructions, most likely ``TRAP``.
 
-    - The name ``%br`` binds to the instruction itself.
-    - The name ``%br`` is a variable of type ``void`` and it is defined by the
-      ``BRANCH`` instruction.
+    For example, ``%tr = TRAP <@void>`` is still valid even if ``%tr`` has void
+    type.  This is useful when performing stack introspection. The name
+    identifies the instruction itself, i.e. "Which ``TRAP`` is executed?"::
+    
+        %trap1 = TRAP <@void>
+        ...
+        %trap2 = TRAP <@void>
+    
+    The name ``%tr`` can be interpreted in two ways:
 
-    Both interpretations are reasonable.
+    - The name ``%tr`` identifies the particular instance of ``TRAP``
+      instruction.
+
+    - The name ``%tr`` is an SSA variable of type ``void`` and it is defined by
+      the ``TRAP`` instruction.
+
+    Both are correct. Both ways are true for any other instructions, including
+    those that actually have non-void values.
 
 The last instruction of any basic block must be a **terminator instruction**,
 which is one of the following:
@@ -651,7 +666,8 @@ which is one of the following:
   - ``LOAD``, ``STORE``, ``CMPXCHG``, ``ATOMICRMW``
   - ``TRAP``, ``WATCHPOINT``
   - ``NEWSTACK``, ``SWAPSTACK``
-  - Some common instructions via the generic ``COMMINST`` instruction
+  - Some common instructions via the generic ``COMMINST`` instruction (currently
+    none)
 
 - ``BRANCH``, ``BRANCH2``, ``SWITCH``
 - ``TAILCALL``
@@ -672,7 +688,8 @@ The following instructions are starter instructions:
 
 - ``PHI``
 - ``LANDINGPAD``
-- Some common instructions via the generic ``COMMINST`` instruction
+- Some common instructions via the generic ``COMMINST`` instruction (currently
+  none)
 
 ..
 
@@ -688,16 +705,16 @@ A **function exposing definition** has the following syntax:
 
 where:
 
-* ``Name`` is a global name of the exposed value.
+* ``Name`` is a global name of the exposed function.
 * ``FuncName`` is the name of a Mu function.
 * ``CallConv`` is a flag that denotes the calling convention. See platform-specific ABI.
 * ``Cookie`` is the cookie. Must be the global name to a ``int<64>`` constant.
 
-This definition exposes a Mu function *FuncName* as a value *Name* according to
-the calling convention *CallConv*. The *Cookie* is attached to this exposed
-value.
+This definition exposes a Mu function *FuncName* as an exposed value, identified
+by *Name*, using the calling convention *CallConv*. The *Cookie* is attached to
+this exposed value.
 
-How such an exposed value can be called is implementation-specific.
+How such an exposed function can be called is implementation-specific.
 
     Example::
 
@@ -722,13 +739,18 @@ function.
 
 After a function definition redefines a function, all calls to the function that
 happen after the bundle loading operation will call the newly defined version of
-the function.
+the function. Defines of functions (bundle loading) and uses of functions
+(including function calls and the creation of stacks, i.e. the ``NEWSTACK``
+instruction or the ``new_stack`` API) obey the memory model of the ``RELAXED``
+order as if the definition is a store and the use is a load. See `Memory Model
+<memory-model>``__.
 
 All existing activations of any functions remain unchanged, that is, they remain
 to be the old versions of the functions. 
 
-    NOTE: Specifically, existing traps in older versions of functions remain
-    valid. During OSR, redefining a function will not affect any existing
-    function activations unless they are explicitly popped by the client.
+    NOTE: Specifically, existing traps (including watchpoints) in older versions
+    of functions remain valid. During OSR, redefining a function will not affect
+    any existing function activations unless they are explicitly popped by the
+    client.
 
 .. vim: textwidth=80

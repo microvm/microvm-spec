@@ -104,13 +104,12 @@ Memory Allocation and Deallocation
 
 An allocation unit in the heap memory is called a **heap object**, or **object**
 when unambiguous. It is created when executing the ``NEW`` or ``NEWHYBRID``
-instructions or the ``new`` or ``new_hybrid`` API message. It is destroyed when
-the object is collected by the garbage collector.
+instructions or the ``new_fixed`` or ``new_hybrid`` API function. It is
+destroyed when the object is collected by the garbage collector.
 
 An allocation unit in the stack memory is called an **alloca cell**. It is
-created when executing the ``ALLOCA`` or ``ALLOCAHYBRID`` instruction or during
-on-stack replacement using API messages. It is destroyed when the stack frame
-containing it is destroyed.
+created when executing the ``ALLOCA`` or ``ALLOCAHYBRID`` instruction. It is
+destroyed when the stack frame containing it is destroyed.
 
 An allocation unit in the global memory is called a **global cell**. One global
 cell is created for every ``.global`` declaration in a bundle submitted to Mu.
@@ -170,9 +169,9 @@ have both a load and a store operation, but may have special atomic properties.
     abstract operations are in lower case: load, store and access.
 
 Memory access operations can be performed by some Mu instructions (see
-`<instruction-set>`__, API messages (see `<uvm-client-interface>`__), native
-programs which accesses the pinned Mu memory, or in other
-implementation-specific ways.
+`Instruction Set <instruction-set>`__, API functions (see `Client Interface
+<uvm-client-interface>`__), native programs which accesses the pinned Mu memory,
+or in other implementation-specific ways.
 
 Two memory accesses **conflict** if one stores to a memory location and the
 other loads from or stores to the same memory location.
@@ -182,7 +181,7 @@ Parameters and Semantics of Memory Operations
 
 Generally speaking, load operations copy values from the memory and store
 operations copy values into the memory. The exact results are determined by the
-memory model. See `<memory-model>`__.
+memory model. See `Memory Model <memory-model>`__.
 
 A **load** operation has parameters ``(ord, T, loc)``. *ord* is the memory order
 of the operation.  *T* is the type of *loc*, a memory location. The result is a
@@ -261,7 +260,7 @@ operation.
 All operators other than ``XCHG`` are only applicable for integer types.
 ``XCHG`` is allowed for any type. However, a Mu implementation may only
 implement some combinations of operators and operand types according to the
-requirements specified in `<portability>`__
+requirements specified in `Portability <portability>`__
 
 Memory Operations on Pointers
 -----------------------------
@@ -395,10 +394,10 @@ of the type of *M*.
 
 All prefixes of a memory location have the same beginning.
 
-The ``REFCAST`` instruction or the ``refcast`` API message preserves the
+The ``REFCAST`` instruction or the ``refcast`` API function preserves the
 beginning of the operand. If it casts ``iref<T1>`` to ``iref<T2>``, the result
 is an internal reference to the memory location of type ``T2`` at the same
-beginning. (see `<instruction-set>`__)
+beginning. (see `Instruction Set <instruction-set>`__)
 
 Array Rule
 ----------

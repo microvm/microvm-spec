@@ -59,7 +59,7 @@ necessary and whether the ``relaxed`` order in C11 or the ``monotonic`` in LLVM
 is suitable for Java is not yet known.
 
 In LLVM, an atomic operation can be labelled ``singlethread``, in which case it
-only synchronises with or participates in modification and seq_cst total
+only synchronises with or participates in modification and ``seq_cst`` total
 orderings with other operations running in the same thread (for example, in
 signal handlers). C11 provides ``atomic_signal_fence`` for similar purposes.
 
@@ -67,41 +67,41 @@ Concepts
 ========
 
 data value
-    See `<type-system>`__
+    See `Type System <type-system>`__
 
 SSA variable, instruction and evaluation
-    See `<instruction-set>`__
+    See `Instruction Set <instruction-set>`__
 
 memory, initial value, load, store, access and conflict
-    See `<uvm-memory>`__
+    See `Mu and the Memory <uvm-memory>`__
 
 thread
     A thread is the unit of CPU scheduling. In this memory model, threads
-    include but are not limited to Mu threads. See `<threads-stacks>`__ for the
+    include but are not limited to Mu threads. See `Threads and Stacks <threads-stacks>`__ for the
     definition of Mu threads.
 
 stack, stack binding, stack unbinding, swap-stack
-    See `<threads-stacks>`__
+    See `Threads and Stacks <threads-stacks>`__
 
 futex, futex_wait, futex_wake
-    See `<threads-stacks>`__
+    See `Threads and Stacks <threads-stacks>`__
 
 Comparison of Terminology
 -------------------------
 
 The following table is a approximate comparison and may not strictly apply.
 
-=================== ============================
+=================== ================================
 C                   Mu
-=================== ============================
+=================== ================================
 value               data value
 expression          SSA variable
 object              memory location
-memory location     (N/A)
+memory location     memory location of scalar type
 (N/A)               object
 read                load
 modify              store
-=================== ============================
+=================== ================================
 
 Operations
 ==========
@@ -147,18 +147,18 @@ external operation
 Memory Operations
 =================
 
-Some instructions and API messages perform memory operations. Specifically,
+Some instructions and API functions perform memory operations. Specifically,
 
-- The ``LOAD`` instruction and the ``load`` API message perform a load
+- The ``LOAD`` instruction and the ``load`` API function perform a load
   operation.
-- The ``STORE`` instruction and the ``store`` API message perform a store
+- The ``STORE`` instruction and the ``store`` API function perform a store
   operation.
-- The ``CMPXCHG`` instruction and the ``cmpxchg`` API message perform a
+- The ``CMPXCHG`` instruction and the ``cmpxchg`` API function perform a
   compare-exchange operation, which is a kind of atomic read-modify-write
   operation.
-- The ``ATOMICRMW`` instruction and the ``atomicrmw`` API message perform an
+- The ``ATOMICRMW`` instruction and the ``atomicrmw`` API function perform an
   atomic read-modify-write operation.
-- The ``FENCE`` instruction and the ``fence`` API message are a fence.
+- The ``FENCE`` instruction and the ``fence`` API function are a fence.
 - A concrete implementation may have other ways to perform those instructions.
 
 ..
@@ -304,14 +304,15 @@ An evaluation A **synchronises with** another evaluation B if:
 ..
 
     NOTE: A thread can be created by the ``@uvm.new_thread`` common instruction
-    or the ``new_thread`` API message.
+    or the ``new_thread`` API function.
 
     NOTE: Since there is no explicit heap memory management in Mu, the
     "synchronises with" relation in C involving ``free`` and ``realloc`` does
     not apply in Mu.
 
     NOTE: Mu only provides very primitive threading support. The "synchronises
-    with" relations involving ``call_once`` and ``thrd_join`` are not in Mu.
+    with" relations involving ``call_once`` and ``thrd_join`` are not in the
+    memory model, but can be implemented on a higher level.
 
     NOTE: The "synchronises with" relation between the futex wake and wait is
     necessary to ensure the visibility of values written by one thread to be

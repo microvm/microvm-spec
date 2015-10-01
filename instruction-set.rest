@@ -87,40 +87,46 @@ at different times.
     * Instruction
 
 A **global SSA variable** is valid in the whole Mu instance after it is defined.
+Their values never change.
 
-A constant definition (see `<uvm-ir>`__) defines a global SSA variable with a
-constant value.
+- A **constant** is a global SSA variable. Its value is the constant value.
 
-A global cell definition (see `<uvm-ir>`__) defines a global SSA variable whose
-value is an internal reference to the global cell.
+- A **global cell** is a global SSA variable. Its value is an *internal
+  reference* to the global cell. (NOTE: The content in the global cell can
+  change, but its iref never changes.)
 
-A function definition or a function declaration (see `<uvm-ir>`__) defines a
-global SSA variable whose value is a ``funcref`` value referring to the function.
-Defining a previously undefined function or redefining a function does not
-change this variable.
+- A **function** is a global SSA variable. Its value is a ``funcref`` to the
+  function. (NOTE: A function *version* is NOT an SSA variable. Redefining the
+  function does not change the value of the function.)
 
-A function exposing definition (see `<uvm-ir>`__) defines a global SSA variable
-whose value is the exposed value. The type is determined by the calling
-convention, which is described in the native interface of concrete platforms.
+- An **exposed function** (defined by the top-level function exposing
+  definition, not by the ``@uvm.native.expose`` instruction or the ``expose``
+  API) is a global SSA variable. Its value is the calling-convention-specific
+  exposed value.
 
 A **local SSA variable** is valid in the same function activation it is in.
 
-A parameter defines a local SSA variable whose value is the value passed in the
-function as argument.
+- A **parameter** is a local SSA variable whose value is the value passed in the
+  function as argument.
 
-An instruction defines a local SSA variable whose value is the result of its
-latest evaluation (defined later).
+- An **instruction** is a local SSA variable whose value is the result of its
+  latest evaluation in the current frame (defined later).
 
-There is a one-to-one correspondence between SSA variables and the things that
-define them, hence an SSA variable and the thing that defines it are used
-interchangeably in this specification.
+..
 
-An SSA variable has the same ID and name as the thing that defines it.
+There are other definitions as alternatives to the statement "XXXXX is an SSA
+variable" used above:
 
-    Example: In the instruction ``%foo = ADD <@i32> %bar %baz``, both "the
-    SSA variable ``%foo`` is an ADD instruction" and "the SSA variable ``%foo``
-    is defined by the ADD instruction" are valid. Both the variable and the
-    instruction have name ``%foo``
+- "``%xxx``, the ID/name of XXXXX, is an SSA variable."
+- "XXXXX defines the SSA variable ``%xxx``."
+  
+They are equivalent because there is a one-to-one correspondence between the
+IDs/names and the things that define them, hence they are used interchangeably
+in this specification.
+
+    Example: In the instruction ``%foo = ADD <@i32> %bar %baz``, both "the ADD
+    instruction is an SSA variable whose name is ``%foo``" and "the SSA variable
+    ``%foo`` is defined by the ADD instruction" are valid.
 
 Whether an SSA variable uses the memory is implementation dependent. An SSA
 variable does not have a memory location.
@@ -132,6 +138,11 @@ variable does not have a memory location.
 
 A local variable is **live** at any specific time if its value can be used
 subsequently. Otherwise it is **dead**.
+
+    TODO: Check if the definition of "local variable being live/dead" is (or
+    will be) used in other parts of the specification. Currently only mentioned
+    in "a live stack contains all live local variables"). This definition may
+    not be necessary.
 
 The execution of an instruction is called an **evaluation**. An evaluation
 determines the data value associated to an instruction and this process is
@@ -183,7 +194,7 @@ explicitly defined otherwise.
 + When continuing exceptionally,
 
   - if the exception clause is absent, it has undefined behaviour unless
-    explicitly defined by the concrete instruction;
+    explicitly defined to be otherwise in some instructions;
   - if the exception clause is present, then branch to the exceptional
     destination.
 
@@ -613,6 +624,10 @@ ULT
     - For internal references, if both operands refer to elements in the same
       memory array, the result is true if and only if the referent of *op1* is
       before the referent of *op2*; otherwise the result is unspecified.
+
+      NOTE: *Memory arrays* includes arrays, vectors and the variable part of
+      hybrids in the Mu memory.
+
 FFALSE
     Always false.
 FTRUE 
@@ -703,6 +718,16 @@ FOLE
 
         %g = ALLOCA <@i64>
         %h = EQ <@irefi64> %g %g    // 1 (true) (same location)
+
+        .typedef @i64array <@i64 10>
+        .const @I64_3 <@i64> = 3
+        .const @I64_5 <@i64> = 5
+        %ar  = ALLOCA <@i64array>
+        %ar3 = GETELEMIREF <@i64array @i64> %ar @I64_3
+        %ar5 = GETELEMIREF <@i64array @i64> %ar @I64_5
+        %i = ULT <@irefi64> %ar3 %ar5   // 1 (true)  (%a3 is before %a5 in the array)
+        %j = ULT <@irefi64> %ar3 %ar3   // 0 (false) (%a3 is not before itself)
+        %k = ULE <@irefi64> %ar3 %ar3   // 1 (true)  (%a3 is equal to itself)
 
 Conversion
 ----------
@@ -1222,10 +1247,9 @@ clause is absent, it has undefined behaviour.
 
 The ``CALL`` instruction is an OSR point.
 
-When a stack in the ``READY<T>`` state is pausing on a ``CALL`` instruction
-and is being re-bound to a thread, then it continues normally with the return
-value being the value received, or continues exceptionally, catching the
-exception received.
+When a stack in the ``READY<T>`` state is pausing on a ``CALL`` instruction and
+is being re-bound to a thread, it continues normally with the return value being
+the value received, or continues exceptionally, catching the exception received.
 
     NOTE: Such a state can be the result of OSR: Upper frames are popped and the
     current callee is forced to return a value provided by the client.
@@ -1241,6 +1265,10 @@ have any exception clause and is not an OSR point.
 
 If the callee is not defined, the client will handle this by defining the
 function. After returning from the client, this instruction will be tried again.
+
+    TODO: https://github.com/microvm/microvm-meta/issues/42 After this change,
+    an undefined function will invoke a trap by itself, and the caller does not
+    need to know it. So the paragraph above can be removed.
 
 ..
 
@@ -1785,6 +1813,7 @@ part of the hybrid. *T2* can be any integer type and is treated as unsigned.
 If the allocation failed, this instruction *continues exceptionally*.
 
     For LLVM users: LLVM does not have instructions for heap allocation.
+    ``malloc`` is the unmanaged counterpart.
     
     ``ALLOCA`` is similar to LLVM's ``alloca`` with a fixed-length type.
     ``ALLOCAHYBRID`` is similar to ``alloca`` with a number of elements. A
@@ -1946,7 +1975,8 @@ The ``GETELEMIREF`` instruction gets an internal reference/pointer to the
 *index*-th element of the array referenced by *opnd*.
 
 The ``SHIFTIREF`` instruction assumes the *opnd* already refers to an element of
-a *general memory array* (see `<uvm-memory>`__). It moves *opnd* internal
+a *memory array* (including arrays, vectors and the variable part of hybrids,
+see `Mu and the Memory <uvm-memory>`__). It moves *opnd* internal
 reference/pointer forward by *offset* elements. If *offset* is negative, it
 moves the reference/pointer backwards by the absolute value of *offset*.
 
@@ -1996,7 +2026,7 @@ elements, the ``GETVARPARTIREF`` has undefined behaviour.
 
 ..
 
-    Example2::
+    Example 2::
 
         .typedef @Foo = struct <@i64 @float @double>
 
@@ -2291,8 +2321,8 @@ ord
 | 0x1E | ord  |
 +------+------+
 
-The ``FENCE`` is a fence of memory order *ord*. Its
-semantic is specified in `<memory-model>`__.
+The ``FENCE`` is a fence of memory order *ord*. Its semantics is specified in
+`<memory-model>`__.
 
     For LLVM users: This is the counterpart of the ``fence`` instruction.
 
@@ -2381,8 +2411,8 @@ enabled.
 
     NOTE: Both ``TRAP`` and enabled ``WATCHPOINT`` imply unbinding the current
     stack from the current thread and executing the trap handler in the client.
-    The client may disable the watch point when handling an enabled watch point,
-    but it does not affect any watch points that are being executed.
+    The client may disable the watchpoint when handling an enabled watch point,
+    but it does not affect any watchpoints that are being executed.
 
     Consider the following example::
     
@@ -2394,26 +2424,53 @@ enabled.
     ``%ena``. The ``%wp`` instruction will branch to ``%dis`` if and only if
     watch point 42 is disabled when it is executed.
 
-In the binary form, an absent *exc* destination is expressed as the ID of *exc*
-being 0.
+In the binary form, an absent *exc* destination in ``WATCHPOINT`` is expressed
+as the ID of *exc* being 0.
 
 *Traps* are OSR points.
 
-    NOTE: *Traps* are deliberately designed as OSR points. Interacting with the
-    client to handle events that cannot be handled within Mu is its main
-    purpose.
+    NOTE: *Traps* are deliberately designed as OSR points. Its main purpose is
+    to interact with the client to handle events that cannot be handled within
+    Mu.
 
 ..
 
     For LLVM users: LLVM has the ``llvm.trap`` intrinsic function, but its
-    semantic is not defined. LLVM itself does not have on-stack replacement
+    semantics is not defined. LLVM itself does not have on-stack replacement
     support, but `Lameed and Hendren
     <http://dl.acm.org/citation.cfm?id=2451541>`__ proposed a framework for
     supporting on-stack replacement in LLVM.
 
 ..
 
-    Example 1: Use ``TRAP`` to let the client do anything, for instance, obtain
+    Example 1::
+
+        %bb1:
+            %trap1  = TRAP <@i64> EXC(%bb2 %bb3) KEEPALIVE(%a %b %c ...)
+
+        %bb2:
+            // %trap1 normally continues here
+
+        %bb3:
+            %exc1   = LANDINGPAD
+            // %trap1 handles exception here
+
+        %bb4:
+            %wp1    = WATCHPINT 1 <@i64> %bb5 %bb6 WPEXC(%bb7) KEEPALIVE(%a %b %c ...)
+
+        %bb5:
+            // %wp1 normally continues here when disabled
+
+        %bb6:
+            // %wp1 normally continues here when enabled
+
+        %bb7:
+            %exc2   = LANDINGPAD
+            // %wp1 handles exception here when enabled
+
+..
+
+    Example 2: Use ``TRAP`` to let the client do anything, for instance, obtain
     the version number of Mu::
 
         .funcdef @some_func VERSION @some_func_v1 <...> (...) {
@@ -2430,8 +2487,8 @@ being 0.
 
 ..
 
-    Example 2: use an unconditional ``TRAP`` to handle frequently-executed
-    loops::
+    Example 3: use loop back-edge counting and an unconditional ``TRAP`` to
+    handle frequently-executed loops::
 
         .const @LOOP_THRESHOLD <@i64> = 1000
 
@@ -2442,20 +2499,21 @@ being 0.
         %loop_body:
             ...
             %new_loop_count = ADD <@i64> %old_loop_count @I64_1
-            %is_frequent = SGE <@i64> %new_loop_count @LOOP_THRESHOLD
+            %is_frequent    = SGE <@i64> %new_loop_count @LOOP_THRESHOLD
             BRANCH2 %is_frequent %to_trap %loop_head
 
         %to_trap:
             %trap12345 = TRAP <@void> KEEPALIVE(%some %local %variables)
+            ...
 
         %loop_exit:
 
     NOTE: The "variable name" ``%trap12345`` is used to identify the trap, but
-    the return type of this trap is void.
+    the return type of this trap is void (probably it will never return).
 
 ..
 
-    Example 3: use ``WATCHPOINT`` for de-optimising speculatively generated
+    Example 4: use ``WATCHPOINT`` for de-optimising speculatively generated
     code. This code demonstrates a virtual table lookup::
 
         .const @SomeVFuncOffset <@i64> = 9
@@ -2484,58 +2542,18 @@ being 0.
             ...
 
         %bb2:
-            THROW @NULLREF  // unreachable because the client is not supposed to
-                            // let the %wp1234 continue at all.
+            THROW @NULLREF  // unreachable because the client should have
+                            // replaced the frame and not let the %wp1234
+                            // continue at all.
 
     Then when the client loaded a new class which extends the class of ``%obj``
     and overrides the virtual function, then the speculatively generated code is
     no longer valid. Then the client can enable the watchpoint 5678 and the
     ``%wp1234`` instruction will go to the client.
 
-..
-
-    Example 4: ``TRAP`` and ``WATCHPOINT`` with complex control flow::
-
-        %bb1:
-            %trap1  = TRAP <@i64> EXC(%bb2 %bb3) KEEPALIVE(%a %b %c ...)
-
-        %bb2:
-            // %trap1 normally continues here
-
-        %bb3:
-            %exc1   = LANDINGPAD
-            // %trap1 handles exception here
-
-        %bb4:
-            %wp1    = WATCHPINT 1 <@i64> %bb5 %bb6 WPEXC(%bb7) KEEPALIVE(%a %b %c ...)
-
-        %bb5:
-            // %wp1 normally continues here when disabled
-
-        %bb6:
-            // %wp1 normally continues here when enabled
-
-        %bb7:
-            %exc2   = LANDINGPAD
-            // %wp1 handles exception here when enabled
-
 
 Unsafe Native Call
 ==================
-
-    NOTE: The term **foreign function interface** may have been used in many
-    other places by experienced VM engineers to mean a heavy-weighted complex
-    interface with another language. JikesRVM users use **foreign function
-    interface** to refer to JNI and use **syscall** to refer to a light-weight
-    unsafe mechanism to call arbitrary C functions with minimal overhead.
-    
-    The ``CCALL`` instruction is more similar to the latter. It has minimum
-    overhead, but provides no protection to malicious code. It may directly
-    expose pointers to the Mu memory to the native world. So it must be used
-    with care. 
-
-    To reduce confusion, we use the term **unsafe native interface** instead of
-    *foreign function interface*.
 
 ``CCALL`` Instruction
 ---------------------
@@ -2581,20 +2599,9 @@ The ``CCALL`` instruction calls a native function.
 The *callee* must have type *T*. The allowed type of ``T`` is
 implementation-dependent and calling convention-dependent.
 
-    For example,
+See `<native-interface>`__ for a detailed description of the native interface.
 
-    * If the callee is a C function, it should be ``funcsig<sig>`` which has the
-      same signature as the *sig* argument.
-
-    * If it is desired to make system calls directly from Mu, then *T* can be the
-      system call number.
-      
-    * If it is something like `a SWAP-STACK operation implemented as a calling
-      convention <http://dl.acm.org/citation.cfm?id=2400695>`__, then *T* can be
-      a stack pointer, maybe ``uptr<void>``, or a pointer to some specific type.
-
-The semantic of this instruction is highly implementation-dependent. See
-`<native-interface>`__ for a detailed description of the native interface.
+The return value of ``CCALL`` is the return value of the native callee.
 
 ``CCALL`` cannot receive exceptions thrown by C++.
 
@@ -2717,6 +2724,12 @@ This instruction continues exceptionally if Mu cannot allocate the new stack.
 
 If the callee is not defined, the client will handle this by defining the
 function. After returning from the client, this instruction will be tried again.
+
+    TODO: https://github.com/microvm/microvm-meta/issues/42 Change is proposed
+    to let the callee trigger the trap when executed. So the paragraph above can
+    be removed.
+
+..
 
     For LLVM users: There is no native facilities provided by the official LLVM,
     but `Dolan, Muralidharan and Gregg
@@ -2958,7 +2971,7 @@ type arguments *typeList*, a list of function signature arguments *funcSigList*,
 a list of value arguments *argList*, an optional exception clause *excClause*
 and a possibly empty keep-alive clause *keepAliveClause* are provided for the
 common instruction. The return value of this instruction is decided by the
-specific common instruction. The semantic is defined by the specific common
+specific common instruction. The semantics is defined by the specific common
 instruction.
 
 The *flagList*, *typeList*, *funcSigList* and *argList* are considered empty
