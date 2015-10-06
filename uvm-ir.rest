@@ -666,12 +666,14 @@ which is one of the following:
   - ``LOAD``, ``STORE``, ``CMPXCHG``, ``ATOMICRMW``
   - ``TRAP``, ``WATCHPOINT``
   - ``NEWSTACK``, ``SWAPSTACK``
-  - Some common instructions via the generic ``COMMINST`` instruction (currently
-    none)
+  - Some `common instructions <common-insts>`__ via the generic ``COMMINST``
+    instruction:
+
+    - ``@uvm.thread_exit``
 
 - ``BRANCH``, ``BRANCH2``, ``SWITCH``
 - ``TAILCALL``
-- ``RET``, ``RETVOID``
+- ``RET``
 - ``THROW``
 
 ..
@@ -743,7 +745,7 @@ the function. Defines of functions (bundle loading) and uses of functions
 (including function calls and the creation of stacks, i.e. the ``NEWSTACK``
 instruction or the ``new_stack`` API) obey the memory model of the ``RELAXED``
 order as if the definition is a store and the use is a load. See `Memory Model
-<memory-model>``__.
+<memory-model>`__.
 
 All existing activations of any functions remain unchanged, that is, they remain
 to be the old versions of the functions. 

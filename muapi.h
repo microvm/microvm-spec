@@ -18,6 +18,7 @@ typedef void *MuIRefValue;          // iref<T>
 typedef void *MuStructValue;        // struct<...>
 typedef void *MuArrayValue;         // array<T l>
 typedef void *MuVectorValue;        // vector<T l>
+typedef void *MuVoidValue;          // void
 typedef void *MuFuncRefValue;       // funcref<sig>
 typedef void *MuThreadRefValue;     // threadref
 typedef void *MuStackRefValue;      // stackref
@@ -38,8 +39,7 @@ typedef int MuTrapHandlerResult;
 
 #define MU_THREAD_EXIT          0x00
 #define MU_REBIND_PASS_VALUE    0x01
-#define MU_REBIND_PASS_VOID     0x02
-#define MU_REBIND_THROW_EXC     0x03
+#define MU_REBIND_THROW_EXC     0x02
 
 // Declare the types here because they are used in the following signatures.
 typedef struct MuVM MuVM;

@@ -911,8 +911,7 @@ where::
 
     #define MU_THREAD_EXIT          0x00
     #define MU_REBIND_PASS_VALUE    0x01
-    #define MU_REBIND_PASS_VOID     0x02
-    #define MU_REBIND_THROW_EXC     0x03
+    #define MU_REBIND_THROW_EXC     0x02
 
 ``ctx`` is a new client context created for this particular trap event.
 ``thread`` is a threadref to the thread that causes the trap. ``stack`` is
@@ -930,10 +929,15 @@ Before returning, the trap handler should set ``*result``:
 * ``Mu_REBIND_PASS_VALUE``: The thread ``thread`` will be rebound to a stack
   ``*new_stack``. The value ``*value`` is passed to ``*new_stack``. The type of
   ``*value`` must match the type expected by ``*new_stack``.
-* ``Mu_REBIND_PASS_VOID``: The thread ``thread`` will be rebound to a stack
-  ``*new_stack``. It passes ``void`` to it.
 * ``Mu_REBIND_THROW_EXC``: The thread ``thread`` will be rebound to a stack
   ``*new_stack``. It throws exception ``*exception`` to the stack.
+
+..
+
+    NOTE: More often than not, it is desirable to pass the ``void`` value:
+    ``NULL``. The client should have pre-defined a Mu ``void`` constant, such
+    as: ``.const @VOID <@void> = NULL``. Then this constant can be obtained by
+    ``ctx->handle_from_const``.
 
 In all cases, if ``*new_stack``, ``*value`` and/or ``*exception`` are used, they
 must be set and must be held by ``ctx``.
@@ -942,7 +946,7 @@ The signature of undefined function handlers is::
 
     typedef void (*MuUndefFuncHandler)(MuCtx *ctx, MuID func_id, MuCPtr userdata);
 
-``funct_id`` is the ID of the callee function. ``userdata`` is the pointer
+``func_id`` is the ID of the callee function. ``userdata`` is the pointer
 provided when registering the handler.
 
 After returning, the Mu program will re-execute the same instruction again.

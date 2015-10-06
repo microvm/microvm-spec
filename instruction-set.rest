@@ -48,6 +48,8 @@ present::
 
     .const @NULLREF <@refvoid> = NULL
 
+    .const @VOID <@void> = NULL
+
 SSA Variables
 =============
 
@@ -1146,7 +1148,7 @@ If the previous basic block executed before this basic block is one of the
                 BRANCH %head
 
             %exit:
-                RET <@i64> %aa
+                RET %aa
         }
 
     When branching from ``%body`` to ``%head``, the value of both ``%aa`` and
@@ -1332,48 +1334,38 @@ function. After returning from the client, this instruction will be tried again.
                 // handle the exception
         }
 
-``RET`` and ``RETVOID`` Instruction
------------------------------------
+``RET`` Instruction
+-------------------
 
-``RET`` ``<`` *T* ``>`` *rv*
+``RET`` *rv*
 
-``RETVOID``
-
-T
-    *type*: The type of *rv*.
 rv
-    *variable* of type *T*: The return value of the current function.
+    *variable* of type *T*, where *T* is the return type of the current
+    function: The return value of the current function.
 
 RET:
 
-+------+-----+-----+
-| opct | idt | idt |
-+======+=====+=====+
-| 0x63 | T   | rv  |
-+------+-----+-----+
-
-RETVOID:
-
-+------+
-| opct |
-+======+
-| 0x64 |
-+------+
++------+-----+
+| opct | idt |
++======+=====+
+| 0x63 | rv  |
++------+-----+
 
 The ``RET`` instruction returns from the current function with *rv* as the
-return value of the current function. The ``RETVOID`` instruction returns from
-the current function whose return type is void.
+return value of the current function. The type of *rv* must be the return type
+of the current function.
 
-The return type of the ``RET`` and the ``RETVOID`` instruction themselves are
-``void``.
+In order to return from a function with return type ``void``, the ``RET``
+instruction should return ``NULL``, the only value of the ``void`` type.
+
+The return type of the ``RET`` instruction itself is always ``void``.
 
 ..
 
-    NOTE: Mu allows giving name to a ``RET`` or ``RETVOID`` instruction like
-    ``%ret_inst = RET <@double> @SOME_CONSTANT``, but is is usually not useful.
-    In this case the type of ``%ret_inst`` is always ``void``. The
-    ``@SOME_CONSTANT`` value is returned to the caller, not the instruction's
-    SSA variable.
+    NOTE: Mu allows giving name to a ``RET`` instruction like ``%ret_inst = RET
+    @SOME_CONSTANT``, but is is usually not useful.  In this case the type of
+    ``%ret_inst`` is always ``void``. The ``@SOME_CONSTANT`` value is returned
+    to the **caller**, not the instruction's SSA variable.
 
 ..
 
@@ -1389,12 +1381,12 @@ The return type of the ``RET`` and the ``RETVOID`` instruction themselves are
         .funcdef @sum VERSION @sum_v1 <@sig1> (%x %y) {
             %entry:
                 %s = ADD <@double> %x %y
-                RET <@double> %s
+                RET %s
         }
 
         .funcdef @main VERSION @main_v1 <@sig2> () {
             %entry:
-                RETVOID
+                RET @VOID
         }
 
 ``THROW`` Instruction
@@ -2605,7 +2597,11 @@ The return value of ``CCALL`` is the return value of the native callee.
 
 ``CCALL`` cannot receive exceptions thrown by C++.
 
-``CCALL`` is an OSR point.
+``CCALL`` is an OSR point. A stack may enter the ``READY<T>`` state with some Mu
+frames stopping on ``CCALL`` instructions. If the top frame is stopping at this
+instruction, the value passed to the stack when rebinding becomes the return
+value of this instruction. However, whether a native frame can be popped is
+implementation-defined.
 
     For LLVM users: Mu is not designed to be compatible with C and functions
     defined in Mu IR does not use the native C ABI. This instruction is
@@ -2750,7 +2746,6 @@ function. After returning from the client, this instruction will be tried again.
 - *curStackClause* ::= ``KILL_OLD``
 
 + *newStackClause* ::= ``PASS_VALUE`` ``<`` *T2* ``>`` *val*
-+ *newStackClause* ::= ``PASS_VOID``
 + *newStackClause* ::= ``THROW_EXC`` *exc*
 
 ``SWAPSTACK``:
@@ -2785,20 +2780,12 @@ function. After returning from the client, this instruction will be tried again.
 | 0x01 | T2  | val |
 +------+-----+-----+
 
-*newStackClause* with ``PASS_VOID``:
-
-+------+
-| opct |
-+======+
-| 0x02 |
-+------+
-
 *newStackClause* with ``THROW_EXC``:
 
 +------+-----+
 | opct | idt |
 +======+=====+
-| 0x03 | exc |
+| 0x02 | exc |
 +------+-----+
 
 swappee
@@ -2825,26 +2812,30 @@ keepAliveClause
 The ``SWAPSTACK`` instruction unbinds the current thread with the current stack
 and rebinds it to another stack *swappee*.
 
-If the *curStackClause* is ``RET_WITH``, then the swapper will enter the
-``READY<T1>`` state. If the *curStackClause* is ``KILL_OLD``, then the swapper
-will enter the ``DEAD`` state.
+In the *curStackClause*:
 
-If the *newStackClause* is ``PASS_VALUE``, then it passes the value *val* of
-type *T2* is passed to the *swappee* stack. If the *newStackClause* is
-``PASS_VOID``, then it *passes void* (see `<threads-stacks>`__) to the *swappee*
-stack. If the *newStackClause* is ``THROW_EXC``, the exception object *exc* is
-thrown to the *swappee* stack.
+- If the *curStackClause* is ``RET_WITH``, then the swapper will enter the
+  ``READY<T1>`` state.
+
+- If the *curStackClause* is ``KILL_OLD``, then the swapper will enter the
+  ``DEAD`` state.
+
+In the *newStackClause*:
+
++ If the *newStackClause* is ``PASS_VALUE``, then it passes the value *val* of
+  type *T2* to the *swappee* stack. *T2* can be ``void``, in which
+  case *val* has to have the ``NULL`` value.
+
++ If the *newStackClause* is ``THROW_EXC``, the exception object *exc* is thrown
+  to the *swappee* stack.
+  
+See `Thread and Stack <threads-stacks>`__ for more details about the SWAP-STACK
+operation.
 
 When a stack in the ``READY<T>`` state is pausing on a ``SWAPSTACK`` instruction
 and is being re-bound to a thread, then it continues normally with the return
 value being the value received, or continues exceptionally, catching the
 exception received.
-
-..
-
-    TODO: Move the previous paragraph to the `<threads-stacks>`__ chapter and
-    unify the description of ``TRAP``, ``WATCHPOINT`` and ``SWAPSTACK`` since
-    all are supposed to use SWAP-STACK as the underlying mechanism.
 
 The ``SWAPSTACK`` instruction is an OSR point.
 
@@ -2891,7 +2882,7 @@ The ``SWAPSTACK`` instruction is an OSR point.
 
             %head:
                 // Go to the coroutine
-                %cur_num = SWAPSTACK %coro RET_WITH <@i64> PASS_VOID EXC(%body %exit)
+                %cur_num = SWAPSTACK %coro RET_WITH <@i64> PASS_VALUE <@void> @VOID EXC(%body %exit)
 
             %body:
                 // Do something with %cur_num

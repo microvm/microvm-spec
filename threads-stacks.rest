@@ -107,12 +107,15 @@ is called the **stack-bottom frame** and the function is called the
     implementation can still have its own frames or useful data below the
     stack-bottom frame. They are implementation-specific details.
 
-A newly created stack is in the **READY<void>** state.
+A newly created stack is in the **READY<void>** state. When bound (explained
+later) and passed the ``void`` value (``NULL``), it continues from the first
+instruction of its stack-bottom function.
 
 When a thread is created, a stack must be provided as its **initial stack**. The
-initial stack must be in the **READY<void>** state and will enter the **ACTIVE**
-state after the thread is created. A newly created thread can execute
-immediately.
+initial stack must be in the **READY<void>** state. The new thread binds
+(explained later) to the initial stack, passing the ``void`` value (``NULL``) to
+it, thus the stack will enter the **ACTIVE** state after the thread is created.
+A newly created thread can execute immediately.
 
     NOTE: Unlike Java, there is not a separate step to "start" a thread. A
     thread starts when it is created.
@@ -140,47 +143,23 @@ instruction, the ``new_thread`` API function and the trap handler, can bind a
 thread to a stack.
 
 When **binding** a thread to a stack, the state of the stack changes from
-**READY<T>** to **ACTIVE**. In this process, one of the following three actions
+**READY<T>** to **ACTIVE**. In this process, one of the following two actions
 shall be performed on the stack:
 
 - A binding operation can **pass a value** of type *T* to the stack. In this
-  case, the stack must be in the **READY<T>** state where *T* is not ``void``,
-  and it **receives the value**.
-
-- A binding operation can **pass void** to the stack. In this case, the stack
-  must be in the **READY<void>** state and it **receives void**.
-
-    NOTE: "Pass void" is just a more explicit way to say "not pass a value, but
-    continue normally".
+  case, the stack must be in the **READY<T>** state, and it **receives the
+  value**. *T* can be ``void``.
 
 - A binding operation can **raise an exception** to the stack. In this case, the
-  stack can be in **READY<T>** with any *T* (including ``void``) and it
-  **receives the exception**.
+  stack can be in **READY<T>** with any *T* and it **receives the exception**.
 
 It gives undefined behaviour if the stack is not in the expected state.
-
-Newly created stacks are in the **READY<void>** state. A newly created thread
-binds to the provided initial stack and *passes void* to it. When a newly
-created stack is bound to a thread and *receives void*, it continues execution
-from the beginning of the stack-bottom function.
-
-The state of a stack is **READY<void>** after the ``push_frame`` API function.
-When such a stack is rebound receiving void, it continues from the beginning of
-the function. When such a stack is rebound receiving exception, the exception is
-thrown out of the top frame.
-
-When binding to a frame and the top frame is a native frame, it must be calling
-back to Mu. The value passed from Mu becomes the value returned from Mu. If the
-native frame expects void return value, passing void will return to the native
-code. The expected type is previous Mu callee which has been popped via OSR
-(this is the only case when a native frame can be the top frame of an unbound
-stack).
 
 Unbinding
 ---------
 
-Some actions, including the ``@uvm.thread_exit``, ``TRAP``, ``WATCHPOINT`` the
-``SWAPSTACK`` instruction, can unbind a thread from a stack.
+Some actions, including the ``@uvm.thread_exit``, ``TRAP``, ``WATCHPOINT`` and
+the ``SWAPSTACK`` instruction, can unbind a thread from a stack.
 
 When **unbinding** a thread from a stack, one of the following two actions shall
 be performed on the stack:
@@ -230,12 +209,13 @@ function pops the top frame from a stack. The ``push_frame`` function creates a
 new frame for a given function and its arguments on the top of a stack.
 
 After popping a frame from a stack, the next stack below the top becomes the new
-top frame and its current instruction must be a ``CALL`` or a ``CCALL``
-instruction. The stack now enters the ``READY<T>`` state where *T* is the return
-type of the ``CALL`` or ``CCALL`` instruction (may be ``void``). The value
-passed to such a stack will be received by the ``CALL`` or ``CCALL`` instruction
-as if its callee returned the value. The exception passed to such a stack can be
-caught by the ``CALL`` instruction as if it is thrown by the callee.
+top frame. At this moment, either the new frame is a native frame or it is a Mu
+frame pausing on an OSR point instruction. In either case, the stack now enters
+the ``READY<T>`` state where *T* (may be ``void``) is the return type of the
+frame just popped. The value passed to such a stack will be received by the
+native caller, or the OSR-point instruction. If an exception is thrown, it is
+thrown into the native frame, which has implementation-defined behaviours, or to
+the Mu frame, where the OSR-point instruction can catch the exception.
 
 After pushing a frame to a stack, it enters the ``READY<void>`` state and will
 continue from the beginning of the function of the frame. Throwing an exception
