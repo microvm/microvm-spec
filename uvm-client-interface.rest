@@ -109,6 +109,7 @@ opaque **handles**. Those handles are defined as::
     typedef void *MuIRefValue;          // iref<T>
     typedef void *MuStructValue;        // struct<...>
     typedef void *MuArrayValue;         // array<T l>
+    typedef void *MuVoidValue;          // void
     typedef void *MuFuncRefValue;       // funcref<sig>
     typedef void *MuThreadRefValue;     // threadref
     typedef void *MuStackRefValue;      // stackref
