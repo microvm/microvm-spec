@@ -1451,6 +1451,10 @@ destination.
 
 The return value of this instruction has type ``ref<void>``.
 
+A basic block that contains ``LANDINGPAD`` can only be branched to as the
+exceptional destination that catches the exception. Otherwise the ``LANDINGPAD``
+has undefined behaviour.
+
 For LLVM users: Unlike LLVM, exceptions is handled internally in Mu. The type
 of exceptions in Mu is always an object reference. This is general enough to
 handle all cases. Unlike C++ which uses RTTI to identify the exception type, Mu

@@ -52,9 +52,9 @@ instructions or changing the grammar.
     JVM, and they slip under the level of Mu. But Mu and the client always know
     the fact that "it call C function" and it is not magic.
 
-This document uses the following notation:
+This document uses the following notation::
 
-    ``[id]@name [F1 F2 ...] < T1 T2 ... > ( p1:t1, p2:t2, ... ) excClause KEEPALIVE -> RT``
+    [id]@name [F1 F2 ...] < T1 T2 ... > ( p1:t1, p2:t2, ... ) excClause KEEPALIVE -> RT
     
 ``id`` is the ID and ``@name`` is the name. ``F1 F2 ...`` is a list of flags.
 ``T1 T2 ...`` is a list of types.  It is the type parameter list. ``p1:t1,
@@ -66,78 +66,86 @@ parameter list or the value parameter list are omitted, it means the common
 instruction takes no type parameters or value parameters, respectively. If the
 return type is omitted, it returns ``void``.
 
+The names of many common instructions are grouped by prefixes, such as
+``@uvm.tr64.``. In this document, their common prefixes may be omitted in their
+descriptions when unambiguous.
+
 Thread and Stack operations
 ===========================
 
-- ``[0x201]@uvm.new_thread (%s: stackref) -> threadref``
+::
+
+    [0x201]@uvm.new_thread (%s: stackref) -> threadref
 
 Create a new thread for a given stack ``%s``. The stack must be in the **READY**
 state. After executing ``@uvm.new_thread``, the stack enters the **ACTIVE**
 state and the new thread starts running immediately. Return the handle to the
 newly created thread.
 
-- ``[0x202]@uvm.kill_stack (%s: stackref)``
+::
+
+    [0x202]@uvm.kill_stack (%s: stackref)
 
 Destroy the given stack ``%s``. The stack ``%s`` must be in the **READY** state
 and will enter the **DEAD** state.
 
-- ``[0x203]@uvm.thread_exit``
+::
+
+    [0x203]@uvm.thread_exit
 
 Stop the current thread and kill the current stack. The current stack will enter
 the **DEAD** state. The current thread stops running.
 
-- ``[0x204]@uvm.current_stack -> stackref``
+::
+
+    [0x204]@uvm.current_stack -> stackref
 
 Return the current stack.
 
 64-bit Tagged Reference
 =======================
 
-- ``[0x211]@uvm.tr64.is_fp (%tr: tagref64) -> int<1>``
+::
 
-Test if ``%tr`` contains a floating point value.
+    [0x211]@uvm.tr64.is_fp  (%tr: tagref64) -> int<1>
+    [0x212]@uvm.tr64.is_int (%tr: tagref64) -> int<1>
+    [0x213]@uvm.tr64.is_ref (%tr: tagref64) -> int<1>
 
-- ``[0x212]@uvm.tr64.is_int (%tr: tagref64) -> int<1>``
+- ``is_fp`` checks if ``%tr`` holds an FP number.
+- ``is_int`` checks if ``%tr`` holds an integer.
+- ``is_ref`` checks if ``%tr`` holds a reference.
 
-Test if ``%tr`` contains an integer value.
+Return 1 or 0 for true or false.
 
-- ``[0x213]@uvm.tr64.is_ref (%tr: tagref64) -> int<1>``
+::
 
-Test if ``%tr`` contains an object reference value.
+    [0x214]@uvm.tr64.from_fp  (%val: double) -> tagref64
+    [0x215]@uvm.tr64.from_int (%val: int<52>) -> tagref64
+    [0x216]@uvm.tr64.from_ref (%ref: ref<void>, %tag: int<6>) -> tagref6
 
-- ``[0x214]@uvm.tr64.from_fp (%val: double) -> tagref64``
+- ``from_fp``  creates a ``tagref64`` value from an FP number ``%val``.
+- ``from_int`` creates a ``tagref64`` value from an integer ``%val``.
+- ``from_ref`` creates a ``tagref64`` value from a reference ``%ref`` and the
+  integer tag ``%tag``.
 
-Construct a ``tagref64`` value from a floating point value ``%val``.
+Return the created ``tagref64`` value.
 
-- ``[0x215]@uvm.tr64.from_int (%val: int<52>) -> tagref64``
 
-Construct a ``tagref64`` value from an integer value ``%val``.
+::
 
-- ``[0x216]@uvm.tr64.from_ref (%ref: ref<void>, %tag: int<6>) -> tagref64``
+    [0x217]@uvm.tr64.to_fp  (%tr: tagref64) -> double
+    [0x218]@uvm.tr64.to_int (%tr: tagref64) -> int<52>
+    [0x219]@uvm.tr64.to_ref (%tr: tagref64) -> ref<void>
+    [0x21a]@uvm.tr64.to_ref (%tr: tagref64) -> int<6>
 
-Construct a ``tagref64`` value from an object reference ``%ref`` and a tag
-``%tag``.
+- ``to_fp``  returns the FP number held by ``%tr``.
+- ``to_int`` returns the integer held by ``%tr``.
+- ``to_ref`` returns the reference held by ``%tr``.
+- ``to_tag`` returns the integer tag held by ``%tr`` that accompanies the
+  reference.
 
-- ``[0x217]@uvm.tr64.to_fp (%tr: tagref64) -> double``
-
-Extract the floating point value from ``%tr``, assuming ``%tr`` contains a
-floating point value. It has undefined behaviour if the assumption is wrong.
-
-- ``[0x218]@uvm.tr64.to_int (%tr: tagref64) -> int<52>``
-
-Extract the integer value from ``%tr``, assuming ``%tr`` contains an integer
-value. It has undefined behaviour if the assumption is wrong.
-
-- ``[0x219]@uvm.tr64.to_ref (%tr: tagref64) -> ref<void>``
-
-Extract the object reference from ``%tr``, assuming ``%tr`` contains reference
-value. It has undefined behaviour if the assumption is wrong.
-
-- ``[0x21a]@uvm.tr64.to_ref (%tr: tagref64) -> int<6>``
-
-Extract the ``int<6>`` tag accompanying the object reference from ``%tr``,
-assuming ``%tr`` contains reference value. It has undefined behaviour if the
-assumption is wrong.
+They have undefined behaviours if ``%tr`` does not hold the value of the
+expected type.
 
 Math Instructions
 =================
@@ -162,40 +170,44 @@ See `<threads-stacks>`__ for high-level descriptions about Futex.
 Wait
 ----
 
-- ``[0x220]@uvm.futex.wait <T> (%loc: iref<T>, %val: T) -> int<32>``
-- ``[0x221]@uvm.futex.wait_timeout <T> (%loc: iref<T>, %val: T, %timeout: int<64>) -> int<32>``
+::
+
+    [0x220]@uvm.futex.wait <T> (%loc: iref<T>, %val: T) -> int<32>
+    [0x221]@uvm.futex.wait_timeout <T> (%loc: iref<T>, %val: T, %timeout: int<64>) -> int<32>
 
 ``T`` must be an integer type.
 
-The ``@uvm.futex.wait`` and the ``@uvm.futex.wait_timeout`` instructions verify
-if the memory location ``%loc`` still contains the value ``%val`` and then put
-the current thread to the waiting queue of memory location ``%loc``. If ``%loc``
-does not contain ``%val``, return immediately. These instructions are atomic.
+``wait`` and ``wait_timeout`` verify if the memory location ``%loc`` still
+contains the value ``%val`` and then put the current thread to the waiting queue
+of memory location ``%loc``. If ``%loc`` does not contain ``%val``, return
+immediately. These instructions are atomic.
 
-The ``@uvm.futex.wait`` instruction waits indefinitely.
+- ``wait`` waits indefinitely.
 
-The ``@uvm.futex.wait_timeout`` instruction has an extra ``%timeout`` parameter
-which is a 64-bit unsigned integer that represents a time in nanoseconds. It
-specifies the duration of the wait.
+- ``wait_timeout`` has an extra ``%timeout`` parameter which is a 64-bit
+  unsigned integer that represents a time in nanoseconds. It specifies the
+  duration of the wait.
 
 Both instructions are allowed to spuriously wake up.
 
-It returns a signed integer which indicates the result of this call:
+They return a signed integer which indicates the result of this call:
 
 * 0: the current thread is woken.
 * -1: the memory location ``%loc`` does not contain the value ``%val``.
 * -2: spurious wakeup.
-* -3: timeout during waiting (``@uvm.futex.wait_timeout`` only).
+* -3: timeout during waiting (``wait_timeout`` only).
 
 Wake
 ----
 
-- ``[0x222]@uvm.futex.wake <T> (%loc: iref<T>, %nthread: int<32>) -> int<32>``
+::
+
+    [0x222]@uvm.futex.wake <T> (%loc: iref<T>, %nthread: int<32>) -> int<32>
 
 ``T`` must be an integer type.
 
-The ``@uvm.futex.wake`` instruction wakes *N* threads in the waiting queue of
-the memory location ``%loc``. This instruction is atomic.
+``wake`` wakes *N* threads in the waiting queue of the memory location ``%loc``.
+This instruction is atomic.
 
 *N* is the minimum value of ``%nthread`` and the actual number of threads in the
 waiting queue of ``%loc``. ``%nthread`` is signed. Negative ``%nthread`` has
@@ -206,16 +218,17 @@ It returns the number of threads woken up.
 Requeue
 -------
 
-- ``[0x223]@uvm.futex.cmp_requeue <T> (%loc_src: iref<T>, %loc_dst: iref<T>, %expected: T, %nthread: int<32>) -> int<32>``
+::
+
+    [0x223]@uvm.futex.cmp_requeue <T> (%loc_src: iref<T>, %loc_dst: iref<T>, %expected: T, %nthread: int<32>) -> int<32>
 
 ``T`` must be an integer type.
 
-The ``@uvm.futex.cmp_requeue`` instruction verifies if the memory location
-``%loc_src`` still contains the value ``%expected`` and then wakes up *N*
-threads from the waiting queue of ``%loc_src`` and move all other threads in the
-waiting queue of ``%loc_src`` to the waiting queue of ``%loc_dst``. If
-``%loc_src`` does not contain the value ``%expected``, return immediately. This
-instruction is atomic.
+``cmp_requeue`` verifies if the memory location ``%loc_src`` still contains the
+value ``%expected`` and then wakes up *N* threads from the waiting queue of
+``%loc_src`` and move all other threads in the waiting queue of ``%loc_src`` to
+the waiting queue of ``%loc_dst``. If ``%loc_src`` does not contain the value
+``%expected``, return immediately. This instruction is atomic.
 
 *N* is the minimum value of ``%nthread`` and the actual number of threads in the
 waiting queue of ``%loc``. ``%nthread`` is signed. Negative ``%nthread`` has
@@ -227,7 +240,9 @@ It returns a signed integer. When the ``%loc_src`` contains the value of
 Miscellaneous Instructions
 ==========================
 
-- ``[0x230]@uvm.kill_dependency <T> (%val: T) -> T``
+::
+
+    [0x230]@uvm.kill_dependency <T> (%val: T) -> T
 
 Return the same value as ``%val``, but ``%val`` does not carry a dependency to
 the return value.
@@ -238,30 +253,38 @@ the return value.
 Native Interface
 ================
 
-- ``[0x240]@uvm.native.pin <T> (%opnd: T) -> uptr<U>``
+Object pinning
+--------------
+
+::
+
+    [0x240]@uvm.native.pin   <T> (%opnd: T) -> uptr<U>
+    [0x241]@uvm.native.unpin <T> (%opnd: T) -> void
 
 *T* must be ``ref<U>`` or ``iref<U>`` for some U.
 
-Add one instance of the reference ``%opnd`` to the pinning multiset of the
-current thread.  Return the mapped pointer to the bytes for the memory location.
-If *T* is ``ref<U>``, it is equivalent to pinning the memory location of the
-whole object (as returned by the ``GETIREF`` instruction). If *opnd* is
-``NULL``, the result is a null pointer whose address is 0.
+- ``pin`` adds one instance of the reference ``%opnd`` to the pinning multiset
+  of the current thread.  Returns the mapped pointer to the bytes for the memory
+  location.  If *T* is ``ref<U>``, it is equivalent to pinning the memory
+  location of the whole object (as returned by the ``GETIREF`` instruction). If
+  *opnd* is ``NULL``, the result is a null pointer whose address is 0.
 
-- ``[0x241]@uvm.native.unpin <T> (%opnd: T) -> void``
+- ``unpin`` removes one instance of the reference ``%opnd`` from the pinning
+  multiset of the current thread. It has undefined behaviour if no such an
+  instance exists.
 
-*T* must be ``ref<U>`` or ``iref<U>`` for some U.
+Mu function exposing
+--------------------
 
-Remove one instance of the reference ``%opnd`` from the pinning multiset of the
-current thread. It has undefined behaviour if no such an instance exists.
+::
 
-- ``[0x242]@uvm.native.expose [callconv] <[sig]> (%func: funcref<sig>, %cookie: int<64>) -> U``
+    [0x242]@uvm.native.expose [callconv] <[sig]> (%func: funcref<sig>, %cookie: int<64>) -> U
 
 *callconv* is a platform-specific calling convention flag. *U* is determined by
 the calling convention and *sig*.
 
-Expose a Mu function *func* as a value according to the calling convention
-*callConv* with cookie *cookie*.
+``expose`` exposes a Mu function *func* as a value according to the calling
+convention *callConv* with cookie *cookie*.
 
     Example::
         
@@ -269,14 +292,18 @@ Expose a Mu function *func* as a value according to the calling convention
 
         %ev = COMMINST @uvm.native.expose [#DEFAULT] <[@foo_sig]>
 
-- ``[0x243]@uvm.native.unexpose [callconv] (%value: U) -> void``
+::
+
+    [0x243]@uvm.native.unexpose [callconv] (%value: U) -> void
 
 *callconv* is a platform-specific calling convention flag. *U* is determined by
 the calling convention.
 
-Remove the exposed value.
+``unexpose`` removes the exposed value.
 
-- ``[0x244]@uvm.native.get_cookie () -> int<64>``
+::
+
+    [0x244]@uvm.native.get_cookie () -> int<64>
 
 If a Mu function is called via its exposed value, this instruction returns the
 attached cookie. Otherwise it returns an arbitrary value.
@@ -285,8 +312,7 @@ Metacircular Client Interface
 =============================
 
 These are additional instructions that enables Mu IR programs to behave like a
-client. For conciseness, the prefix "@uvm.meta" is often omitted in this section
-of the document when unambiguous.
+client.
 
 Some types and signatures are pre-defined. They are always available. Note that
 the following are not strict text IR syntax because some types are defined in
@@ -305,15 +331,17 @@ In ``bytes`` and ``refs``, the fixed part is the length of the variable part.
 ID/name conversion
 ------------------
 
-- ``[0x250]@uvm.meta.id_of (%name: @uvm.meta.bytes.r) -> int<32>``
-- ``[0x251]@uvm.meta.name_of (%id: int<32>) -> @uvm.meta.bytes.r``
+::
 
-``id_of`` converts a textual Mu name ``%name`` to the numerical ID. The name
-must be a global name.
+    [0x250]@uvm.meta.id_of (%name: @uvm.meta.bytes.r) -> int<32>
+    [0x251]@uvm.meta.name_of (%id: int<32>) -> @uvm.meta.bytes.r
 
-``name_of`` converts the ID ``%id`` to its corresponding name. If the name does
-not exist (if defined in binary only, or it is an instruction without name), it
-returns ``NULL``. The returned object must not be modified.
+- ``id_of`` converts a textual Mu name ``%name`` to the numerical ID. The name
+  must be a global name.
+
+- ``name_of`` converts the ID ``%id`` to its corresponding name. If the name
+  does not exist (if defined in binary only, or it is an instruction without
+  name), it returns ``NULL``. The returned object must not be modified.
 
 They have undefined behaviours if the name or the ID in the argument do not
 exist, or ``%name`` is ``NULL``.
@@ -321,8 +349,10 @@ exist, or ``%name`` is ``NULL``.
 Bundle/HAIL loading
 -------------------
 
-- ``[0x252]@uvm.meta.load_bundle (%buf: @uvm.meta.bytes.r)``
-- ``[0x253]@uvm.meta.load_hail   (%buf: @uvm.meta.bytes.r)``
+::
+
+    [0x252]@uvm.meta.load_bundle (%buf: @uvm.meta.bytes.r)
+    [0x253]@uvm.meta.load_hail   (%buf: @uvm.meta.bytes.r)
 
 ``load_bundle`` and ``load_hail`` loads Mu IR bundles and HAIL scripts,
 respectively. ``%buf`` is the content. The first 4 characters in ``%buf``
@@ -331,68 +361,72 @@ determines whether it is binary or text.
 Stack introspection
 -------------------
 
-- ``[0x254]@uvm.meta.cur_func           (%stack: stackref, %frame: int<32>) -> int<32>``
-- ``[0x255]@uvm.meta.cur_func_Ver       (%stack: stackref, %frame: int<32>) -> int<32>``
-- ``[0x256]@uvm.meta.cur_inst           (%stack: stackref, %frame: int<32>) -> int<32>``
-- ``[0x257]@uvm.meta.dump_keepalives    (%stack: stackref, %frame: int<32>) -> @uvm.meta.refs.r``
+::
 
-..
+    [0x254]@uvm.meta.cur_func           (%stack: stackref, %frame: int<32>) -> int<32>
+    [0x255]@uvm.meta.cur_func_Ver       (%stack: stackref, %frame: int<32>) -> int<32>
+    [0x256]@uvm.meta.cur_inst           (%stack: stackref, %frame: int<32>) -> int<32>
+    [0x257]@uvm.meta.dump_keepalives    (%stack: stackref, %frame: int<32>) -> @uvm.meta.refs.r
 
+``%stack`` and ``%frame`` selects a frame in the stack ``%stack``. 0 is the top,
+1 is the next top, ... ``%stack`` must not be null.
 
-* ``cur_func`` returns the ID of the current function of ``%frame``
-  in ``%stack``. Returns 0 if the frame is native.
+- ``cur_func`` returns the ID of the current function of ``%frame`` in
+  ``%stack``. Returns 0 if the frame is native.
 
-* ``cur_func_ver`` returns the ID of the current function version of ``%frame``
+- ``cur_func_ver`` returns the ID of the current function version of ``%frame``
   in ``%stack``. Returns 0 if the frame is native, or the function of the frame
   is undefined.
 
-* ``cur_inst`` returns the ID of the current instruction of ``%frame`` in
+- ``cur_inst`` returns the ID of the current instruction of ``%frame`` in
   ``%stack``. Returns 0 if the frame is just created, its function is undefined,
   or the frame is native.
 
-* ``dump_keepalives`` dumps the values of the keep-alive variables of the
+- ``dump_keepalives`` dumps the values of the keep-alive variables of the
   current instruction in the selected frame. If the function is undefined, the
   arguments are the keep-alive variables. Cannot be used on native frames. The
   return value is a list of object references, each of which refers to an object
   which has type *T* and contains value *v*, where *T* and *v* are the type and
   the value of the corresponding keep-alive variable, respectively.
 
-
-``%stack`` and ``%frame`` selects a frame in the stack ``%stack``. 0 is the top,
-1 is the next top, ... ``%stack`` must not be null.
-
 On-stack replacement
 --------------------
 
-- ``[0x258]@uvm.meta.pop_frame (%stack: stackref)``
-- ``[0x259]@uvm.meta.push_frame <[sig]> (%stack: stackref, %func: funcref<sig>, ...)``
+::
 
-``pop_frame`` pops the top frame of the stack ``%stack``.
-
-``push_frame`` creates a new frame on top of the stack ``%stack`` for the Mu
-function ``%func``. ``%func`` must have the signature ``sig``. There are many
-arguments after ``%func``. Each will be an argument to ``%func``. Their types
-must match the argument types of ``%func``.
-
-The function's return type must match the expected return type of the previous
-frame. If the previous frame is a native frame, the new function must have the
-same return type as the previous Mu callee.
+    [0x258]@uvm.meta.pop_frame (%stack: stackref)
+    [0x259]@uvm.meta.push_frame <[sig]> (%stack: stackref, %func: funcref<sig>, ...)
 
 ``%stack`` and ``%func`` must not be ``NULL``.
+
+- ``pop_frame`` pops the top frame of the stack ``%stack``.
+
+- ``push_frame`` creates a new frame on top of the stack ``%stack`` for the Mu
+  function ``%func``. ``%func`` must have the signature ``sig``. There are many
+  arguments after ``%func``. Each will be an argument to ``%func``. Their types
+  must match the argument types of ``%func``.
+  
+  The return type of ``%func`` must match the expected return type of the
+  previous frame. If the previous frame is a native frame, the new function must
+  have the same return type as the previous Mu callee.
 
 Watchpoint operations
 ---------------------
 
-- ``[0x25a]@uvm.meta.enable_watchpoint  (%wpid: int<32>)``
-- ``[0x25b]@uvm.meta.disable_watchpoint (%wpid: int<32>)``
+::
 
-``enable_watchpoint``    enables  all watchpoints of watchpoint ID ``%wpid``.
-``disenable_watchpoint`` disables all watchpoints of watchpoint ID ``%wpid``.
+    [0x25a]@uvm.meta.enable_watchpoint  (%wpid: int<32>)
+    [0x25b]@uvm.meta.disable_watchpoint (%wpid: int<32>)
+
+- ``enable_watchpoint``    enables  all watchpoints of watchpoint ID ``%wpid``.
+- ``disenable_watchpoint`` disables all watchpoints of watchpoint ID ``%wpid``.
 
 Trap handling
 -------------
 
-- ``[0x25c]@uvm.meta.set_trap_handler (%handler: funcref<@uvm.meta.trap_handler.sig>, %userdata: ref<void>)``
+::
+
+    [0x25c]@uvm.meta.set_trap_handler (%handler: funcref<@uvm.meta.trap_handler.sig>, %userdata: ref<void>)
 
 This instruction registers a trap handler. ``%handler`` is the function to be
 called and ``%userdata`` will be their last argument when called.

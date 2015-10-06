@@ -790,28 +790,41 @@ Tagged reference operations
     int             (*tr64_is_fp   )(MuCtx *ctx, MuTagRef64Value value);
     int             (*tr64_is_int  )(MuCtx *ctx, MuTagRef64Value value);
     int             (*tr64_is_ref  )(MuCtx *ctx, MuTagRef64Value value);
+
+- ``tr64_is_fp`` checks if ``value`` holds an FP number.
+- ``tr64_is_int`` checks if ``value`` holds an integer.
+- ``tr64_is_ref`` checks if ``value`` holds a reference.
+
+Return 1 or 0 for true or false.
+
+::
+
     MuDoubleValue   (*tr64_to_fp   )(MuCtx *ctx, MuTagRef64Value value);
     MuIntValue      (*tr64_to_int  )(MuCtx *ctx, MuTagRef64Value value);
     MuRefValue      (*tr64_to_ref  )(MuCtx *ctx, MuTagRef64Value value);
     MuIntValue      (*tr64_to_tag  )(MuCtx *ctx, MuTagRef64Value value);
+
+- ``tr64_to_fp``  returns the FP number held by ``value``.
+- ``tr64_to_int`` returns the integer held by ``value``.
+- ``tr64_to_ref`` returns the reference held by ``value``.
+- ``tr64_to_tag`` returns the integer tag held by ``value`` that accompanies the
+  reference.
+
+They have undefined behaviours if ``%tr`` does not hold the value of the
+expected type.
+
+::
+
     MuTagRef64Value (*tr64_from_fp )(MuCtx *ctx, MuDoubleValue value);
     MuTagRef64Value (*tr64_from_int)(MuCtx *ctx, MuIntValue value);
     MuTagRef64Value (*tr64_from_ref)(MuCtx *ctx, MuRefValue ref, MuIntValue tag);
 
-``tr64_is_fp``, ``tr64_is_int`` and ``tr64_is_ref`` checks if the ``tagref64``
-value ``value`` holds a FP number, an integer or a reference. Returns 1 or 0 for
-true or false.
+- ``tr64_from_fp``  creates a ``tagref64`` value from an FP number ``value``.
+- ``tr64_from_int`` creates a ``tagref64`` value from an integer ``value``.
+- ``tr64_from_ref`` creates a ``tagref64`` value from a reference ``ref`` and
+  the integer tag ``tag``.
 
-``tr64_to_fp``, ``tr64_to_int`` and ``tr64_to_ref`` extracts the FP number,
-integer or reference that ``value`` is holding. ``tr64_to_tag`` extracts the tag
-stored together with the reference. They have undefined behaviour if ``value``
-does not hold the expected type.
-
-``tr64_from_fp``, ``tr64_from_int`` and ``tr64_from_ref`` creates a ``tagref64``
-value from a FP number, an int or an object reference together with a tag.
-
-The FP number type is ``double``, the integer type is ``int<52>``, the reference
-type is ``ref<void>``, the tag type is ``int<6>``.
+Return the created ``tagref64`` value.
 
 Watchpoint operations
 ---------------------
@@ -890,6 +903,8 @@ Trap Handling
 
 A trap handler is called when a ``TRAP`` or ``WATCHPOINT`` instruction is
 executed. It is also implicitly called when executing an undefined function.
+
+It is unspecified on which stack the trap handler is run.
 
 Mu is allowed to call these handlers concurrently. Mu does not guarantee the
 order in which these handlers are called, but guarantees the happen-before
