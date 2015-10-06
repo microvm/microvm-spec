@@ -139,7 +139,7 @@ A **root** is an object reference or internal reference in:
 
 * any global cell, or
 * any bound Mu stacks, or
-* the registry in any client agent.
+* any values held by any client contexts in the API.
 
 A live stack contains references in its alloca cells and live local SSA
 variables. A dead stack contains no references. A thread can strongly reach its

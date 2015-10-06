@@ -60,7 +60,7 @@ Here is an example of Mu IR in the text form::
             BRANCH %head
 
         %exit:
-            RET <@i64> %a
+            RET %a
     }
 
     .expose @gcd_native = @gcd < DEFAULT > @i64_0
@@ -173,7 +173,7 @@ bundle.
                 @main_v1.rv = ADD <@i32> @main_v1.argc @i32_1
                 BRANCH @main_v1.bb1
             @main_v1.bb1:
-                RET <@i32> @main_v1.rv
+                RET @main_v1.rv
         }
 
 A **local name** begins with ``%``. Parameters, basic blocks and instructions,
@@ -188,7 +188,7 @@ name of the form ``%localname`` within a function definition of version
                 %rv = ADD <@i32> %argc @i32_1
                 BRANCH %bb1
             %bb1:
-                RET <@i32> %rv
+                RET %rv
         }
 
     In the above example:
@@ -205,7 +205,7 @@ name of the form ``%localname`` within a function definition of version
     is allowed, though not recommended::
 
         @main_v1.rv = ADD <@i32> %argc @i32_1
-        RET <@i32> %rv
+        RET  %rv
 
 ..
 
@@ -567,6 +567,26 @@ where:
 * ``Name`` is a global name for the function and
 * ``Sig`` is a global name for the signature of the function.
 
+When executing a function without version, it behaves as if it has a hidden
+version defined as::
+
+    .funcdef Name VERSION NoVersion <Sig> (ParamList) {
+        %entry:
+            TRAP <@void> KEEPALIVE (ParamList)
+            TAILCALL <Sig> Name (ParamList)
+    }
+
+That is, it will trap to the client, using all variables in the parameter list
+of the function as the keep-alive variables. If the stack is ever rebound
+passing the expected ``void`` value, it will try to tail-call the same function
+(**Not necessarily the same hidden version!** It may have been defined by the
+client in the trap!) using the same arguments. If an exception is thrown when
+rebound, the ``TRAP`` will re-throw it to the parent frame. The ``cur_func`` API
+will return the ID of the function. This hidden version is still not a real
+version, so the ``cur_func_ver`` API will return 0. The ``TRAP`` is not a real
+instruction, either, so the ``cur_inst`` API will also return 0.
+``dump_keepalives`` will dump the arguments.
+
 It is an error to have multiple function declarations and/or function
 definitions of the same function name in the same bundle.
 
@@ -626,7 +646,7 @@ instruction is defined separately in `<instruction-set>`__.
                 BRANCH %head
 
             %exit:
-                RET <@i64> %a
+                RET %a
         }
 
 ..

@@ -228,20 +228,19 @@ All evaluations performed by a Mu thread form a total order, in which the
 operations performed by each evaluation are **sequenced before** operations
 performed by its successor.
 
-All operations performed by a Mu client via a particular client agent form a
-total order, in which each operation is **sequenced before** its successor.
+All operations performed by a Mu client via a particular client context of the
+API form a total order, in which each operation is **sequenced before** its
+successor.
 
-Specifically, operations performed by trap handlers and undefined function
-handlers in the client are ordered with other operations performed by the Mu
-thread as if they are performed by the ``TRAP``, ``WATCHPOINT``, ``CALL``,
-``NEWSTACK`` or other instructions that transfers the control to the handler. 
+Operations before a ``TRAP`` or ``WATCHPOINT`` are **sequenced before** the
+operations in the trap handler. Operations in the trap handler are **sequenced
+before** operations after that ``TRAP`` or ``WATCHPOINT``.
 
 The **program order** contains operations and their "sequenced before"
 relations.
 
-    NOTE: This means all Mu instructions plus all client operations done by
-    the trap handler and undefined function handler in a Mu thread still forms
-    a total order.
+    NOTE: This means all Mu instructions plus all client operations done by the
+    trap handler in a Mu thread still forms a total order.
 
     In C, the program order is a partial order even in a single thread because
     of unspecified order of evaluations.
@@ -562,19 +561,34 @@ Special Rules for Functions and Function Redefinition
 
 The rules of memory access applies to functions as if
 
-* a function were a memory location, and
+* a function were a memory location that holds a function version, and
 
-* a function call or a creation of new stack were an atomic load on that
-  location of the RELAXED order, and
+* a creation of a frame for a function were an atomic load on that location of
+  the RELAXED order, which sees a particular version, and
 
 * a function definition or redefinition during the load of a bundle were an
-  atomic store on that location of the RELAXED order.
+  atomic store on that location of the RELAXED order, which stores a new
+  version.
+
+..
+
+    NOTE: A frame is created when:
+    
+    1. calling a function by the ``CALL`` or ``TAILCALL`` instructions, or by
+       native programs through exposed Mu functions, or
+
+    2. creating a new stack by the ``NEWSTACK`` instruction or the ``new_stack``
+       API, or
+
+    3. pushing a new frame by the ``push_frame`` API or the
+       ``@uvm.meta.push_frame`` instruction.
 
 The order of definitions and redefinitions of a particular function is
 consistent with the order the bundles that contain the definitions are loaded.
 
-    NOTE: This means fences must be inserted to guarantee other threads other
-    than the one which loads a bundle see a more recent version of a function.
+    NOTE: This means synchronisation operations must be used to guarantee other
+    threads other than the one which loads a bundle see the most recent version
+    of a function.
 
 Out-of-thin-air or Speculative stores
 =====================================

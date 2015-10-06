@@ -1035,7 +1035,7 @@ If *cond* is 1, jump to *ifTrue*, otherwise jump to *ifFalse*.
 ``SWITCH`` ``<`` *T* ``>`` *opnd* *default* ``{`` *(* *value* ``:`` *dest* ``;`` *)* :sub:`rep` ``}``
 
 T
-    *type*: The type of *opnd* and *value*s
+    *type*: The type of *opnd* and all *value*
 opnd
     *variable* of *T*: The value to compare against.
 default:
@@ -1265,12 +1265,9 @@ have any exception clause and is not an OSR point.
     NOTE: ``TAILCALL`` is semantically similar to calling a function and
     immediately return the returned value, but reuses the current frame.
 
-If the callee is not defined, the client will handle this by defining the
-function. After returning from the client, this instruction will be tried again.
-
-    TODO: https://github.com/microvm/microvm-meta/issues/42 After this change,
-    an undefined function will invoke a trap by itself, and the caller does not
-    need to know it. So the paragraph above can be removed.
+Calling an undefined function is allowed. Such functions will trigger a trap so
+that the client can handle it. See `Mu IR <uvm-ir>`__ for the behaviour of
+undefined functions.
 
 ..
 
@@ -2718,12 +2715,19 @@ function and *argList* as its arguments.
 
 This instruction continues exceptionally if Mu cannot allocate the new stack. 
 
-If the callee is not defined, the client will handle this by defining the
-function. After returning from the client, this instruction will be tried again.
+Which function version is used for the stack-bottom frame is determined by when
+the stack is created, not when the stack is resumed. See `Memory Model
+<memory-model>`__.
 
-    TODO: https://github.com/microvm/microvm-meta/issues/42 Change is proposed
-    to let the callee trigger the trap when executed. So the paragraph above can
-    be removed.
+    NOTE: This means it may still run an old version if a newer version is
+    loaded by the client between when the stack is created and when the stack is
+    resumed.
+
+    TODO: Is this the most "implement-able" and most desirable way?
+
+Creating a stack for an undefined function is allowed. It will trap when that
+frame is executed. See `Mu IR <uvm-ir>`__ for the behaviour of undefined
+functions.
 
 ..
 

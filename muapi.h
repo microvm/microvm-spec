@@ -51,9 +51,6 @@ typedef void (*MuTrapHandler)(MuCtx *ctx, MuThreadRefValue thread,
         MuStackRefValue *new_stack, MuValue *value, MuRefValue *exception,
         MuCPtr userdata);
 
-// Signature of the undefined funciton handler
-typedef void (*MuUndefFuncHandler)(MuCtx *ctx, MuID func_id, MuCPtr userdata);
-
 // Memory orders
 typedef int MuMemOrd;
 
@@ -105,7 +102,6 @@ struct MuVM {
 
     // Set handlers
     void    (*set_trap_handler      )(MuVM *mvm, MuTrapHandler trap_handler, MuCPtr userdata);
-    void    (*set_undef_func_handler)(MuVM *mvm, MuUndefFuncHandler undef_func_handler, MuCPtr userdata);
 };
 
 // A local context. It can only be used by one thread at a time. It holds many
@@ -211,6 +207,7 @@ struct MuCtx {
     void                (*kill_stack)(MuCtx *ctx, MuStackRefValue stack);
 
     // Stack introspection
+    MuID        (*cur_func       )(MuCtx *ctx, MuStackRefValue stack, int frame);
     MuID        (*cur_func_ver   )(MuCtx *ctx, MuStackRefValue stack, int frame);
     MuID        (*cur_inst       )(MuCtx *ctx, MuStackRefValue stack, int frame);
     void        (*dump_keepalives)(MuCtx *ctx, MuStackRefValue stack, int frame, MuValue *results);

@@ -18,25 +18,32 @@ means "Mu thread" unless explicitly stated otherwise.
 Concepts
 ========
 
-A **stack** is the context of nested or recursive activations of functions. A
-stack has many **frames**, each of which is the context of one function
+A **stack** is the context of nested or recursive activations of functions.
+
+    NOTE: "Stack" here means the "control stack", or more precisely the
+    "context" of execution. On a concrete machine, the context includes not only
+    the stack, but also the CPU/register states. Mu abstracts the CPU state,
+    modelling it as part of the state of the stack-top frame.
+
+A stack has many **frames**, each of which is the context of one function
 activation. A frame contains the states of all local variables (parameters and
-instructions), the program counter and alloca cells (see `<uvm-memory>`__). Each
-frame is associated to a version of a function.
+instructions), the program counter and alloca cells (see `Mu and the Memory
+<uvm-memory>`__). Each frame is associated with a *version* of a function.
 
     NOTE: Because Mu allows function redefinition, a function may be redefined
-    and newly created function activations (newly called functions) use the new
-    definition. But any existing function activations still use the old
-    definition, thus a frame is only bound to a particular version of a
-    function, not just a function. This is very important because Mu cannot
-    magically translate the state of any old function activation to a new one. A
-    redefined function may even have completely different meaning from the old
-    one. Mu allows crazy things like redefining a factorial function to a
-    Fibonacci function.
+    by the client, and newly created function activations (newly called
+    functions) will use the new definition. But any existing function
+    activations will still use their old definitions, thus a frame is only bound
+    to a particular version of a function, not just a function. This is very
+    important because Mu cannot magically translate the state of any old
+    function activation to a new one. A redefined function may even have
+    completely different meaning from the old one. Mu allows the client to do
+    crazy things like redefining a factorial function to a Fibonacci function.
 
-    During on-stack replacement, Mu can tell the client which version of which
-    function any frame is executing and the value of KEEPALIVE variables.  The
-    client is responsible for translating the states.
+    During on-stack replacement, the Mu client API can tell the client which
+    version of which function any frame is executing and the value of KEEPALIVE
+    variables.  The client is responsible for translating the Mu-level states to
+    the high-level language states.
 
 A **thread** is the unit of CPU scheduling. A thread can be **bound** to a
 stack, in which case the thread executes using the stack as its context.
@@ -98,9 +105,10 @@ Mu stacks and Mu threads can be created by Mu instructions ``NEWSTACK`` and
 ``@uvm.new_thread``, or the API function ``new_stack`` and ``new_thread``.
 
 When a stack is created, a Mu function and all of its parameter must be
-provided. The stack will contain a frame created for this function. This frame
-is called the **stack-bottom frame** and the function is called the
-**stack-bottom function**.
+provided. The stack will contain a frame created for the current version of the
+function (as seen by the current thread because of concurrency and the memory
+model). This frame is called the **stack-bottom frame** and the function is
+called the **stack-bottom function**.
 
     NOTE: The stack-bottom frame is conceptually the last frame in a Mu stack
     and returning from that frame has undefined behaviour. But a concrete Mu
@@ -206,7 +214,8 @@ On-stack Replacement
 
 The client can pop and push frames from or to a stack. The ``pop_frame`` API
 function pops the top frame from a stack. The ``push_frame`` function creates a
-new frame for a given function and its arguments on the top of a stack.
+new frame on the top of the stack, using the current version (as seen by the
+current thread) of a given function and the given arguments.
 
 After popping a frame from a stack, the next stack below the top becomes the new
 top frame. At this moment, either the new frame is a native frame or it is a Mu

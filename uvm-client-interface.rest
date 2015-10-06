@@ -47,7 +47,6 @@ A Mu instance is represented as a pointer to the struct ``MuVM``::
         MuID    (*id_of  )(MuVM *mvm, MuName name);
         MuName  (*name_of)(MuVM *mvm, MuID id);
         void    (*set_trap_handler      )(MuVM *mvm, MuTrapHandler trap_handler, MuCPtr userdata);
-        void    (*set_undef_func_handler)(MuVM *mvm, MuUndefFuncHandler undef_func_handler, MuCPtr userdata);
     };
 
 The client interacts with Mu for almost all tasks through **client contexts**,
@@ -190,7 +189,7 @@ In the following functions, the first argument ``mvm`` must be the same
 The ``newcontext`` function creates a new client context.
 
     For Lua users: This is similar to ``lua_newstate``, but multiple client
-    agents share the Mu memory and can be used concurrently.
+    contexts share the Mu memory and can be used concurrently.
 
 ::
 
@@ -204,12 +203,10 @@ has undefined behaviour.
 ::
 
     void    (*set_trap_handler      )(MuVM *mvm, MuTrapHandler trap_handler, MuCPtr userdata);
-    void    (*set_undef_func_handler)(MuVM *mvm, MuUndefFuncHandler undef_func_handler, MuCPtr userdata);
 
-The ``set_trap_handler`` function sets the handler for traps. The
-``set_undef_func_handler`` function sets the handler for undefined functions.
-See the *Trap and Undefined Function Handling* section below for more
-information.
+The ``set_trap_handler`` function sets the handler for traps. This overrides the
+trap handler registered by the ``@uvm.meta.set_trap_handler`` instruction. See
+the *Trap Handling* section below for more information.
 
 ``userdata`` will be passed to the handlers as the last element when they are
 called.
@@ -709,20 +706,26 @@ Stack introspection
 
 ::
 
+    MuID        (*cur_func       )(MuCtx *ctx, MuStackRefValue stack, int frame);
     MuID        (*cur_func_ver   )(MuCtx *ctx, MuStackRefValue stack, int frame);
     MuID        (*cur_inst       )(MuCtx *ctx, MuStackRefValue stack, int frame);
     void        (*dump_keepalives)(MuCtx *ctx, MuStackRefValue stack, int frame, MuValue *results);
 
-* ``cur_func_ver`` returns the ID of the current function version of ``frame``
+* ``cur_func`` returns the ID of the current function of ``frame``
   in ``stack``. Returns 0 if the frame is native.
 
+* ``cur_func_ver`` returns the ID of the current function version of ``frame``
+  in ``stack``. Returns 0 if the frame is native, or the function of the frame
+  is undefined.
+
 * ``cur_inst`` returns the ID of the current instruction of ``frame`` in
-  ``stack``. Returns 0 if the frame is just created or if the frame is native.
+  ``stack``. Returns 0 if the frame is just created, its function is undefined,
+  or the frame is native.
 
 * ``dump_keepalives`` dumps the values of the keep-alive variables of the
-  current instruction in the selected frame. Cannot called on native frames.
-  As many handles as the keep-alive variables are written in the ``results``
-  array.
+  current instruction in the selected frame. If the function is undefined, the
+  arguments are the keep-alive variables. Cannot be used on native frames.  As
+  many handles as the keep-alive variables are written in the ``results`` array.
 
 ..
 
@@ -882,16 +885,15 @@ type.
 Implementations may define other calling conventions in addition to
 ``MU_DEFAULT``.
 
-Trap and Undefined Function Handling
-====================================
+Trap Handling
+=============
 
 A trap handler is called when a ``TRAP`` or ``WATCHPOINT`` instruction is
-executed. An undefined function handler is called when a function without
-version is either called or used by the ``NEWSTACK`` instruction or the
-``new_stack`` API function.
+executed. It is also implicitly called when executing an undefined function.
 
 Mu is allowed to call these handlers concurrently. Mu does not guarantee the
-order in which these handlers are called.
+order in which these handlers are called, but guarantees the happen-before
+relation between the trap and the handler. See `Memory Model <memory-model>`__.
 
 The Mu thread that triggers the trap is temporarily unbound from the stack.
 
@@ -941,18 +943,6 @@ Before returning, the trap handler should set ``*result``:
 
 In all cases, if ``*new_stack``, ``*value`` and/or ``*exception`` are used, they
 must be set and must be held by ``ctx``.
-
-The signature of undefined function handlers is::
-
-    typedef void (*MuUndefFuncHandler)(MuCtx *ctx, MuID func_id, MuCPtr userdata);
-
-``func_id`` is the ID of the callee function. ``userdata`` is the pointer
-provided when registering the handler.
-
-After returning, the Mu program will re-execute the same instruction again.
-
-    NOTE: This means that the client must define the undefined function, or Mu
-    will keep calling this call-back again and again.
 
 Signal Handling
 ===============
