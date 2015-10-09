@@ -106,10 +106,11 @@ Their values never change.
   API) is a global SSA variable. Its value is the calling-convention-specific
   exposed value.
 
-A **local SSA variable** is valid in the same function activation it is in.
+A **local SSA variable** is valid in the same basic block of the same function
+activation (frame) it is in.
 
-- A **parameter** is a local SSA variable whose value is the value passed in the
-  function as argument.
+- A **parameter** is a local SSA variable whose value is the value passed to the
+  basic block as an argument.
 
 - An **instruction** is a local SSA variable whose value is the result of its
   latest evaluation in the current frame (defined later).
@@ -138,24 +139,85 @@ variable does not have a memory location.
     instructions in registers and also spilling some other registers to the
     stack.
 
-A local variable is **live** at any specific time if its value can be used
-subsequently. Otherwise it is **dead**.
+A local variable can be **live** or **dead**.
+
+- An (SSA variable of a) parameter is live when the current instruction of the
+  frame is in the basic block. In particular, the parameters of the entry block
+  are live when a new stack frame is just created before a thread is bound to
+  it.
+
+- An (SSA variable of an) instruction is live when the current instruction of
+  the frame is in the basic block and after that instruction.
+
+Otherwise it is dead.
 
     TODO: Check if the definition of "local variable being live/dead" is (or
     will be) used in other parts of the specification. Currently only mentioned
     in "a live stack contains all live local variables"). This definition may
     not be necessary.
 
-The execution of an instruction is called an **evaluation**. An evaluation
+The execution of an instruction is called **an evaluation**. An evaluation
 determines the data value associated to an instruction and this process is
-called **value computation**. Accessing the memory (see `<uvm-memory.rest>`__) or
-changing the state of the execution environment is called **side effect**. An
-evaluation may have side effects.
+called **value computation**.  Accessing the memory (see `Memory Model
+<uvm-memory.rest>`__) or changing the state of the execution environment is
+called **side effect**. An evaluation may have side effects.
 
 Common Structures
 =================
 
 The following grammar structures are common to several instructions.
+
+Argument List
+-------------
+
+*argList* ::= ``(`` *var* :sub:`rep` ``)``
+
+var :sub:`rep`
+    *list of SSA variable*: A sequence of SSA variables. 
+
++-------+------+------+-----+
+| lent  | idt  | idt  | ... |
++=======+======+======+=====+
+| nargs | arg1 | arg2 | ... |
++-------+------+------+-----+
+
+An **argument list** is a list of SSA variables. It is used by instructions that
+take a variable number of value parameters.
+
+In the binary form, *nargs* is the number of variables (can be zero) and that
+many IDs follows it.
+
+    Example::
+
+        CALL     <@sig> @func (%arg0 %arg1 %arg2)
+        TAILCALL <@sig> @func (%arg0 %arg1 %arg2)
+        CCALL    #DEFAULT <@func_ty @sig> @func (%arg0 %arg1 %arg2)
+        NEWSTACK <@sig> @func (%arg0 %arg1 %arg2)
+        COMMINST @some.common.instruction (%arg0 %arg1 %arg2)
+
+Destination Clause
+------------------
+
+*destClause* ::= *dest* *argList*
+
+dest
+    *basic block*: The destination
+argList
+    *list of SSA variable*: Arguments to the destination basic block
+
++------+---------+
+| idt  | argList |
++======+=========+
+| dest | argList |
++------+---------+
+
+The destination clause designates a basic block as the destination of branching,
+either normal or exceptional.  It takes many arguments, which will be received
+by the normal parameters of ``dest``.  The arguments must match the number and
+the types of the normal parameters. The exceptional parameter does not need to
+be explicitly passed to.
+
+Only terminator instructions may have destination clauses.
 
 Exception Clause
 ----------------
@@ -163,25 +225,25 @@ Exception Clause
 *excClause* ::= *(* ``EXC`` ``(`` *nor* *exc* ``)`` *)* :sub:`opt`
 
 nor
-    *basic block*: The normal destination
+    *destination clause*: The normal destination
 exc
-    *basic block*: The exceptional destination
+    *destination clause*: The exceptional destination
 
-+-----+-----+
-| idt | idt |
-+=====+=====+
-| nor | exc |
-+-----+-----+
++------------+------------+
+| destClause | destClause |
++============+============+
+| nor        | exc        |
++------------+------------+
 
 The exception clause provides two destinations for instructions that may have
-diverging control flows. The *nor* basic block is called the **normal
-destination** and the *exc* basic block is called the **exceptional
-destination**.
+diverging control flows. *nor* and *exc* are the **normal destination** and the
+**exceptional destination**, respectively.
 
 The exception clause can be omitted. In the binary form, an omitted exception
-clause is expressed as *nor* and *exc* both being 0. Any instruction that may
-have exception clauses is not a *terminator* (see `<uvm-ir.rest>`__) if the exception
-clause is omitted. Otherwise it is a *terminator*.
+clause is expressed as *nor* and *exc* both having 0 as the ID of the basic
+block and having 0 arguments. Any instruction that may have exception clauses is
+not a *terminator* (see `Mu IR <uvm-ir.rest>`__) if the exception clause is
+omitted.  Otherwise it is a *terminator*.
 
 Any instruction that may have exception clause may **continue normally** or
 **continue exceptionally**. An instruction shall continue normally unless
@@ -203,28 +265,29 @@ explicitly defined otherwise.
 ..
 
     For example, the ``CALL`` instruction has an exception clause. When the
-    exception clause is omitted, the exception will be thrown out of the current
-    function::
+    exception clause is omitted, it does not have undefined behaviour. Instead
+    the exception will be thrown out of the current function::
 
-        %entry:
-            %rv1 = CALL <@sig1> @func1 (%arg0 %arg1)                        // throw out
-            %rv2 = CALL <@sig2> @func2 (%arg0 %arg1) EXC(%cont %exc_hdlr)   // caught locally
-        %cont:
+        %entry():
             ...
-        %exc_hdlr:
-            %lp = LANDINGPAD
+            %rv1 = CALL <@sig1> @func1 (%arg0 %arg1)                                // throw out
+            %rv2 = CALL <@sig2> @func2 (%arg0 %arg1) EXC(%cont(%a) %exc_hdlr(%b))   // caught locally
+        %cont(<@T> %a):
+            ...
+        %exc_hdlr(<@T> %b) [%exc]:
+            ...
 
     On the contrary,  ``UDIV`` and ``SDIV`` rely on the exceptional destination
     to handle the case of division by zero. If the exception clause is omitted
     and the right-hand-side operand is zero, then they have undefined
     behaviours::
 
-        %entry:
-            %rv1 = DIV <@i64> %some_val @I64_0                         // undefined behaviour
-            %rv2 = DIV <@i64> %some_val @I64_0 EXC(%cont %exc_hdlr)    // handled locally
-        %cont:
+        %entry():
+            %rv1 = SDIV <@i64> %some_val @I64_0                             // undefined behaviour
+            %rv2 = SDIV <@i64> %some_val @I64_0 EXC(%cont() %exc_hdlr())    // handled locally
+        %cont():
             ...
-        %exc_hdlr:
+        %exc_hdlr():
             ... // handle divide-by-zero error here
 
 Keep-alive Clause
@@ -303,34 +366,6 @@ super instruction.
     changing the IR grammar. One particular user is the calling convention.
     Available calling conventions differ from platform to platform and they
     cannot be described by a fixed set of key words.
-
-Argument List
--------------
-
-*argList* ::= ``(`` *var* :sub:`rep` ``)``
-
-var :sub:`rep`
-    *list of SSA variable*: A sequence of SSA variables. 
-
-+-------+------+------+-----+
-| lent  | idt  | idt  | ... |
-+=======+======+======+=====+
-| nargs | arg1 | arg2 | ... |
-+-------+------+------+-----+
-
-An **argument list** is a list of SSA variables. It is used by instructions that
-take a variable number of value parameters.
-
-In the binary form, *nargs* is the number of variables (can be zero) and that
-many IDs follows it.
-
-    Example::
-
-        CALL     <@sig> @func (%arg0 %arg1 %arg2)
-        TAILCALL <@sig> @func (%arg0 %arg1 %arg2)
-        CCALL    #DEFAULT <@func_ty @sig> @func (%arg0 %arg1 %arg2)
-        NEWSTACK <@sig> @func (%arg0 %arg1 %arg2)
-        COMMINST @some.common.instruction (%arg0 %arg1 %arg2)
 
 Basic Operations
 ================
@@ -479,7 +514,7 @@ FREM
         .const @z <@i64>    = 0
 
         // in some function
-        %entry:
+        %entry():
             %b = ADD <@i32> @a @I32_1
             %c = SUB <@i32> @a %b
 
@@ -487,12 +522,12 @@ FREM
             %z = FSUB <@double> @x %y
 
             // The presence of the exception clause makes it a terminator
-            %d = UDIV <@i32> %b @z EXC(%cont %handler)   // terminator
+            %d = UDIV <@i32> %b @z EXC(%cont() %handler())   // terminator
 
-        %cont:
+        %cont():
             ...     // continue on normal condition
 
-        %handler:
+        %handler():
             ...     // handle divide-by-zero error here
 
 Comparison
@@ -968,26 +1003,25 @@ Intra-function Control Flow
 ``BRANCH`` *dest*
 
 dest
-    *basic block*: The destination of jumping.
+    *destination clause*: The destination of jumping.
 
-+------+------+
-| opct | idt  |
-+======+======+
-| 0x90 | dest |
-+------+------+
++------+-------------+
+| opct | destClause  |
++======+=============+
+| 0x90 | dest        |
++------+-------------+
 
-*dest* must be a basic block.
+This instruction branches to *dest*.
 
-This instruction jumps to the beginning of a basic block *dest*.
-
-    For LLVM users: This is the same as the one-branch ``br`` instruction.
+    For LLVM users: This is the same as the one-branch ``br`` instruction. Mu
+    uses the goto-with-values form.
 
     Example::
 
-        %entry:
-            BRANCH %head
+        %entry():
+            BRANCH %head(%a)
 
-        %head:
+        %head(<@T> %a):
             // Continue executing here.
 
 ``BRANCH2`` Instruction
@@ -998,7 +1032,7 @@ This instruction jumps to the beginning of a basic block *dest*.
 cond
     *variable* of type ``int<1>``: The condition
 ifTrue, ifFalse
-    *basic block*: The destinations to jump to when *cond* is 1 or 0,
+    *destination clause*: The destinations to jump to when *cond* is 1 or 0,
     respectively
 
 +------+------+--------+---------+
@@ -1007,11 +1041,10 @@ ifTrue, ifFalse
 | 0x91 | cond | ifTrue | ifFalse |
 +------+------+--------+---------+
 
-*cond* must have type ``int<1>``. *ifTrue* and *ifFalse* must be basic blocks.
-
 If *cond* is 1, jump to *ifTrue*, otherwise jump to *ifFalse*.
 
-    For LLVM users: This is the same as the two-branch ``br`` instruction.
+    For LLVM users: This is the same as the two-branch ``br`` instruction. Mu
+    uses the goto-with-values form.
 
 ..
 
@@ -1019,38 +1052,38 @@ If *cond* is 1, jump to *ifTrue*, otherwise jump to *ifFalse*.
 
         .const @a <@i64> = ...
 
-        %entry:
+        %entry():
             %b = EQ <@i64> @a @I64_1
-            BRANCH2 %b %equal %notequal
+            BRANCH2 %b %equal() %notequal()
 
-        %equal:
+        %equal():
             // if %b is 1, jump here
 
-        %notequal:
+        %notequal():
             // if %b is 0, jump here
 
 ``SWITCH`` Instruction
 ----------------------
 
-``SWITCH`` ``<`` *T* ``>`` *opnd* *default* ``{`` *(* *value* ``:`` *dest* ``;`` *)* :sub:`rep` ``}``
+``SWITCH`` ``<`` *T* ``>`` *opnd* *default* ``{`` *(* *value* *dest* *)* :sub:`rep` ``}``
 
 T
     *type*: The type of *opnd* and all *value*
 opnd
     *variable* of *T*: The value to compare against.
 default:
-    *basic block*: The default destination, i.e. the destination if no case
-    matches.
+    *destination clause*: The default destination, i.e. the destination if no
+    case matches.
 value:
     *constant value* of *T*: The case value for a branch.
 dest:
-    *basic block*: The destination for the corresponding case.
+    *destination clause*: The destination for the corresponding case.
 
-+------+-----+------+---------+--------+-------+-------+-----+
-| opct | idt | idt  | idt     | lent   | idt   | idt   | ... |
-+======+=====+======+=========+========+=======+=======+=====+
-| 0x92 | T   | opnd | default | ncases | value | dest  | ... |
-+------+-----+------+---------+--------+-------+-------+-----+
++------+-----+------+--------------+--------+-------+--------------+-----+
+| opct | idt | idt  | destClause   | lent   | idt   | destClause   | ... |
++======+=====+======+==============+========+=======+==============+=====+
+| 0x92 | T   | opnd | default      | ncases | value | dest         | ... |
++------+-----+------+--------------+--------+-------+--------------+-----+
 
 There are zero or more *value*-*dest* pairs.
 
@@ -1076,115 +1109,23 @@ If the value of *opnd* equals one of the *value*, then jump to the corresponding
         .const @TWO <@i64> = 2
         .const @THREE <@i64> = 3
 
-        %entry:
-            SWITCH <@i64> @a %defbranch {
-                @ONE: %one;
-                @TWO: %two;
-                @THREE: %three;
+        %entry():
+            SWITCH <@i64> @a %defbranch() {
+                @ONE %one()
+                @TWO %two()
+                @THREE %three()
                 }
 
-        %defbranch:
+        %defbranch():
             ...
 
-        %one:
+        %one():
             ...
 
-        %two:
+        %two():
             ...
             
-        %three:
-            ...
-
-``PHI`` Instruction
--------------------
-
-``PHI`` ``<`` *T* ``>`` ``{`` *(* *bb* ``:`` *value* ``;`` *)* :sub:`rep1` ``}``
-
-T
-    *type*: The type of *value* and the result.
-bb
-    *basic block*: The basic block where the control flow comes from.
-value
-    *variable* of type *T*: The value of the current instruction for the
-    corresponding control flow source.
-return value
-    Type *T*: One of *value* according to the control flow.
-
-+------+-----+------+-----+-------+-----+
-| opct | idt | lent | idt | idt   | ... |
-+======+=====+======+=====+=======+=====+
-| 0x93 | T   | nbbs | bb  | value | ... |
-+------+-----+------+-----+-------+-----+
-
-There must be at least one basic block-value pair. All *value* must have type
-*T*. All *bb* must be basic blocks.
-
-In the binary format, *nbbs* is the number of the basic block-value pairs and
-there are this number of pairs following *nbbs*.
-
-If the previous basic block executed before this basic block is one of the
-*bb*, then the value this ``PHI`` instruction is the value of the corresponding
-*value* at the end of the basic block *bb*. Otherwise it is an error.
-
-    NOTE: The value is taken at the control flow edge. This means all ``PHI``
-    instructions are evaluated simultaneously rather than one at a time. For
-    example::
-    
-        .funcsig @keep_swaping_sig = @i64 (@i64 @i64 @i64)
-        .funcdef @keep_swaping VERSION keep_swaping_v1 <@keep_swaping_sig> (%a %b %n) {
-            %entry:
-                BRANCH %head
-
-            %head:
-                %aa = PHI <@i64> { %entry: %a;      %body: %bb; }
-                %bb = PHI <@i64> { %entry: %b;      %body: %aa; }
-                %i  = PHI <@i64> { %entry: @I64_0;  %body: %i2; }
-
-                %lt = LT  <@i64> %i %n
-                BRANCH2 %lt %body %exit
-
-            %body:
-                %i2 = ADD <@i64> %i @I64_1
-                BRANCH %head
-
-            %exit:
-                RET %aa
-        }
-
-    When branching from ``%body`` to ``%head``, the value of both ``%aa`` and
-    ``%bb`` are taken before re-evaluating them. Thus their values are
-    exchanged.
-
-The ``PHI`` instruction must appear in the beginning of a basic block.
-Multiple ``PHI`` instructions are allowed.
-
-    For LLVM users: This is the same as the ``phi`` instruction.
-
-..
-
-    Example::
-
-        %bb1:
-            ...
-            %x1 = ADD <@i64> ... ...
-            BRANCH %bbfoo
-
-        %bb2:
-            ...
-            %x2 = SUB <@i64> ... ...
-            BRANCH %bbfoo
-
-        %bb3:
-            ...
-            %x3 = MUL <@i64> ... ...
-            BRANCH %bbfoo
-
-        %bbfoo:
-            %x = PHI <@i64> {
-                %bb1: %x1;
-                %bb2: %x2;
-                %bb3: %x3;
-                }
+        %three():
             ...
 
 Inter-function Control Flow
@@ -1237,15 +1178,29 @@ case the value of the ``CALL`` instruction is the return value of the callee.
 A ``CALL`` instruction *continues exceptionally* when an exception is thrown
 from the callee. In this case the value of the ``CALL`` instruction is not
 defined. When the exception clause is present, the exception is received by the
-``LANDINGPAD`` instruction in the exceptional destination. When the exception
-clause is absent, the exception is re-thrown out of the function activation
-which the ``CALL`` instruction is in.
+exceptional parameter in the exceptional destination. When the exception clause
+is absent, the exception is re-thrown out of the function activation which the
+``CALL`` instruction is in.
 
 A ``CALL`` instruction *continues exceptionally* when the function call causes a
 stack overflow. In this case the value of the ``CALL`` instruction is not
-defined. When the exception clause is present, the value of the ``LANDINGPAD``
-instruction in the exceptional destination is ``NULL``. When the exception
-clause is absent, it has undefined behaviour.
+defined. When the exception clause is present, the value of the exceptional
+parameter in the exceptional destination is ``NULL``. When the exception clause
+is absent, it has undefined behaviour.
+
+    TODO: There could be a standard error system where "serious" errors can be
+    represented as pre-defined heap objects.
+
+Whenever ``CALL`` continues exceptionally, its SSA variable cannot be passed to
+the exceptional destination because the return value is not returned.
+
+    NOTE: This is to say, the following program is **illegal**::
+
+        %bb1():
+            %rv = CALL <...> @foo (...) EXC(%nor() %exc(%rv)) // ERROR: %rv cannot be used in the exceptional destination
+
+        %exc(<@T> %rv) [%exc]:
+            ...
 
 The ``CALL`` instruction is an OSR point.
 
@@ -1263,11 +1218,19 @@ caller of the function ``TAILCALL`` calls. The ``TAILCALL`` instruction cannot
 have any exception clause and is not an OSR point.
 
     NOTE: ``TAILCALL`` is semantically similar to calling a function and
-    immediately return the returned value, but reuses the current frame.
+    immediately return the returned value, but replaces the current frame. OSR
+    will not see the old frame.
 
-Calling an undefined function is allowed. Such functions will trigger a trap so
-that the client can handle it. See `Mu IR <uvm-ir.rest>`__ for the behaviour of
-undefined functions.
+    NOTE: ``TAILCALL`` is **not** the same as branching to a basic block, even
+    the goto-with-values form makes them look similar. ``BRANCH`` cannot branch
+    to the entry block. ``TAILCALL`` is also subject to function redefinition:
+    it may ends up tail-calling a newer version of the callee, even if the
+    callee is the current function. (The instruction can't explicitly specify
+    which version to call.)
+
+Calling an undefined function is allowed. Such functions will trigger a trap
+when executed so that the client can handle it. See `Mu IR <uvm-ir.rest>`__ for
+the behaviour of undefined functions.
 
 ..
 
@@ -1277,6 +1240,7 @@ undefined functions.
       conditionally a terminator. When the exception clause is present, it is
       like the ``invoke`` instruction in LLVM and, when absent, it is like the
       ``call`` instruction.
+    - Mu uses the goto-with-values form.
     - The meaning of ``TAILCALL`` is similar to LLVM's ``musttail``: in Mu, a
       ``TAILCALL`` always replaces the current stack frame.
     - Calling conventions cannot be specified in Mu: Mu always uses its
@@ -1298,8 +1262,8 @@ undefined functions.
 
         .funcdecl @sum <@sig>
 
-        .funcdef @square_sum VERSION @square_sum_v1 <@sig> (%x %y) {
-            %entry:
+        .funcdef @square_sum VERSION %v1 <@sig> {
+            %entry(<@double> %x <@double> %y):
                 %x2 = MUL <@double> %x %x
                 %y2 = MUL <@double> %y %y
 
@@ -1314,20 +1278,19 @@ undefined functions.
         .const @D_5 <@double> = 5.0d
         .const @D_6 <@double> = 6.0d
 
-        .funcdef @main VERSION @main_v1 <@void_no_params> () {
-            %entry:
+        .funcdef @main VERSION %v1 <@void_no_params> {
+            %entry():
                 %a = CALL <@sig> @square_sum (@D_3 @D_4)
-                %b = CALL <@sig> @square_sum (%a   @D_5) EXC(%nor %exc)
+                %b = CALL <@sig> @square_sum (%a   @D_5) EXC(%nor(%a %b) %exc())
 
-            %nor:
-                %c = CALL <@sig> @square_sum (@D_5 @D_6) KEEPALIVE(%a)
-                %d = CALL <@sig> @square_sum (%c   %c)   EXC(%nor2 %exc) KEEPALIVE(%a %c)
+            %nor(<@double> %a <@double> %b):
+                %c = CALL <@sig> @square_sum (@D_5 @D_6) KEEPALIVE(%a %b)
+                %d = CALL <@sig> @square_sum (%c   %c)   EXC(%nor2(%c %d) %exc()) KEEPALIVE(%a %c)
 
-            %nor2:
+            %nor2(<@double> %c <@double> %d):
                 // continue here
             
-            %exc:
-                %the_exception = LANDINGPAD
+            %exc() [%the_exc]:
                 // handle the exception
         }
 
@@ -1375,14 +1338,14 @@ The return type of the ``RET`` instruction itself is always ``void``.
         .funcsig @sig1 = @double (@double @double)
         .funcsig @sig2 = @void ()
 
-        .funcdef @sum VERSION @sum_v1 <@sig1> (%x %y) {
-            %entry:
+        .funcdef @sum VERSION %v1 <@sig1> {
+            %entry(<@double> %x <@double> %y):
                 %s = ADD <@double> %x %y
                 RET %s
         }
 
-        .funcdef @main VERSION @main_v1 <@sig2> () {
-            %entry:
+        .funcdef @main VERSION %v1 <@sig2> {
+            %entry():
                 RET @VOID
         }
 
@@ -1416,51 +1379,20 @@ function. Exceptions in Mu are object references to any type.
         .funcsig @sig = @i64 (@i64 @i64)
         .typedef @SomeExceptionType = ...    // user-defined exception type
 
-        .funcdef @safe_divide VERSION @safe_divide_v1 <@sig> (%x %y) {
-            %entry:
+        .funcdef @safe_divide VERSION %v1 <@sig> {
+            %entry(<@double> %x <@double> %y):
                 %y0 = EQ <@i64> %y @I64_0
-                BRANCH %y0 %divbyzero %okay
+                BRANCH %y0 %divbyzero() %okay(%x %y)
 
-            %divbyzero:
+            %divbyzero() [%exc]:
                 %exc = NEW <@SomeExceptionType>
                 // initialise %exc
                 THROW %exc
 
-            %okay:
-                // continue 
+            %okay(<@double> %x <@double> %y):
+                %rv = SDIV <@i64> %x %y
+                RET %rv
         }
-
-``LANDINGPAD`` Instruction
---------------------------
-
-``LANDINGPAD``
-
-return value
-    Type ``ref<void>``: The exception.
-
-+------+
-| opct |
-+======+
-| 0x66 |
-+------+
-
-The ``LANDINGPAD`` receives the thrown exception when used in an instruction
-that can catch exceptions from a callee. It is a *starter instruction* and must
-appear in the beginning of a basic block which is used as an exceptional
-destination.
-
-The return value of this instruction has type ``ref<void>``.
-
-A basic block that contains ``LANDINGPAD`` can only be branched to as the
-exceptional destination that catches the exception. Otherwise the ``LANDINGPAD``
-has undefined behaviour.
-
-For LLVM users: Unlike LLVM, exceptions is handled internally in Mu. The type
-of exceptions in Mu is always an object reference. This is general enough to
-handle all cases. Unlike C++ which uses RTTI to identify the exception type, Mu
-client must implement its own RTTI, probably in the Java style.
-
-    Example: See the example in ``CALL``.
 
 Aggregate Type Operations
 =========================
@@ -1853,9 +1785,9 @@ return value
 ..
 
     NOTE: The cryptic description of the return value means the referent type
-    ``T`` may be a prefix (see `<uvm-memory.rest>`__) of the actual type represented
-    in the object. In this case, this instruction only provides access to the
-    prefix part.
+    ``T`` may be a prefix (see `Mu and the Memory <uvm-memory.rest>`__) of the
+    actual type represented in the object. In this case, this instruction only
+    provides access to the prefix part.
 
 +------+-----+--------+
 | opct | idt | idt    |
@@ -2214,25 +2146,29 @@ and 0 for false.
 
 ..
 
-    Example 2::
+    Example 2: This function tries to atomically update the content of ``@foo``
+    to its square by repeatedly doing ``CMPXCHG``, and returns the old value
+    just before the actual atomic update::
 
         .global @foo <@i64>
         .typedef @ResultType = struct<@i64 @i1>
 
-        %entry:
-            %orig    = LOAD <@i64> @foo             // @i64
+        .funcsig @atomic_square.sig = @i64 ()
+        .funcdef @atomic_square VERSION %v1 <@atomic_square.sig> {
+            %entry():
+                %old     = LOAD <@i64> @foo             // @i64
+                BRANCH %loop(%old)
 
-        %loop:
-            %cmp     = PHI <@i64> { %entry: %orig; %loop: %old; }
-            %squared = MUL <@i64> %cmp %cmp         // @i64
-            %result  = CMPXCHG WEAK ACQ_REL RELAXED <@i64> @foo %orig %squared  // struct<@i64 @i1>
+            %loop(<@i64> %old):
+                %squared = MUL <@i64> %old %old         // @i64
+                %result  = CMPXCHG WEAK ACQ_REL RELAXED <@i64> @foo %old %squared  // struct<@i64 @i1>
+                %old2    = EXTRACTVALUE <@ResultType 0> %result     // @i64
+                %success = EXTRACTVALUE <@ResultType 1> %result     // @i1
+                BRANCH2 %success %done(%old2) %loop(%old2)
 
-            %success = EXTRACTVALUE <@ResultType 1> %result     // @i1
-            BRANCH2 %success %done %loop
-
-        %done:
-            %old     = EXTRACTVALUE <@ResultType 0> %result     // @i64
-            // continue here
+            %done(<@i64> %old):
+                RET %old
+        }
 
 ``ATOMICRMW`` Instruction
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2348,14 +2284,14 @@ excClause:
 keepAliveClause
     *keep-alive clause*: For on-stack replacement.
 dis
-    *basic block*: For ``WATCHPOINT``, the normal destination **before** the
-    watchpoint is enabled.
+    *destination clause*: For ``WATCHPOINT``, the normal destination **before**
+    the watchpoint is enabled.
 ena
-    *basic block*: For ``WATCHPOINT``, the normal destination **after** the
-    watchpoint is enabled.
+    *destination clause*: For ``WATCHPOINT``, the normal destination **after**
+    the watchpoint is enabled.
 exc
-    Optional *basic block*: For ``WATCHPOINT``, the exceptional destination
-    **after** the watchpoint is enabled. This can be omitted.
+    Optional *destination clause*: For ``WATCHPOINT``, the exceptional
+    destination **after** the watchpoint is enabled. This can be omitted.
 return value:
     Type is ``T``: The value returned from the client if the client chooses to
     return normally.
@@ -2370,17 +2306,17 @@ return value:
 
 ``WATCHPOINT``:
 
-+------+------+-----+-----+-----+-----+-----------------+
-| opct | idt  | idt | idt | idt | idt | keepAliveClause |
-+======+======+=====+=====+=====+=====+=================+
-| 0xE9 | wpid | T   | dis | ena | exc | keepAliveClause |
-+------+------+-----+-----+-----+-----+-----------------+
++------+------+-----+------------+------------+------------+-----------------+
+| opct | idt  | idt | destClause | destClause | destClause | keepAliveClause |
++======+======+=====+============+============+============+=================+
+| 0xE9 | wpid | T   | dis        | ena        | exc        | keepAliveClause |
++------+------+-----+------------+------------+------------+-----------------+
 
 The ``TRAP`` and the ``WATCHPOINT`` instructions are collectively called
-**traps**. A trap transfers the control to a trap handler in the Mu client.
-Decided by the trap handler, this instruction may not continue, may continue
-normally with a return value of type *T*, and may continue exceptionally with a
-Mu exception.
+**traps**. A trap temporarily unbinds the current thread from the current stack
+and transfers the control to a trap handler in the Mu client.  Decided by the
+trap handler, this instruction may not continue, may continue normally with a
+return value of type *T*, and may continue exceptionally with a Mu exception.
 
 A ``TRAP`` instruction is always enabled. Its return value is decided by the
 trap handler in the client. When the exception clause is present, the exception
@@ -2402,14 +2338,14 @@ destination is absent. If the watch point is disabled before the current stack
 is rebound, the current ``WATCHPOINT`` instruction continues as if it is still
 enabled.
 
-    NOTE: Both ``TRAP`` and enabled ``WATCHPOINT`` imply unbinding the current
-    stack from the current thread and executing the trap handler in the client.
-    The client may disable the watchpoint when handling an enabled watch point,
-    but it does not affect any watchpoints that are being executed.
+    NOTE: The "enabled-ness" of a watchpoint is determined when the instruction
+    is executed, not when returning from the client. The client may disable the
+    watchpoint when handling a watchpoint which was enabled, but it does not
+    affect any watchpoints that are being executed.
 
     Consider the following example::
     
-        %wp = WATCHPOINT 42 <@void> %dis %ena %exc
+        %wp = WATCHPOINT 42 <@void> %dis() %ena() %exc()
 
     If the client disabled watch point 42 when handling this watchpoint and
     rebinds the current stack passing VOID (see `Threads and Stacks
@@ -2438,27 +2374,25 @@ as the ID of *exc* being 0.
 
     Example 1::
 
-        %bb1:
-            %trap1  = TRAP <@i64> EXC(%bb2 %bb3) KEEPALIVE(%a %b %c ...)
+        %bb1():
+            %trap1  = TRAP <@i64> EXC(%bb2() %bb3()) KEEPALIVE(%a %b %c ...)
 
-        %bb2:
+        %bb2():
             // %trap1 normally continues here
 
-        %bb3:
-            %exc1   = LANDINGPAD
+        %bb3() [%exc]
             // %trap1 handles exception here
 
-        %bb4:
-            %wp1    = WATCHPINT 1 <@i64> %bb5 %bb6 WPEXC(%bb7) KEEPALIVE(%a %b %c ...)
+        %bb4():
+            %wp1    = WATCHPINT 1 <@i64> %bb5() %bb6() WPEXC(%bb7()) KEEPALIVE(%a %b %c ...)
 
-        %bb5:
+        %bb5():
             // %wp1 normally continues here when disabled
 
-        %bb6:
+        %bb6():
             // %wp1 normally continues here when enabled
 
-        %bb7:
-            %exc2   = LANDINGPAD
+        %bb7() [%exc]:
             // %wp1 handles exception here when enabled
 
 ..
@@ -2466,8 +2400,8 @@ as the ID of *exc* being 0.
     Example 2: Use ``TRAP`` to let the client do anything, for instance, obtain
     the version number of Mu::
 
-        .funcdef @some_func VERSION @some_func_v1 <...> (...) {
-            %entry:
+        .funcdef @some_func VERSION %v1 <...> {
+            %entry(...):
                 %version_num = TRAP <@i64>
 
                 CALL <...> @print (%version_num)
@@ -2484,22 +2418,25 @@ as the ID of *exc* being 0.
     handle frequently-executed loops::
 
         .const @LOOP_THRESHOLD <@i64> = 1000
+        .global @loop_count_for_some_loop <@i64>
 
-        %loop_head:
+        %loop_head(...):
             ...
-            BRANCH2 %loop_cond %loop_body %loop_exit
+            BRANCH2 %loop_cond %loop_body(...) %loop_exit(...)
 
-        %loop_body:
+        %loop_body(...):
             ...
-            %new_loop_count = ADD <@i64> %old_loop_count @I64_1
-            %is_frequent    = SGE <@i64> %new_loop_count @LOOP_THRESHOLD
-            BRANCH2 %is_frequent %to_trap %loop_head
+            %old_count      = LOAD <@i64> @loop_count_for_some_loop
+            %new_count      = ADD <@i64> %old_count @I64_1
+                              STORE <@i64> @loop_count_for_some_loop %new_count
+            %is_frequent    = SGE <@i64> %new_count @LOOP_THRESHOLD
+            BRANCH2 %is_frequent %to_trap(...) %loop_head(...)
 
-        %to_trap:
+        %to_trap(...):
             %trap12345 = TRAP <@void> KEEPALIVE(%some %local %variables)
             ...
 
-        %loop_exit:
+        %loop_exit(...):
 
     NOTE: The "variable name" ``%trap12345`` is used to identify the trap, but
     the return type of this trap is void (probably it will never return).
@@ -2511,7 +2448,7 @@ as the ID of *exc* being 0.
 
         .const @SomeVFuncOffset <@i64> = 9
 
-        %bb1:
+        %bb1(...):
             %obj    = ...
             %vtable = CALL <...> @get_virtual_table (%obj)
             %vt_ent = CALL <...> @get_virtual_table_entry (%vtable @SomeVFuncOffset)
@@ -2524,17 +2461,17 @@ as the ID of *exc* being 0.
     But if the client knows that the class has no subclass, it can speculatively
     use static call rather than virtual call::
 
-        %bb1:
+        %bb1(...):
             %obj    = ...
 
-            %wp1234 = WATCHPOINT 5678 <@void> %bb1_cont %bb2 KEEPALIVE(%obj)
+            %wp1234 = WATCHPOINT 5678 <@void> %bb1_cont(%obj) %bb2() KEEPALIVE(%obj)
 
-        %bb1_cont:
+        %bb1_cont(<@ref_T> %obj):
             %rv     = CALL <...> @TheActualFunction (%obj ...)
 
             ...
 
-        %bb2:
+        %bb2():
             THROW @NULLREF  // unreachable because the client should have
                             // replaced the frame and not let the %wp1234
                             // continue at all.
@@ -2865,22 +2802,20 @@ The ``SWAPSTACK`` instruction is an OSR point.
 
         // This coroutine (a generator) yields 1, 2 and 3 sequentially and stop.
         // param %from: the stack of the main coroutine, i.e. the "caller" stack
-        .funcdef @one_two_three VERSION @one_two_three_v1 <@sig1> (%from) {
-            %entry:
+        .funcdef @one_two_three VERSION %v1 <@sig1> {
+            %entry(<@sref> %from):
                 SWAPSTACK %from RET_WITH <@void> PASS_VALUE <@i64> @I64_1
                 SWAPSTACK %from RET_WITH <@void> PASS_VALUE <@i64> @I64_2
                 SWAPSTACK %from RET_WITH <@void> PASS_VALUE <@i64> @I64_3
 
-                %exc = NEW @StopIterationException
+                %exc = NEW <@StopIterationException>
                 SWAPSTACK %from KILL_OLD THROW_EXC %exc
-
-                THROW @NULLREF  // unreachable
         }
 
         .funcsig @main_sig = @void ()
 
-        .funcdef @main VERSION @main_v1 <@main_sig> () {
-            %entry:
+        .funcdef @main VERSION %v1 <@main_sig> {
+            %entry():
                 // Get the reference to the current stack
                 %cur_stack = COMMINST @uvm.current_stack
 
@@ -2888,22 +2823,22 @@ The ``SWAPSTACK`` instruction is an OSR point.
                 %coro = NEWSTACK <@sig1> @one_two_three (%cur_stack)
                 BRANCH %head
 
-            %head:
+            %head(<@sref> %coro):
                 // Go to the coroutine
-                %cur_num = SWAPSTACK %coro RET_WITH <@i64> PASS_VALUE <@void> @VOID EXC(%body %exit)
+                %cur_num = SWAPSTACK %coro RET_WITH <@i64> PASS_VALUE <@void> @VOID EXC(
+                           %body(%coro %cur_num)
+                           %exit()
+                           )
 
-            %body:
+            %body(<@sref> %coro <@i64> %cur_num):
                 // Do something with %cur_num
                 CALL <...> @print_num (%cur_num)
 
                 // Get the next number
-                BRANCH %head
+                BRANCH %head(%coro)
 
-            %exit:
-                %exc = LANDINGPAD   // receives the StopIterationException
-
+            %exit() [%exc]:     // %exc receives the StopIterationException
                 COMMINST @thread_exit
-                THROW @NULLREF  // unreachable
         }
 
 Common Instructions
@@ -3006,12 +2941,12 @@ See `<common-insts.rest>`__ for a complete list of common instructions.
         %v2 = COMMINST @uvm.math.cos  <@float>  (@F_2)
         %v3 = COMMINST @uvm.math.tan  <@double> (@D_1)
         %v4 = COMMINST @uvm.math.sqrt <@double> (@D_2)
-        %v5 = COMMINST @uvm.math.add_ovf <@i32> (@MAX_SINT @I32_1) EXC(%bb1 %bb2)
+        %v5 = COMMINST @uvm.math.add_ovf <@i32> (@MAX_SINT @I32_1) EXC(%bb1() %bb2())
 
-        %bb1:
+        %bb1():
             ...
 
-        %bb2:
+        %bb2():
             // Handle signed integer overflow here.
 
         // extra stack/thread operations

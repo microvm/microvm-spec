@@ -351,8 +351,6 @@ a dependency from* A, if:
   * A is used in the ``KEEPALIVE`` clause of B, or
   * B is a ``SELECT`` instruction and A is its ``cond`` argument or a is the
     ``iftrue`` or ``iffalse`` argument not selected by ``cond``, or
-  * B is a ``PHI`` instruction, and A is not the variable selected by the
-    incoming control flow, or
   * A is a comparing or ``INSERTVALUE`` instruction, or
   * B is a ``@uvm.kill_dependency``, ``CALL``, ``EXTRACTVALUE`` or ``CCALL``
     instruction, or

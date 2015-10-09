@@ -253,12 +253,12 @@ when a ``ref`` is stored to a ``weakref`` location, the location holds a
     this reason, it is impossible to guarantee a weak reference is ``NULL``
     before accessing. Consider the following program::
 
-        %entry:
+        %entry():
             %notnull = NE <@RefT> %weakref @NULLREF
             // Just at this moment, GC changed %weakref to NULL
-            BRANCH2 %notnull %bb_cont %bb_abnormal
+            BRANCH2 %notnull %bb_cont(%weakref) %bb_abnormal(...)
 
-        %bb_cont:
+        %bb_cont(<@WeakRefT> %weakref):
             %val = LOAD <@T> %weakref       // null reference access
             ...
 

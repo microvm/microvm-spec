@@ -29,9 +29,4 @@ specification considers these parts as implementation-specific.
 
 - `AMD64 Unix Native Interface <native-interface-x64-unix.rest>`__
 
-Old documents:
-
-- `Client Interface (old) <uvm-client-interface-old.rest>`__
-
-
 .. vim: tw=80

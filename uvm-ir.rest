@@ -45,21 +45,19 @@ Here is an example of Mu IR in the text form::
 
     .funcdecl @square_sum <@BinaryFunc>
 
-    .funcdef @gcd VERSION @gcd_v1 <@BinaryFunc> (%a0 %b0) {
-        %entry:
-            BRANCH %head
+    .funcdef @gcd VERSION %v1 <@BinaryFunc> {
+        %entry(<@i64> %a <@i64> %b):
+            BRANCH %head(%a %b)
 
-        %head:
-            %a = PHI <@i64> { %entry: %a0; %body: %b; }
-            %b = PHI <@i64> { %entry: %b0; %body: %b1; }
+        %head(<@i64> %a <@i64> %b):
             %z = EQ <@i64> %b @i64_0
-            BRANCH2 %z %exit %body
+            BRANCH2 %z %exit(%a) %body(%a %b)
 
-        %body:
+        %body(<@i64> %a <@i64> %b):
             %b1 = SREM <@i64> %a %b
-            BRANCH %head
+            BRANCH %head(%b %b1)
 
-        %exit:
+        %exit(<@i64> %a):
             RET %a
     }
 
@@ -68,11 +66,11 @@ Here is an example of Mu IR in the text form::
 Later the client can submit a function that defines a previously undefined
 function or a new version of a function that replaces the old version::
 
-    .funcdef @square_sum VERSION @square_sum_v1 <@BinaryFunc> (%p0 %p1) {
+    .funcdef @square_sum VERSION %v1 <@BinaryFunc> {
         // define the function (if not defined)
     }
 
-    .funcdef @gcd VERSION @gcd_v2 <@BinaryFunc> (%p0 %p1) {
+    .funcdef @gcd VERSION %v2 <@BinaryFunc> {
         // or replace an existing version (if already defined)
     }
 
@@ -168,51 +166,123 @@ bundle.
 
         .funcdecl @some_fun <@some_fun_sig>
 
-        .funcdef @main VERSION @main_v1 <@main_sig> (@main_v1.argc @main_v1.argv) {
-            @main_v1.entry:
-                @main_v1.rv = ADD <@i32> @main_v1.argc @i32_1
-                BRANCH @main_v1.bb1
-            @main_v1.bb1:
-                RET @main_v1.rv
-        }
+A **local name** begins with ``%``. Function versions, basic blocks, parameters
+and instructions may use local names in the IR.
 
-A **local name** begins with ``%``. Parameters, basic blocks and instructions,
-which are defined within a function definition, may use local names. A local
-name of the form ``%localname`` within a function definition of version
-``@funcver`` is equivalent to the global name ``@funcver.localname``.
+    NOTE: Local names can only be used in the IR as a syntax sugar. The API
+    must use IDs or global names.
 
-    Example::
+The global names are inferred from their syntactic parents:
 
-        .funcdef @main VERSION @main_v1 <@main_sig> (%argc %argv) {
-            %entry:
-                %rv = ADD <@i32> %argc @i32_1
-                BRANCH %bb1
-            %bb1:
-                RET %rv
-        }
+- Within a function which has the global name ``@FuncGlobalName``, the function
+  version ``%FV`` has global name ``@FuncGlobalName.FV``.
 
-    In the above example:
-    
-    - ``%argc`` is equivalent to ``@main_v1.argc``
-    - ``%argv`` is equivalent to ``@main_v1.argv``
-    - ``%entry`` is equivalent to ``@main_v1.entry``
-    - ``%rv`` is equivalent to ``@main_v1.rv``
-    - ``%bb1`` is equivalent to ``@main_v1.bb1``
+- Within a function version which has the global name ``@FuncVerGlobalName``, a
+  basic block with local name ``%BB`` has global name ``@FuncVerGlobalName.BB``.
 
-    Individual instructions (for example, the ``%rv`` instruction), can be
-    addressed globally using the global name ``@main_v1.rv`` or locally within
-    this function definition using ``%rv``. Mixing global names and local names
-    is allowed, though not recommended::
-
-        @main_v1.rv = ADD <@i32> %argc @i32_1
-        RET  %rv
+- Within a basic block which has the global name ``@BBGlobalName``, a parameter
+  or an instruction with local name ``%LN`` has global name
+  ``@BBGlobalName.LN``.
 
 ..
 
-    NOTE: Since all identified entities, even local entities, have global names,
-    it is convenient during trap, stack introspection and OSR to use the global
-    names to identify all traps, local variables and the version of
-    functions.
+    Example::
+
+        .funcsig @fac.sig = ... (... ...)
+
+        .funcdef @fac VERSION %v1 <@fac.sig> {
+            %entry(<@i32> %n):
+                BRANCH %head(%n @I32_1 @I32_1)
+
+            %head(<@i32> %n <@i32> %p <@i32> %i):
+                %lt = SLT <@i32> %i %n
+                BRANCH2 %lt %body(%n %p %i) %exit(%p)
+
+            %body(<@i32> %n <@i32> %p <@i32> %i):
+                %p2 = MUL <@i32> %p %i
+                %i2 = ADD <@i32> %i @I32_1
+                BRANCH %head(%n %p2 %i2)
+
+            %exit(<@i32> %p):
+                RET %p
+        }
+
+    In the above example, the global names of the function version, the basic
+    blocks and their parameters and instructions are:
+
+    - ``%v1`` -> ``@fac.v1``
+
+      - ``%entry`` -> ``@fac.v1.entry``
+
+        - ``%n`` -> ``@fac.v1.entry.n``
+        - The anonymous ``BRANCH`` instruction: no global name.
+
+      - ``%head`` -> ``@fac.v1.head``
+
+        - ``%n`` -> ``@fac.v1.head.n``
+        - ``%p`` -> ``@fac.v1.head.p``
+        - ``%i`` -> ``@fac.v1.head.i``
+        - ``%lt`` -> ``@fac.v1.head.lt``
+        - The anonymous ``BRANCH2`` instruction: no global name.
+
+      - ``%body`` -> ``@fac.v1.body``
+
+        - ``%n`` -> ``@fac.v1.body.n``
+        - ``%p`` -> ``@fac.v1.body.p``
+        - ``%i`` -> ``@fac.v1.body.i``
+        - ``%p2`` -> ``@fac.v1.body.p2``
+        - ``%i2`` -> ``@fac.v1.body.i2``
+        - The anonymous ``BRANCH`` instruction: no global name.
+
+      - ``%exit`` -> ``@fac.v1.exit``
+
+        - ``%p`` -> ``@fac.v1.exit.p``
+        - The anonymous ``RET`` instruction: no global name.
+
+    Note that the same local name, such as ``%p``, has **different global names
+    in different basic blocks**. ``@fac.v1.head.p`` and ``@fac.v1.body.p`` are
+    not the same. They even seldom have the same value.
+
+    Function versions, basic blocks, parameters and instructions can use global
+    names, too. For example, instead of the previous example, it is legal to
+    write::
+
+        .funcdef @fac VERSION @fac.v1 <@fac.sig> {
+            @fac.v1.entry(<@i32> @fac.v1.entry.n):
+                BRANCH @fac.v1.head(<@i32> @fac.v1.entry.n <@i32> @I32_1 <@i32> @I32_1)
+
+            @fac.v1.head(<@i32> @fac.v1.head.n <@i32> @fac.v1.head.p <@i32> @fac.v1.head.i):
+                @fac.v1.head.lt = SLT <@i32> @fac.v1.head.i @fac.v1.head.n
+
+    or even::
+
+        .funcdef @fac VERSION @n1 <@fac.sig> {
+            @n2(<@i32> @n3):
+                BRANCH @n4(<@i32> @n3 <@i32> @I32_1 <@i32> @I32_1)
+
+            @n4(<@i32> @n5 <@i32> @n6 <@i32> @n7)
+                @n8 = SLT <@i32> @n7 @n5
+
+Local names are merely syntax sugar. Everything that has a local name can be
+identified by their global names. It is still considered a naming conflict if
+two local names have the same global name.
+
+..
+
+    NOTE: It is useful to have local things globally identifiable, especially
+    *function call sites* and *traps*. For example::
+
+        .funcdef @foo VERSION @foo.v1 <...> {
+            %entry():
+                %void_ret_val = CALL <...> @some_func (...)
+                %my_trap      = TRAP <...> KEEPALIVE (...)
+                ...
+        }
+
+    The call site can be globally identified by ``@foo.v1.entry.void_ret_val``
+    even if the function returns ``void``. The trap can be identified by
+    ``@foo.v1.entry.my_trap``. The name is globally unique and can be tested in
+    *trap handlers* (see `the API <uvm-client-interface.rest>`__).
 
 Identifiers
 ~~~~~~~~~~~
@@ -508,11 +578,11 @@ A global cell definition has the form::
         
         // The client can populate the memory in @hello_world_str at loading time
 
-        .funcdef @func VERSION ... <...> (...) {
-        %entry:
-            %a = LOAD <@i32> @my_errno       // @my_errno has type @i32
-            STORE <@i32> @my_errno @i32_0
-            ...
+        .funcdef @func VERSION ... <...> {
+            %entry():
+                %a = LOAD <@i32> @my_errno       // @my_errno has type @i32
+                STORE <@i32> @my_errno @i32_0
+                ...
         }
 
 Function Definition and Declaration
@@ -527,14 +597,13 @@ A **function definition** defines a *version of function* and, if the function
 has not been declared, implicitly defines the *function*. It has the following
 form::
 
-    .funcdef Name VERSION VerName <Sig> (Params) { Body }
+    .funcdef Name VERSION VerName <Sig> { Body }
 
 where:
 
 * ``Name`` is a global name for the function
 * ``VerName`` is a global name of this particular version of function
 * ``Sig`` is a global name for the signature of the function
-* ``Params`` is a list of names for the formal parameter list, and
 * ``Body`` is a sequence of instructions, constants and labels.
 
 ..
@@ -553,7 +622,7 @@ where:
 
         .funcsig @ExampleSig = @i64 (@float @double)
 
-        .funcdef @example VERSION @example_v1 <@ExampleSig> (%p0 %p1) {
+        .funcdef @example VERSION %v1 <@ExampleSig> {
             ...
         }
 
@@ -570,22 +639,22 @@ where:
 When executing a function without version, it behaves as if it has a hidden
 version defined as::
 
-    .funcdef Name VERSION NoVersion <Sig> (ParamList) {
-        %entry:
+    .funcdef Name VERSION NoVersion <Sig> {
+        %entry(ParamList):
             TRAP <@void> KEEPALIVE (ParamList)
             TAILCALL <Sig> Name (ParamList)
     }
 
-That is, it will trap to the client, using all variables in the parameter list
-of the function as the keep-alive variables. If the stack is ever rebound
-passing the expected ``void`` value, it will try to tail-call the same function
-(**Not necessarily the same hidden version!** It may have been defined by the
-client in the trap!) using the same arguments. If an exception is thrown when
-rebound, the ``TRAP`` will re-throw it to the parent frame. The ``cur_func`` API
-will return the ID of the function. This hidden version is still not a real
-version, so the ``cur_func_ver`` API will return 0. The ``TRAP`` is not a real
-instruction, either, so the ``cur_inst`` API will also return 0.
-``dump_keepalives`` will dump the arguments.
+That is, it will trap to the client, using all parameters as the keep-alive
+variables. If the stack is ever rebound passing the expected ``void`` value, it
+will try to tail-call the same function (**Not necessarily the same hidden
+version!** It may have been defined by the client in the trap!) using the same
+arguments. If an exception is thrown when rebound, the ``TRAP`` will re-throw it
+to the parent frame. The ``cur_func`` API will return the ID of the function.
+This hidden version is still not a real version, so the ``cur_func_ver`` API
+will return 0. The ``TRAP`` is not a real instruction, either, so the
+``cur_inst`` API will also return 0.  ``dump_keepalives`` will dump the
+arguments.
 
 It is an error to have multiple function declarations and/or function
 definitions of the same function name in the same bundle.
@@ -600,13 +669,53 @@ Function Body
 
 A function definition has a **function body**.
 
-A function body has many **basic block** enclosed between ``{`` and ``}``. The
-first basic block is called the **entry block**. A basic block starts with a
-name followed by a colon ``:``. It ends with the beginning of another basic
-block or the end of the function body
+A function body has many **basic block** enclosed between ``{`` and ``}``. A
+basic block has the following form::
+
+    Name (ParamList) ExcParam:
+        Inst
+        Inst
+        ...
+
+where ``ParamList`` is a list of type-name pairs: ``<T1> N1 <T2> N2 <T3> N3
+...``, which specifies the normal **parameters** to the basic block.
+``ExcParam`` is optional.  When present, it has the form ``[ ExcName ]`` where
+``ExcName`` is the name of the **exception parameter**, which is also a
+(non-normal) parameter. The exception parameter always has the ``ref<void>``
+type. Many instructions follow the colon ``:``.
+
+The first basic block is the **entry block**. The entry block must have as many
+parameters as the function parameters (determined by its signature).  The
+execution starts from the entry block, and its parameters receive the arguments
+to the function. The entry block must not have the exception parameter.
+
+..
 
     NOTE: The name of the entry block is conventionally called ``%entry``, but
     is not compulsory.
+
+Other basic blocks are executed when branched to. The normal parameters receive
+arguments from the branching sites. The exception parameter receives the
+exception caught by the branching site as the argument. If the exception
+parameter is omitted but the basic block is supposed to receive an exception,
+the exception will be silently ignored. A basic block with an exception
+parameter must only be used as the exceptional destination of instructions which
+can catch exceptions, which currently include ``CALL``, ``TRAP``, ``WATCHPOINT``
+and ``SWAPSTACK``.
+
+    An example of a basic block with an exception parameter::
+
+        %entry():
+            ...
+            %rv = CALL <...> @foo (...) EXC(%nor_dest(%rv) %exc_dest(%a %b %c))
+
+        %nor_dest(<@T0> %p0):
+            // process the return value
+            // %p0 = %rv
+
+        %exc_dest(<@T1> %p1 <@T2> %p2 <@T3> %p3) [%exc]:
+            // handle exceptions here
+            // %p1 = %a, %p2 = %b, %p3 = c, %exc = the exception
 
 Each basic block contains a sequence of **instructions**. An instruction has one
 of the following forms::
@@ -631,21 +740,19 @@ instruction is defined separately in `<instruction-set.rest>`__.
 
         .const @i64_0 <@i64> = 0
 
-        .funcdef @gcd VERSION @gcd_v1 <@gcd_sig> (%a0 %b0) {
-            %entry:
-                BRANCH %head
+        .funcdef @gcd VERSION %v1 <@gcd_sig> {
+            %entry(<@i64> %a <@i64> %b):
+                BRANCH %head(%a %b)
 
-            %head:
-                %a = PHI <@i64> { %entry: %a0; %body: %b; }
-                %b = PHI <@i64> { %entry: %b0; %body: %b1; }
+            %head(<@i64> %a <@i64> %b):
                 %z = EQ <@i64> %b @i64_0
-                BRANCH2 %z %exit %body
+                BRANCH2 %z %exit(%a) %body(%a %b)
 
-            %body:
+            %body(<@i64> %a <@i64> %b):
                 %b1 = SREM <@i64> %a %b
-                BRANCH %head
+                BRANCH %head(%b %b1)
 
-            %exit:
+            %exit(<@i64> %a):
                 RET %a
         }
 
@@ -677,46 +784,32 @@ instruction is defined separately in `<instruction-set.rest>`__.
 The last instruction of any basic block must be a **terminator instruction**,
 which is one of the following:
 
+- ``BRANCH``, ``BRANCH2``, ``SWITCH``
+- ``TAILCALL``
+- ``RET``
+- ``THROW``
+- ``SWAPSTACK`` if the "current stack clause" is ``KILL_OLD``
+- Some `Common Instructions <common-insts.rest>`__ are always terminators:
+
+  - ``@uvm.thread_exit``
+
 - Any instructions that may have an **exception clause** and actually have the
   exception clause, which are:
 
-  - Binary operations
+  - Binary operations (only ``UDIV``, ``SDIV``, ``UREM`` and ``SREM``)
   - ``CALL``
   - ``NEW``, ``NEWHYBRID``, ``ALLOCA``, ``ALLOCAHYBRID``
   - ``LOAD``, ``STORE``, ``CMPXCHG``, ``ATOMICRMW``
   - ``TRAP``, ``WATCHPOINT``
   - ``NEWSTACK``, ``SWAPSTACK``
-  - Some `common instructions <common-insts.rest>`__ via the generic ``COMMINST``
-    instruction:
-
-    - ``@uvm.thread_exit``
-
-- ``BRANCH``, ``BRANCH2``, ``SWITCH``
-- ``TAILCALL``
-- ``RET``
-- ``THROW``
+  - Some `Common Instructions <common-insts.rest>`__ when having exception
+    clause (currently none)
 
 ..
 
     NOTE: This is to say, for example, if a particular ``CALL`` instruction does
     have an exception clause, then it is a terminator. If it does not have
     exceptional clause clause, it is not a terminator.
-
-**Starter instructions** must not appear in the entry block. All instructions
-between the beginning of a basic block and any starter instruction must be
-starter instructions.
-
-The following instructions are starter instructions:
-
-- ``PHI``
-- ``LANDINGPAD``
-- Some common instructions via the generic ``COMMINST`` instruction (currently
-  none)
-
-..
-
-    NOTE: This means ``PHI`` and ``LANDINGPAD`` must be in the beginning of
-    non-entry basic blocks.
 
 Function Exposing Definition
 ============================

@@ -137,7 +137,7 @@ Calling a function whose value is ``NULL`` is undefined behaviour.
 Throwing exceptions across native frames has implementation-defined behaviour.
 
 Stack overflow when calling a function results in taking the exceptional control
-flow and the ``LANDINGPAD`` instruction receives ``NULL``.
+flow and the exceptional parameter instruction receives ``NULL``.
 
 ``EXTRACTELEMENT`` and ``INSERTELEMENT`` is required for all implemented vector
 types and integer types. ``SHUFFLEELEMENT`` is required if the source vector

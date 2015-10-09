@@ -240,17 +240,17 @@ it.
 
 Function definition has the following form:
 
-+------+-----+-------+-----+--------+---------------+
-| opct | idt | idt   | idt | idList | function body |
-+======+=====+=======+=====+========+===============+
-| 0x06 | id  | verid | sig | params | body          |
-+------+-----+-------+-----+--------+---------------+
++------+-----+-------+-----+---------------+
+| opct | idt | idt   | idt | function body |
++======+=====+=======+=====+===============+
+| 0x06 | id  | verid | sig | body          |
++------+-----+-------+-----+---------------+
 
 ``id`` is the ID of the defined function. ``verid`` is the ID of the version of
 the function. ``sig`` is the function signature of it. ``params`` is a list of
 IDs, each of which is the ID of its parameter. ``body`` is the function body.
 
-    NOTE: this is equivalent to: ``.funcdef id VERSION verid <sig> (params) {
+    NOTE: this is equivalent to: ``.funcdef id VERSION verid <sig> {
     body }``
 
 Function Body
@@ -268,15 +268,29 @@ A **function body** has the following form:
 
 A **basic block** has the following form:
 
-+-----+--------+-------------+-------------+-----+
-| idt | lent   | instruction | instruction | ... |
-+=====+========+=============+=============+=====+
-| id  | ninsts | inst1       | inst2       | ... |
-+-----+--------+-------------+-------------+-----+
++-----+---------+---------+-----+--------+-------------+-------------+-----+
+| idt | lent    | idPairs | idt | lent   | instruction | instruction | ... |
++=====+=========+=========+=====+========+=============+=============+=====+
+| id  | nparams | params  | exc | ninsts | inst1       | inst2       | ... |
++-----+---------+---------+-----+--------+-------------+-------------+-----+
 
-``id`` is the ID of the basic block. Every basic block must have an ID,
-*even the entry block*. ``ninsts`` is the number of instructions in the current
-basic block. There are ninsts basic blocks following the header.
+``id`` is the ID of the basic block. Every basic block must have an ID, *even
+the entry block*. ``nparams`` is the number of parameters in ``params``, which a
+list of pairs of IDs, each of which is:
+
++------+-------+
+| idt  | idt   |
++======+=======+
+| type | param |
++------+-------+
+
+where ``type`` is the ID of the type of the parameter, and ``param`` is a
+parameter to the basic block.
+
+``exc`` is the ID of the exceptional parameter. It is omitted when the ID is 0.
+
+``ninsts`` is the number of instructions in the current basic block. There are
+ninsts instructions following the header.
 
 An **instruction** has the following form:
 
@@ -324,158 +338,5 @@ A name binding has the following form:
 
 The name is encoded in ASCII and must follow the rules of global names, local
 names and allowed characters as defined in `<uvm-ir.rest>`__.
-
-Example
-=======
-
-Here is a side-by-side translation of a bundle from the text form to the binary
-form::
-
-    // magic
-    // 7f 55 49 52
-
-    //       @i8
-    .typedef @65536     = int <8>
-    // 01    00 00 01 00  01  08
-
-    //       @i64
-    .typedef @65537     = int <64>
-    // 01    01 00 01 00  01  40
-    
-    //       @float
-    .typedef @65538     = float
-    // 01    02 00 01 00  02
-
-    //       @double
-    .typedef @65539     = double
-    // 01    03 00 01 00  03
-
-    //       @refi8              @i8
-    .typedef @65540     = ref   <@65536>
-    // 01    04 00 01 00  04    00 00 01 00
-
-    //       @irefi64            @i64
-    .typedef @65541     = iref  <@65537>
-    // 01    05 00 01 00  05    01 00 01 00
-
-    //       @wreff                  @float
-    .typedef @65542     = weakref   <@65538>
-    // 01    06 00 01 00  06        02 00 01 00
-
-    //       @s                     2 flds  @i8             @i64
-    .typedef @65543     = struct    <       @65536          @65537>
-    // 01    07 00 01 00  07        02 00   00 00 01 00     01 00 01 00
-
-    //       @a                      @i8
-    .typedef @65544     = array     <@65536         10>
-    // 01    08 00 01 00  08        00 00 01 00     0a 00 00 00 00 00 00 00
-
-    //       @h                      @i64           @i8
-    .typedef @65545     = hybrid    <@65537         @65536>
-    // 01    09 00 01 00  09        00 00 01 00     01 00 01 00
-
-    //       @void
-    .typedef @65546     = void
-    // 01    0a 00 01 00  0a
-
-    //       @f                   @sig2
-    .typedef @65547     = funcref<@65552>
-    // 01    0b 00 01 00  0b    10 00 01 00
-
-    //       @thread
-    .typedef @65548     = threadref
-    // 01    0c 00 01 00  0c
-
-    //       @stack
-    .typedef @65549     = stackref
-    // 01    0d 00 01 00  0d
-
-    //       @tagref64
-    .typedef @65550     = tagref64
-    // 01    0e 00 01 00  0e
-
-    //       @vec_4xfloat
-    .typedef @65793     = vector < @float       4     >
-    // 01    01 01 01 00  0f       02 00 01 00  04 00
-
-    //       @sig1        @void
-    .funcsig @65551     = @65546        ()      // void ()
-    // 02    0f 00 01 00  0a 00 01 00   00 00
-
-    //       @sig2        @i64                 @i64         @irefi64
-    .funcsig @65552     = @65537        (      @65537       @65541)
-    // 02    10 00 01 00  0a 00 01 00   02 00  01 00 01 00  05 00 01 00
-
-    //      @const0       @i8
-    .const  @65568       <@65536>    =  42
-    // 03   20 00 01 00   00 00 01 00   01  2a 00 00 00 00 00 00 00
-
-    //      @const1       @i64
-    .const  @65569       <@65537>    =  0x123456789abcdef0
-    // 03   21 00 01 00   01 00 01 00   01  f0 de bc 9a 78 56 34 12
-
-    //      @const2       @float
-    .const  @65570       <@65538>    =  1234.5f
-    // 03   22 00 01 00   02 00 01 00   02  00 50 9a 44
-
-    //      @const3       @double
-    .const  @65571       <@65539>    =  1234.5d
-    // 03   23 00 01 00   03 00 01 00   03  00 00 00 00 00 4a 93 40
-
-    //      @const4       @s                2 flds   @const0      @const1
-    .const  @65572       <@65543>    =  {            @65568       @65569 }
-    // 03   24 00 01 00   07 00 01 00   04  02 00    20 00 01 00  21 00 01 00
-
-    //      @const5       @refi8
-    .const  @65573       <@65540>    =  NULL
-    // 03   25 00 01 00   04 00 01 00   05
-
-    //      @gd0          @refi8
-    .global @65584       <@65540>
-    // 04   30 00 01 00   04 00 01 00
-
-    //          @func0       @sig1
-    .funcdecl   @65600      <@65551>
-    // 05       40 00 01 00  0f 00 01 00
-
-    //          @func1       @sig2                  @sig2_v1    2 params    %p0          %p1          1 basic block
-    .funcdef    @65601      <@65552>        VERSION @65794      (           %65602       %65603)      {
-    // 06       41 00 01 00  10 00 01 00            02 01 00 00 02 00       42 00 01 00  43 00 01 00  01 00
-
-    //  %entry       2 instructions
-        %65604:
-    //  44 00 01 00  02 00
-
-            // %v1                           @i64         %p1               no exception clause
-            %65605 =        LOAD NOT_ATOMIC <@65537>      %65603
-            // 45 00 01 00  1a   00          01 00 01 00  43 00 01 00       00 00 00 00 00 00 00 00
-
-            // %v2                @i64          %p0          %v1            
-            %65606 =        SDIV <@65537>       %65602       %65605         EXC %cont %catch
-            // 46 00 01 00  04   01 00 01 00    42 00 01 00  45 00 01 00    48 00 01 00 49 00 01 00
-
-    //  %cont        1 instruction
-        %65608:
-    //  48 00 01 00  01 00
-
-            %65607 =        RET  <@65537>       %v2
-            // 47 00 01 00  63   01 00 01 00    46 00 01 00
-
-    //  %catch       1 instruction
-        %65609:
-    //  49 00 01 00  01 00
-
-            %65610 =        RET  <@65537>       %v1
-            // 4a 00 01 00  63   01 00 01 00    45 00 01 00
-        
-        
-    }
-
-    //      @func0_exp  @func0       #DEFAULT @const1
-    .expose @65616 =    @65600       0 T      @65569
-    // 07  50 00 01 00  40 00 01 00  00       21 00 01 00
-
-    // Bind ID 65604 with the string "@sig2_v1.entry"
-    // 08  44 00 01 00  06  40 73 69 67 32 5f 76 31 2e 65 6e 74 72 79
 
 .. vim: textwidth=80
