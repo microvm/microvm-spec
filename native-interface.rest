@@ -297,13 +297,13 @@ Changes in the Mu IR and the API introduced by the native interface
 * ``uptr < T >``
 * ``ufuncptr < sig >``
 
-See `Type System <type-system>`__
+See `Type System <type-system.rest>`__
 
 **New top-level definitions**:
 
 * function exposing definition
 
-See `Mu IR <uvm-ir>`__.
+See `Mu IR <uvm-ir.rest>`__.
 
 **New instructions**:
 
@@ -314,8 +314,8 @@ See `Mu IR <uvm-ir>`__.
 * ``@uvm.native.unexpose``
 * ``@uvm.native.get_cookie``
 
-See `Instruction Set <instruction-set>`__ and `Common Instructions
-<common-insts>`__.
+See `Instruction Set <instruction-set.rest>`__ and `Common Instructions
+<common-insts.rest>`__.
 
 **Modified instructions**:
 
@@ -347,7 +347,7 @@ example:
 * ``%result  = CMPXCHG       PTR ACQ_REL ACQUIRE <@T> %ptr_to_T %expected %desired``
 * ``%old_val = ATOMICRMW ADD PTR SEQ_CST         <@T> %ptr_to_T %rhs``
 
-See `Instruction Set <instruction-set>`__.
+See `Instruction Set <instruction-set.rest>`__.
 
 **New API functions**:
 

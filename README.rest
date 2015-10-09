@@ -10,28 +10,28 @@ machine, including its architecture, instruction set and type system.
 
 Main specification:
 
-- `Overview <overview>`__
-- `Intermediate Representation <uvm-ir>`__
-- `Intermediate Representation (Binary Form) <uvm-ir-binary>`__
-- `Type System <type-system>`__
-- `Instruction Set <instruction-set>`__
-- `Common Instructions <common-insts>`__
-- `Client Interface <uvm-client-interface>`__
-- `Threads and Stacks <threads-stacks>`__
-- `Memory and Garbage Collection <uvm-memory>`__
-- `Memory Model <memory-model>`__
-- `Native Interface <native-interface>`__
-- `Heap Allocation and Initialisation Language (HAIL) <hail>`__
-- `Portability and Implementation Advices <portability>`__
+- `Overview <overview.rest>`__
+- `Intermediate Representation <uvm-ir.rest>`__
+- `Intermediate Representation (Binary Form) <uvm-ir-binary.rest>`__
+- `Type System <type-system.rest>`__
+- `Instruction Set <instruction-set.rest>`__
+- `Common Instructions <common-insts.rest>`__
+- `Client Interface <uvm-client-interface.rest>`__
+- `Threads and Stacks <threads-stacks.rest>`__
+- `Memory and Garbage Collection <uvm-memory.rest>`__
+- `Memory Model <memory-model.rest>`__
+- `Native Interface <native-interface.rest>`__
+- `Heap Allocation and Initialisation Language (HAIL) <hail.rest>`__
+- `Portability and Implementation Advices <portability.rest>`__
 
 Platform-specific parts: These extends the main specification. The main
 specification considers these parts as implementation-specific.
 
-- `AMD64 Unix Native Interface <native-interface-x64-unix>`__
+- `AMD64 Unix Native Interface <native-interface-x64-unix.rest>`__
 
 Old documents:
 
-- `Client Interface (old) <uvm-client-interface-old>`__
+- `Client Interface (old) <uvm-client-interface-old.rest>`__
 
 
 .. vim: tw=80

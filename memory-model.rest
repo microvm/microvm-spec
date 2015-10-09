@@ -67,24 +67,24 @@ Concepts
 ========
 
 data value
-    See `Type System <type-system>`__
+    See `Type System <type-system.rest>`__
 
 SSA variable, instruction and evaluation
-    See `Instruction Set <instruction-set>`__
+    See `Instruction Set <instruction-set.rest>`__
 
 memory, initial value, load, store, access and conflict
-    See `Mu and the Memory <uvm-memory>`__
+    See `Mu and the Memory <uvm-memory.rest>`__
 
 thread
     A thread is the unit of CPU scheduling. In this memory model, threads
-    include but are not limited to Mu threads. See `Threads and Stacks <threads-stacks>`__ for the
+    include but are not limited to Mu threads. See `Threads and Stacks <threads-stacks.rest>`__ for the
     definition of Mu threads.
 
 stack, stack binding, stack unbinding, swap-stack
-    See `Threads and Stacks <threads-stacks>`__
+    See `Threads and Stacks <threads-stacks.rest>`__
 
 futex, futex_wait, futex_wake
-    See `Threads and Stacks <threads-stacks>`__
+    See `Threads and Stacks <threads-stacks.rest>`__
 
 Comparison of Terminology
 -------------------------

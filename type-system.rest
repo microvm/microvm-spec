@@ -53,7 +53,7 @@ The following type constructors are available in Mu:
 
 Parameters of a type are in the angular brackets. They can be integer literals,
 types and function signatures. In the text form, the latter two are global
-names (See `<uvm-ir>`__). In the binary form, they are IDs.
+names (See `<uvm-ir.rest>`__). In the binary form, they are IDs.
 
 There are several kinds of types.
 

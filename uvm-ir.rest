@@ -15,12 +15,12 @@ introduce their own formats as long as they are equivalent, in which case the
 interface to use and to load them is implementation-specific.
 
 This document describes the text form and the aspects not specific to the binary
-form. For the binary form, see `<uvm-ir-binary>`__.
+form. For the binary form, see `<uvm-ir-binary.rest>`__.
 
 For the documents of the type system and the instruction set, see:
 
-- `<type-system>`__
-- `<instruction-set>`__
+- `<type-system.rest>`__
+- `<instruction-set.rest>`__
 
 Example
 =======
@@ -227,7 +227,7 @@ implementation for extension purposes.
 Type Definition
 ===============
 
-Types and the **type constructor** syntax are documented in `<type-system>`__.
+Types and the **type constructor** syntax are documented in `<type-system.rest>`__.
 
 A **type definition** gives a name to a type. It has the following form::
 
@@ -365,7 +365,7 @@ A **constant constructor** can be the following:
   A constant must not be recursive.
 
 - A **null constructor** create a null value of *general reference types* except
-  ``weakref`` (defined in `<type-system>`__). It is written as the **null
+  ``weakref`` (defined in `<type-system.rest>`__). It is written as the **null
   literal**: ``NULL``. 
 
 ..
@@ -376,7 +376,7 @@ A **constant constructor** can be the following:
 ..
 
     NOTE: ``weakref`` cannot be the type of an SSA variable, but all constants
-    are SSA variables. (See `<type-system>`__ and `<instruction-set>`__).
+    are SSA variables. (See `<type-system.rest>`__ and `<instruction-set.rest>`__).
 
 ..
 
@@ -479,7 +479,7 @@ Global Cell Definition
 ======================
 
 A **global cell definition** defines a **global cell**. A global cell is the
-memory allocation unit in the *global memory*. See `<uvm-memory>`__ for more
+memory allocation unit in the *global memory*. See `<uvm-memory.rest>`__ for more
 information about the global memory.
 
     NOTE: The global memory is the counterpart of static or global variables in
@@ -622,7 +622,7 @@ where:
 
 The name of an instruction can be omitted in the text form, in which case the
 instruction has no name. The grammar of the ``InstBody`` part for each
-instruction is defined separately in `<instruction-set>`__.
+instruction is defined separately in `<instruction-set.rest>`__.
 
     Example::
 
@@ -686,7 +686,7 @@ which is one of the following:
   - ``LOAD``, ``STORE``, ``CMPXCHG``, ``ATOMICRMW``
   - ``TRAP``, ``WATCHPOINT``
   - ``NEWSTACK``, ``SWAPSTACK``
-  - Some `common instructions <common-insts>`__ via the generic ``COMMINST``
+  - Some `common instructions <common-insts.rest>`__ via the generic ``COMMINST``
     instruction:
 
     - ``@uvm.thread_exit``
@@ -746,7 +746,7 @@ Bundle Loading
 ==============
 
 The API provides a ``load_bundle`` function. See `the API
-<uvm-client-interface>`__. This function can be called by multiple client
+<uvm-client-interface.rest>`__. This function can be called by multiple client
 threads on their client contexts, and the result is always equivalent to as if
 they were loaded in a specific sequence.
 
@@ -765,7 +765,7 @@ the function. Defines of functions (bundle loading) and uses of functions
 (including function calls and the creation of stacks, i.e. the ``NEWSTACK``
 instruction or the ``new_stack`` API) obey the memory model of the ``RELAXED``
 order as if the definition is a store and the use is a load. See `Memory Model
-<memory-model>`__.
+<memory-model.rest>`__.
 
 All existing activations of any functions remain unchanged, that is, they remain
 to be the old versions of the functions. 

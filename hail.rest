@@ -37,7 +37,7 @@ evaluated. Storing them to global cells is one way to keep references to the
 allocated objects.
 
 **Global name**, **integer literal**, **floating point literal** and **null
-literal** are defined the same way as in `Mu IR <uvm-ir>`__.
+literal** are defined the same way as in `Mu IR <uvm-ir.rest>`__.
 
 Top-level Definitions
 =====================
@@ -98,7 +98,7 @@ The *rvalue* determines the value to write in the location:
   ``iref`` type) to the object just allocated;
   
 - if it is a global name, it designates the value of the global SSA variable of
-  that name, as defined in `Instruction Set <instruction-set>`__. Specifically,
+  that name, as defined in `Instruction Set <instruction-set.rest>`__. Specifically,
 
   * the name of a constant has the value of that constant;
 
@@ -213,7 +213,7 @@ refer to different things even if their values are equal. HAIL IDs only refer to
 heap-allocated objects in the current HAIL script.
 
 In the following paragraphs, binary types defined in `Mu IR Binary Form
-<uvm-ir-binary>`__ are used. For convenience, we use "hID" for HAIL ID and "mID"
+<uvm-ir-binary.rest>`__ are used. For convenience, we use "hID" for HAIL ID and "mID"
 for Mu ID.
 
 A *fixed object allocation* definition has the form:

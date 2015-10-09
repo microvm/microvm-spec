@@ -95,8 +95,8 @@ can only be used by one client thread at a time.
     what a Mu thread holds. For example, implementations may reserve blocks of
     heap memory in client contexts so that memory allocation will not always
     require global locks. This trick is used by many garbage collectors that
-    support parallel mutators, for example,
-    [Immix](http://users.cecs.anu.edu.au/~steveb/downloads/pdf/immix-pldi-2008.pdf).
+    support parallel mutators, for example, `Immix
+    <http://users.cecs.anu.edu.au/~steveb/downloads/pdf/immix-pldi-2008.pdf>`__.
 
 It holds Mu values for the client. The values are referred by the client via
 opaque **handles**. Those handles are defined as::
@@ -155,7 +155,7 @@ location or other entities.  This means a handle can keep Mu heap objects alive.
     Lua 4.0, introduced a stack-based API to pass values to/from the C program.
     That stack is unnecessary for Mu because Mu is not a stack-based VM. The API
     is also not designed to frequently exchange data frequently with the client
-    (see the (unsafe) `Native Interface <native-interface>`__ for a more
+    (see the (unsafe) `Native Interface <native-interface.rest>`__ for a more
     efficient (and less safe) interface).
 
 ..
@@ -581,7 +581,7 @@ Memory addressing
 
 * ``shift_iref`` assumes ``opnd`` refers to an element in a memory array
   (including arrays, vectors and the variable part of hybrids in the memory, see
-  `Mu and the Memory <uvm-memory>`__). It returns the iref of ``opnd`` moved by
+  `Mu and the Memory <uvm-memory.rest>`__). It returns the iref of ``opnd`` moved by
   ``offset`` (forward if positive, backward if negative).
 
 * ``get_fixed_part_iref`` gets an iref to the fixed part of the hybrid referred
@@ -892,7 +892,7 @@ where::
   ``@uvm.native.expose`` instruction or the ``expose`` API function with calling
   convention ``call_conv``. 
 
-See the `Native Interface <native-interface>`__ chapter for details of expose
+See the `Native Interface <native-interface.rest>`__ chapter for details of expose
 and unexpose. See the platform-specific native interface for the return value
 type.
 
@@ -909,7 +909,7 @@ It is unspecified on which stack the trap handler is run.
 
 Mu is allowed to call these handlers concurrently. Mu does not guarantee the
 order in which these handlers are called, but guarantees the happen-before
-relation between the trap and the handler. See `Memory Model <memory-model>`__.
+relation between the trap and the handler. See `Memory Model <memory-model.rest>`__.
 
 The Mu thread that triggers the trap is temporarily unbound from the stack.
 

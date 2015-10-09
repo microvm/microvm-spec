@@ -7,7 +7,7 @@ This document specifies Common Instructions.
 **Common Instructions** are instructions that have a common format and are
 used with the ``COMMINST`` super instruction. They have:
 
-1. An ID and a name. (This means, they are *identified*. See `<uvm-ir>`__.)
+1. An ID and a name. (This means, they are *identified*. See `<uvm-ir.rest>`__.)
 2. A flag list.
 3. A type parameter list.
 4. A value parameter list.
@@ -165,7 +165,7 @@ Math Instructions
 Futex Instructions
 ==================
 
-See `<threads-stacks>`__ for high-level descriptions about Futex.
+See `<threads-stacks.rest>`__ for high-level descriptions about Futex.
 
 Wait
 ----

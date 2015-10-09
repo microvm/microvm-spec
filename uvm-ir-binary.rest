@@ -3,12 +3,12 @@ Intermediate Representation (Binary Form)
 =========================================
 
 This document describes the binary form of the Mu intermediate representation.
-For the text form, see `<uvm-ir>`__.
+For the text form, see `<uvm-ir.rest>`__.
 
 Overview
 ========
 
-The Mu IR Binary Form is similar to the `Text Form <uvm-ir>`__ in structure,
+The Mu IR Binary Form is similar to the `Text Form <uvm-ir.rest>`__ in structure,
 but has notable differences.
 
 Numerical IDs are used exclusively instead of textual names. The binary form
@@ -94,7 +94,7 @@ Type definition has the following form:
 +------+-----+------------------+
 
 ``id`` is the identifier of the defined type. A type constructor follows the
-opcode 0x01 and the ID. See `<type-system>`__ for a complete list of type
+opcode 0x01 and the ID. See `<type-system.rest>`__ for a complete list of type
 constructors.
 
     NOTE: this is equivalent to: ``.typedef id = cons``.
@@ -287,7 +287,7 @@ An **instruction** has the following form:
 +-----+------------------+
 
 ``id`` is the ID of the instruction. ``instbody`` is instruction body which is
-specific to each instruction. See `<instruction-set>`__ for an exhaustive list.
+specific to each instruction. See `<instruction-set.rest>`__ for an exhaustive list.
 
 Function Exposing Definition
 ============================
@@ -323,7 +323,7 @@ A name binding has the following form:
 ``bytex`` is the value of each byte.
 
 The name is encoded in ASCII and must follow the rules of global names, local
-names and allowed characters as defined in `<uvm-ir>`__.
+names and allowed characters as defined in `<uvm-ir.rest>`__.
 
 Example
 =======

@@ -119,7 +119,7 @@ For shifting instructions ``SHL``, ``LSHR`` and ``ASHR`` for integer type
 Conversions instructions are required between any two implemented types that can
 be converted. Specifically, given two types T1 and T2 and a conversion operation
 CONVOP, if both T1 and T2 are implemented and they satisfied the requirement of
-the ``T1`` and ``T2`` parameters of CONVOP (see `<instruction-set>`__), then the
+the ``T1`` and ``T2`` parameters of CONVOP (see `<instruction-set.rest>`__), then the
 CONVOP operation converting from T1 to T2 is required.
 
 Binary floating point operations round to nearest and round ties to even.

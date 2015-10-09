@@ -9,7 +9,7 @@ threads.
 
 On the other hand, Mu does allow multiple simultaneous threads. Mu threads, by
 design, can be implemented as native OS threads and make use of parallel CPU
-resources. Mu also has a memory model. See the `Memory Model <memory-model>`__
+resources. Mu also has a memory model. See the `Memory Model <memory-model.rest>`__
 chapter for more information.
 
 This chapter discusses Mu threads and Mu stacks. In this chapter, "thread"
@@ -28,7 +28,7 @@ A **stack** is the context of nested or recursive activations of functions.
 A stack has many **frames**, each of which is the context of one function
 activation. A frame contains the states of all local variables (parameters and
 instructions), the program counter and alloca cells (see `Mu and the Memory
-<uvm-memory>`__). Each frame is associated with a *version* of a function.
+<uvm-memory.rest>`__). Each frame is associated with a *version* of a function.
 
     NOTE: Because Mu allows function redefinition, a function may be redefined
     by the client, and newly created function activations (newly called
@@ -190,7 +190,7 @@ Swap-stack
 that thread to a new stack. In a swap-stack operation, the stack to unbind from
 is called the **swapper** and the stack to bind to is called the **swappee**.
 
-The ``SWAPSTACK`` instruction (see `<instruction-set>`__) performs a
+The ``SWAPSTACK`` instruction (see `<instruction-set.rest>`__) performs a
 *swap-stack* operation.
 
 A trap handler can do similar things as *swap-stack* by re-binding the current
@@ -254,7 +254,7 @@ Mu provides a mechanism similar to the Futex in the Linux kernel for
 implementing blocking locks and other synchronisation primitives.
 
 There is a waiting queue for all memory locations that has some integer types.
-(See `<portability>`__ for valid candidate types for Futex.)
+(See `<portability.rest>`__ for valid candidate types for Futex.)
 
 The ``@uvm.futex.wait`` and the ``@uvm.futex.wait_timeout`` instructions put the
 current thread into the waiting queue of a memory location. Both

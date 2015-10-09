@@ -148,7 +148,7 @@ subsequently. Otherwise it is **dead**.
 
 The execution of an instruction is called an **evaluation**. An evaluation
 determines the data value associated to an instruction and this process is
-called **value computation**. Accessing the memory (see `<uvm-memory>`__) or
+called **value computation**. Accessing the memory (see `<uvm-memory.rest>`__) or
 changing the state of the execution environment is called **side effect**. An
 evaluation may have side effects.
 
@@ -180,7 +180,7 @@ destination**.
 
 The exception clause can be omitted. In the binary form, an omitted exception
 clause is expressed as *nor* and *exc* both being 0. Any instruction that may
-have exception clauses is not a *terminator* (see `<uvm-ir>`__) if the exception
+have exception clauses is not a *terminator* (see `<uvm-ir.rest>`__) if the exception
 clause is omitted. Otherwise it is a *terminator*.
 
 Any instruction that may have exception clause may **continue normally** or
@@ -552,7 +552,7 @@ return value
 
 In all comparison operations, both *op1* and *op2* must have type *T*.
 
-For EQ and NE, *T* must be a EQ-comparable type (see `<type-system>`__) or a
+For EQ and NE, *T* must be a EQ-comparable type (see `<type-system.rest>`__) or a
 vector of EQ-comparable types.
 
 For SGE, SGT, SLE, SLT, UGE, UGT, ULE and ULT, *T* must be ``int`` or a vector
@@ -1266,7 +1266,7 @@ have any exception clause and is not an OSR point.
     immediately return the returned value, but reuses the current frame.
 
 Calling an undefined function is allowed. Such functions will trigger a trap so
-that the client can handle it. See `Mu IR <uvm-ir>`__ for the behaviour of
+that the client can handle it. See `Mu IR <uvm-ir.rest>`__ for the behaviour of
 undefined functions.
 
 ..
@@ -1853,7 +1853,7 @@ return value
 ..
 
     NOTE: The cryptic description of the return value means the referent type
-    ``T`` may be a prefix (see `<uvm-memory>`__) of the actual type represented
+    ``T`` may be a prefix (see `<uvm-memory.rest>`__) of the actual type represented
     in the object. In this case, this instruction only provides access to the
     prefix part.
 
@@ -1969,7 +1969,7 @@ The ``GETELEMIREF`` instruction gets an internal reference/pointer to the
 
 The ``SHIFTIREF`` instruction assumes the *opnd* already refers to an element of
 a *memory array* (including arrays, vectors and the variable part of hybrids,
-see `Mu and the Memory <uvm-memory>`__). It moves *opnd* internal
+see `Mu and the Memory <uvm-memory.rest>`__). It moves *opnd* internal
 reference/pointer forward by *offset* elements. If *offset* is negative, it
 moves the reference/pointer backwards by the absolute value of *offset*.
 
@@ -2044,8 +2044,8 @@ Memory Order
 ~~~~~~~~~~~~
 
 A **memory order** is one in the following table. Their semantics are described
-in `<memory-model>`__. Different instructions have different requirements for
-their *memory orders*. See `<memory-model>`__.
+in `<memory-model.rest>`__. Different instructions have different requirements for
+their *memory orders*. See `<memory-model.rest>`__.
 
 =========== ======  =======================
 Keyword     Binary  Semantic
@@ -2086,7 +2086,7 @@ return value
 +------+------+------+-----+------+-----------+
 
 The ``LOAD`` instruction performs a *load* operation with argument (*ord*, *T*,
-*loc*) as defined in `Mu and the Memory <uvm-memory>`__.
+*loc*) as defined in `Mu and the Memory <uvm-memory.rest>`__.
 
 In the text form, *ord* can be omitted and defaults to ``NOT_ATOMIC``.
 
@@ -2132,7 +2132,7 @@ newVal
 +------+------+------+-----+------+--------+-----------+
 
 The ``STORE`` instruction performs a *store* operation with argument (*ord*,
-*T*, *loc*, *newVal*) as defined in `Mu and the Memory <uvm-memory>`__.
+*T*, *loc*, *newVal*) as defined in `Mu and the Memory <uvm-memory.rest>`__.
 
 In the text form, *ord* can be omitted and defaults to ``NOT_ATOMIC``.
 
@@ -2189,10 +2189,10 @@ return value:
 The ``CMPXCHG`` instruction performs a *compare exchange* operation with
 argument (*isWeak*, *ordSucc*, *ordFail*, *T*, *loc*, *expected*, *desired*),
 where *isWeak* is true if ``WEAK`` is present, otherwise false.  The operation
-is defined in `Mu and the Memory <uvm-memory>`__.
+is defined in `Mu and the Memory <uvm-memory.rest>`__.
 
 The result is a struct. The two fields represents the *v* and *s* value as
-defined in `Mu and the Memory <uvm-memory>`__. The second field is 1 for true
+defined in `Mu and the Memory <uvm-memory.rest>`__. The second field is 1 for true
 and 0 for false.
 
     For LLVM users: This is the counterpart of the ``cmpxchg`` instruction.
@@ -2285,7 +2285,7 @@ UMIN        0x0A   int unsigned min
 
 The ``ATOMICRMW`` instruction performs an *atomic-x* operation with argument
 (*ord*, *T*, *loc*, *opnd*), where the *x* in *atomic-x* is *op*. The operation
-is defined in `Mu and the Memory <uvm-memory>`__.
+is defined in `Mu and the Memory <uvm-memory.rest>`__.
 
 ..
 
@@ -2315,7 +2315,7 @@ ord
 +------+------+
 
 The ``FENCE`` is a fence of memory order *ord*. Its semantics is specified in
-`<memory-model>`__.
+`<memory-model.rest>`__.
 
     For LLVM users: This is the counterpart of the ``fence`` instruction.
 
@@ -2413,7 +2413,7 @@ enabled.
 
     If the client disabled watch point 42 when handling this watchpoint and
     rebinds the current stack passing VOID (see `Threads and Stacks
-    <threads-stacks>`__ for stack/thread rebinding), then it will branch to
+    <threads-stacks.rest>`__ for stack/thread rebinding), then it will branch to
     ``%ena``. The ``%wp`` instruction will branch to ``%dis`` if and only if
     watch point 42 is disabled when it is executed.
 
@@ -2592,7 +2592,7 @@ The ``CCALL`` instruction calls a native function.
 The *callee* must have type *T*. The allowed type of ``T`` is
 implementation-dependent and calling convention-dependent.
 
-See `<native-interface>`__ for a detailed description of the native interface.
+See `<native-interface.rest>`__ for a detailed description of the native interface.
 
 The return value of ``CCALL`` is the return value of the native callee.
 
@@ -2721,7 +2721,7 @@ This instruction continues exceptionally if Mu cannot allocate the new stack.
 
 Which function version is used for the stack-bottom frame is determined by when
 the stack is created, not when the stack is resumed. See `Memory Model
-<memory-model>`__.
+<memory-model.rest>`__.
 
     NOTE: This means it may still run an old version if a newer version is
     loaded by the client between when the stack is created and when the stack is
@@ -2730,7 +2730,7 @@ the stack is created, not when the stack is resumed. See `Memory Model
     TODO: Is this the most "implement-able" and most desirable way?
 
 Creating a stack for an undefined function is allowed. It will trap when that
-frame is executed. See `Mu IR <uvm-ir>`__ for the behaviour of undefined
+frame is executed. See `Mu IR <uvm-ir.rest>`__ for the behaviour of undefined
 functions.
 
 ..
@@ -2837,7 +2837,7 @@ In the *newStackClause*:
 + If the *newStackClause* is ``THROW_EXC``, the exception object *exc* is thrown
   to the *swappee* stack.
   
-See `Thread and Stack <threads-stacks>`__ for more details about the SWAP-STACK
+See `Thread and Stack <threads-stacks.rest>`__ for more details about the SWAP-STACK
 operation.
 
 When a stack in the ``READY<T>`` state is pausing on a ``SWAPSTACK`` instruction
@@ -2983,7 +2983,7 @@ instruction must not have an exception clause unless the common instruction can
 continue exceptionally. A ``COMMINST`` instruction must have an empty keep-alive
 clause unless the common instruction is an OSR point.
 
-See `<common-insts>`__ for a complete list of common instructions.
+See `<common-insts.rest>`__ for a complete list of common instructions.
 
 ..
 

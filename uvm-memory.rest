@@ -96,7 +96,7 @@ overlapping regions in the address space.
     * Mu forces the 2's complement representation, though the byte order and
       alignment requirement are implementation-defined.
 
-See `Native Interface <native-interface>`__ for details about the pinning and
+See `Native Interface <native-interface.rest>`__ for details about the pinning and
 unpinning operations.
 
 Memory Allocation and Deallocation
@@ -169,8 +169,8 @@ have both a load and a store operation, but may have special atomic properties.
     abstract operations are in lower case: load, store and access.
 
 Memory access operations can be performed by some Mu instructions (see
-`Instruction Set <instruction-set>`__, API functions (see `Client Interface
-<uvm-client-interface>`__), native programs which accesses the pinned Mu memory,
+`Instruction Set <instruction-set.rest>`__, API functions (see `Client Interface
+<uvm-client-interface.rest>`__), native programs which accesses the pinned Mu memory,
 or in other implementation-specific ways.
 
 Two memory accesses **conflict** if one stores to a memory location and the
@@ -181,7 +181,7 @@ Parameters and Semantics of Memory Operations
 
 Generally speaking, load operations copy values from the memory and store
 operations copy values into the memory. The exact results are determined by the
-memory model. See `Memory Model <memory-model>`__.
+memory model. See `Memory Model <memory-model.rest>`__.
 
 A **load** operation has parameters ``(ord, T, loc)``. *ord* is the memory order
 of the operation.  *T* is the type of *loc*, a memory location. The result is a
@@ -260,7 +260,7 @@ operation.
 All operators other than ``XCHG`` are only applicable for integer types.
 ``XCHG`` is allowed for any type. However, a Mu implementation may only
 implement some combinations of operators and operand types according to the
-requirements specified in `Portability <portability>`__
+requirements specified in `Portability <portability.rest>`__
 
 Memory Operations on Pointers
 -----------------------------
@@ -274,7 +274,7 @@ represented as ``uptr<T>``) rather than memory locations (usually represented as
 Only *native-safe* types can be accessed via pointers.
 
 When accessing the memory via pointers, if the bytes are mapped to a Mu memory
-location via pinning (see `Native Interface <native-interface>`__), then if the
+location via pinning (see `Native Interface <native-interface.rest>`__), then if the
 referent type of the pointer is the same as the Mu memory location, it has the
 same effect as accessing the corresponding Mu memory location.
 
@@ -397,7 +397,7 @@ All prefixes of a memory location have the same beginning.
 The ``REFCAST`` instruction or the ``refcast`` API function preserves the
 beginning of the operand. If it casts ``iref<T1>`` to ``iref<T2>``, the result
 is an internal reference to the memory location of type ``T2`` at the same
-beginning. (see `Instruction Set <instruction-set>`__)
+beginning. (see `Instruction Set <instruction-set.rest>`__)
 
 Array Rule
 ----------
