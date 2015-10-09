@@ -2,6 +2,9 @@
 Mu Specification
 ================
 
+This is a fork of the `Mu Specification` to support the long-demanded
+"goto-with-value" form.
+
 This document aims to provide a detailed description of Mu, a micro virtual
 machine, including its architecture, instruction set and type system.
 
