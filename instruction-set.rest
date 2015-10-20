@@ -11,6 +11,10 @@ low-level instruction set.
 Conventions
 ===========
 
+If the results of an instruction is not mentioned, the instruction produces no
+results. Otherwise an instruction produces one result, unless explicitly stated
+otherwise.
+
 In all examples in this chapter, the following definitions are assumed to be
 present::
 
@@ -48,8 +52,6 @@ present::
 
     .const @NULLREF <@refvoid> = NULL
 
-    .const @VOID <@void> = NULL
-
 SSA Variables
 =============
 
@@ -86,7 +88,7 @@ at different times.
   * Local SSA variable
 
     * Parameter
-    * Instruction
+    * Instruction result
 
 A **global SSA variable** is valid in the whole Mu instance after it is defined.
 Their values never change.
@@ -112,24 +114,9 @@ activation (frame) it is in.
 - A **parameter** is a local SSA variable whose value is the value passed to the
   basic block as an argument.
 
-- An **instruction** is a local SSA variable whose value is the result of its
-  latest evaluation in the current frame (defined later).
-
-..
-
-There are other definitions as alternatives to the statement "XXXXX is an SSA
-variable" used above:
-
-- "``%xxx``, the ID/name of XXXXX, is an SSA variable."
-- "XXXXX defines the SSA variable ``%xxx``."
-  
-They are equivalent because there is a one-to-one correspondence between the
-IDs/names and the things that define them, hence they are used interchangeably
-in this specification.
-
-    Example: In the instruction ``%foo = ADD <@i32> %bar %baz``, both "the ADD
-    instruction is an SSA variable whose name is ``%foo``" and "the SSA variable
-    ``%foo`` is defined by the ADD instruction" are valid.
+- An **instruction result** is a local SSA variable whose value is one of the
+  (0, 1 or many) results of the latest evaluation of an instruction in the
+  current frame (defined later).
 
 Whether an SSA variable uses the memory is implementation dependent. An SSA
 variable does not have a memory location.
@@ -141,53 +128,68 @@ variable does not have a memory location.
 
 A local variable can be **live** or **dead**.
 
-- An (SSA variable of a) parameter is live when the current instruction of the
-  frame is in the basic block. In particular, the parameters of the entry block
-  are live when a new stack frame is just created before a thread is bound to
-  it.
+- A parameter is live when the current instruction of the frame is in the basic
+  block.
 
-- An (SSA variable of an) instruction is live when the current instruction of
-  the frame is in the basic block and after that instruction.
+- An instruction result is live in its basic block after the instruction is
+  executed. For terminator instructions, the result(s) may only be live when
+  the instruction will continue with some destinations but not others. These
+  cases are defined by concrete instructions.
 
 Otherwise it is dead.
 
     TODO: Check if the definition of "local variable being live/dead" is (or
     will be) used in other parts of the specification. Currently only mentioned
-    in "a live stack contains all live local variables"). This definition may
+    in "a live stack contains all live local variables". This definition may
     not be necessary.
 
 The execution of an instruction is called **an evaluation**. An evaluation
-determines the data value associated to an instruction and this process is
-called **value computation**.  Accessing the memory (see `Memory Model
-<uvm-memory.rest>`__) or changing the state of the execution environment is
-called **side effect**. An evaluation may have side effects.
+determines its results, and this process is called **value computation**.
+Accessing the memory (see `Memory Model <uvm-memory.rest>`__) or changing the
+state of the execution environment is called **side effect**. An evaluation may
+have side effects.
 
 Common Structures
 =================
 
 The following grammar structures are common to several instructions.
 
-Argument List
--------------
+Lists
+-----
 
-*argList* ::= ``(`` *var* :sub:`rep` ``)``
++ *typeList* ::= ``<`` *type* :sub:`rep` ``>``
 
-var :sub:`rep`
-    *list of SSA variable*: A sequence of SSA variables. 
++ *funcSigList* ::= ``<[`` *funcSig* :sub:`rep` ``]>``
 
-+-------+------+------+-----+
-| lent  | idt  | idt  | ... |
-+=======+======+======+=====+
-| nargs | arg1 | arg2 | ... |
-+-------+------+------+-----+
++ *argList* ::= ``(`` *var* :sub:`rep` ``)``
 
-An **argument list** is a list of SSA variables. It is used by instructions that
-take a variable number of value parameters.
+where type, funcSig and var are names of types, function signatures and SSA
+variables, respectively. The "rep" means there may be zero or more such names.
 
-In the binary form, *nargs* is the number of variables (can be zero) and that
-many IDs follows it.
++--------+-------+-------+-----+
+| lent   | idt   | idt   | ... |
++========+=======+=======+=====+
+| nelems | elem1 | elem2 | ... |
++--------+-------+-------+-----+
+
+A **type list** is a list of types.
+
+A **function signature list** is a list of function signatures. This is only
+used in ``COMMINST`` to distinguish from type lists. Ordinary instructions
+usually take no more than one function signature as argument, so the function
+signature is written in angular brackets ``< >`` directly in the same way as
+types.
+
+An **argument list** is a list of SSA variables.
+
+In the binary form, types, signatures and arguments are all represented as IDs.
+*nelems* is the number of elements in the list.
 
     Example::
+
+        SWAPSTACK %swappee RET_WITH <@T1 @T2> PASS_VALUES <@U1 @U2 @U3> (%a1 %a2 %a3)
+
+        %val = COMMINST @uvm.native.expose [#DEFAULT] <[@sig]> (%func @COOKIE)
 
         CALL     <@sig> @func (%arg0 %arg1 %arg2)
         TAILCALL <@sig> @func (%arg0 %arg1 %arg2)
@@ -381,9 +383,9 @@ T
     *type*: The type of both operands.
 op1, op2
     *variable* of type *T*: The two operands.
-excClause:
+excClause
     *exception clause*: the destination for erroneous conditions.
-return value
+result:
     Type *T*: return the result of the computation.
 
 +--------+-----+-----+-----+-----------+
@@ -541,10 +543,12 @@ T
     *type*: The type of both operands.
 op1, op2
     *variable* of *T*: The two operands.
-return value
-    * Type ``int<1>``: returns 1 for true or 0 for false, or
-    * Type ``vector<int<1> n>``: returns a vector of ``int<1>`` where each
-      element is the result of the comparison of the corresponding elements.
+result:
+    * If *T* is a scalar type, then the result type is ``int<1>``: returns 1 for
+      true or 0 for false, or
+    * If *T* is a vector type, then the result type is ``vector<int<1> n>``:
+      returns a vector of ``int<1>`` where each element is the result of the
+      comparison of the corresponding elements.
 
 +--------+-----+-----+-----+
 | opct   | idt | idt | idt |
@@ -777,7 +781,7 @@ T1, T2
     *type*: The source type and the destination type, respectively.
 opnd
     *value* of type *T1*: The operand.
-return value
+result:
     Type *T2*: The result of the conversion.
 
 +--------+-----+-----+-----+
@@ -932,8 +936,8 @@ PTRCAST
         .typedef @ii8  = iref<@i8>          // iref<int<8>>
         .typedef @iii8 = iref<@ii8>         // iref<iref<int<8>>>
 
-        .funcsig @vv = @void ()
-        .funcsig @main_sig = @i32 (@i32 @iii8)
+        .funcsig @vv = () -> ()
+        .funcsig @main_sig = (@i32 @iii8) -> (@i32)
         .funcdecl @j <@main_sig>
         %k = REFCAST <@main_sig @vv> @j     // is a funcref<@vv>
 
@@ -950,7 +954,7 @@ cond
     *variable* of type *S*: The condition.
 ifTrue, ifFalse
     *variable* of *T*: The candidates of the result.
-return value
+result:
     Type *T*: A value according to *cond*.
 
 +------+-----+-------+--------+---------+
@@ -1149,9 +1153,11 @@ excClause
     stack overflow.
 keepAliveClause
     *keep-alive clause*: For on-stack replacement.
-return value
-    The return type of *sig*: The return value of the callee. The ``TAILCALL``
-    instruction itself does not receive the return value.
+results:
+    - ``CALL`` produce as many results as the number of return values of the
+      callee.  The type of each return value matches the corresponding return
+      type.
+    - ``TAILCALL`` does not produce results.
 
 CALL:
 
@@ -1173,7 +1179,8 @@ The ``CALL`` instruction creates a new stack frame for the callee, passes the
 arguments in *argList* and starts executing from the entry block of the callee.
 
 A ``CALL`` instruction *continues normally* when the callee returns. In this
-case the value of the ``CALL`` instruction is the return value of the callee.
+case the results of the ``CALL`` instruction are the return values of the
+callee.
 
 A ``CALL`` instruction *continues exceptionally* when an exception is thrown
 from the callee. In this case the value of the ``CALL`` instruction is not
@@ -1191,8 +1198,8 @@ is absent, it has undefined behaviour.
     TODO: There could be a standard error system where "serious" errors can be
     represented as pre-defined heap objects.
 
-Whenever ``CALL`` continues exceptionally, its SSA variable cannot be passed to
-the exceptional destination because the return value is not returned.
+Whenever ``CALL`` continues exceptionally, the ``CALL`` instruction does not
+produce results.
 
     NOTE: This is to say, the following program is **illegal**::
 
@@ -1204,16 +1211,16 @@ the exceptional destination because the return value is not returned.
 
 The ``CALL`` instruction is an OSR point.
 
-When a stack in the ``READY<T>`` state is pausing on a ``CALL`` instruction and
-is being re-bound to a thread, it continues normally with the return value being
-the value received, or continues exceptionally, catching the exception received.
+When a stack in the ``READY<Ts>`` state is pausing on a ``CALL`` instruction and
+is being re-bound to a thread, it continues normally with the results being the
+values received, or continues exceptionally, catching the exception received.
 
     NOTE: Such a state can be the result of OSR: Upper frames are popped and the
     current callee is forced to return a value provided by the client.
 
 The ``TAILCALL`` instruction replaces the caller's stack frame with a new stack
 frame for the callee. The ``TAILCALL`` requires that the callee must have the
-same return type as the caller. The caller of the current function becomes the
+same return types as the caller. The caller of the current function becomes the
 caller of the function ``TAILCALL`` calls. The ``TAILCALL`` instruction cannot
 have any exception clause and is not an OSR point.
 
@@ -1240,6 +1247,7 @@ the behaviour of undefined functions.
       conditionally a terminator. When the exception clause is present, it is
       like the ``invoke`` instruction in LLVM and, when absent, it is like the
       ``call`` instruction.
+    - Mu functions may return multiple values.
     - Mu uses the goto-with-values form.
     - The meaning of ``TAILCALL`` is similar to LLVM's ``musttail``: in Mu, a
       ``TAILCALL`` always replaces the current stack frame.
@@ -1258,7 +1266,7 @@ the behaviour of undefined functions.
 
     Example::
 
-        .funcsig @sig = @double (@double @double)
+        .funcsig @sig = (@double @double) -> (@double)
 
         .funcdecl @sum <@sig>
 
@@ -1271,20 +1279,20 @@ the behaviour of undefined functions.
                 TAILCALL <@sig> @sum (%x2 %y2)    
         }
 
-        .funcsig @void_no_params = @void ()
+        .funcsig @vv = () -> ()
 
         .const @D_3 <@double> = 3.0d
         .const @D_4 <@double> = 4.0d
         .const @D_5 <@double> = 5.0d
         .const @D_6 <@double> = 6.0d
 
-        .funcdef @main VERSION %v1 <@void_no_params> {
+        .funcdef @main VERSION %v1 <@vv> {
             %entry():
                 %a = CALL <@sig> @square_sum (@D_3 @D_4)
                 %b = CALL <@sig> @square_sum (%a   @D_5) EXC(%nor(%a %b) %exc())
 
             %nor(<@double> %a <@double> %b):
-                %c = CALL <@sig> @square_sum (@D_5 @D_6) KEEPALIVE(%a %b)
+                %c = [%important_call_site] CALL <@sig> @square_sum (@D_5 @D_6) KEEPALIVE(%a %b)
                 %d = CALL <@sig> @square_sum (%c   %c)   EXC(%nor2(%c %d) %exc()) KEEPALIVE(%a %c)
 
             %nor2(<@double> %c <@double> %d):
@@ -1297,35 +1305,31 @@ the behaviour of undefined functions.
 ``RET`` Instruction
 -------------------
 
+``RET`` ``(`` *rv* :sub:`rep` ``)``
+
 ``RET`` *rv*
 
-rv
-    *variable* of type *T*, where *T* is the return type of the current
-    function: The return value of the current function.
+rv :sub:`rep`
+    The return value of the current function. The number and the types must
+    match the return types of the current function.
 
 RET:
 
-+------+-----+
-| opct | idt |
-+======+=====+
-| 0x63 | rv  |
-+------+-----+
++------+----------------+
+| opct | idList         |
++======+================+
+| 0x63 | rv :sub:`rep`  |
++------+----------------+
 
-The ``RET`` instruction returns from the current function with *rv* as the
-return value of the current function. The type of *rv* must be the return type
-of the current function.
+The ``RET`` instruction returns from the current function with a list of *rv* as
+the return values of the current function. The types of *rv* values must match
+the return types of the current function.
 
-In order to return from a function with return type ``void``, the ``RET``
-instruction should return ``NULL``, the only value of the ``void`` type.
+``RET rv`` is a syntax sugar of ``RET (rv)``. In order to return from a function
+with zero return values, use ``RET ()``.
 
-The return type of the ``RET`` instruction itself is always ``void``.
-
-..
-
-    NOTE: Mu allows giving name to a ``RET`` instruction like ``%ret_inst = RET
-    @SOME_CONSTANT``, but is is usually not useful.  In this case the type of
-    ``%ret_inst`` is always ``void``. The ``@SOME_CONSTANT`` value is returned
-    to the **caller**, not the instruction's SSA variable.
+The ``RET`` instruction itself does not produce results. The return values are
+returned to the caller.
 
 ..
 
@@ -1335,8 +1339,9 @@ The return type of the ``RET`` instruction itself is always ``void``.
 
     Example::
 
-        .funcsig @sig1 = @double (@double @double)
-        .funcsig @sig2 = @void ()
+        .funcsig @sig1 = (@double @double) -> (@double)
+        .funcsig @sig2 = () -> ()
+        .funcsig @sig3 = (@i64 @i64) -> (@i64 @i64)
 
         .funcdef @sum VERSION %v1 <@sig1> {
             %entry(<@double> %x <@double> %y):
@@ -1346,7 +1351,12 @@ The return type of the ``RET`` instruction itself is always ``void``.
 
         .funcdef @main VERSION %v1 <@sig2> {
             %entry():
-                RET @VOID
+                RET ()
+        }
+
+        .funcdef @swap VERSION %v1 <@sig3> {
+            %entry(<@i64> %x <@i64> %y):
+                RET (%y %x)
         }
 
 ``THROW`` Instruction
@@ -1376,7 +1386,7 @@ function. Exceptions in Mu are object references to any type.
 
     Example::
 
-        .funcsig @sig = @i64 (@i64 @i64)
+        .funcsig @sig = (@i64 @i64) -> (@i64)
         .typedef @SomeExceptionType = ...    // user-defined exception type
 
         .funcdef @safe_divide VERSION %v1 <@sig> {
@@ -1384,7 +1394,7 @@ function. Exceptions in Mu are object references to any type.
                 %y0 = EQ <@i64> %y @I64_0
                 BRANCH %y0 %divbyzero() %okay(%x %y)
 
-            %divbyzero() [%exc]:
+            %divbyzero():
                 %exc = NEW <@SomeExceptionType>
                 // initialise %exc
                 THROW %exc
@@ -1414,7 +1424,7 @@ index
     *integer literal* The index of the field to extract.
 opnd
     *variable* of type *T*: The struct to extract value from.
-return value
+result:
     Type is the index-th field of the struct type *T*: The value of the
     *index*-th field of *opnd*.
 
@@ -1450,7 +1460,7 @@ opnd
 newVal
     *variable* of the type of the *index*-th field of *T*: The new value for the
     field specified by *index*.
-return value
+result:
     Type is *T*: A new struct with the *index*-th field being *newVal*.
 
 +------+-----+-------+------+--------+
@@ -1519,7 +1529,7 @@ opnd
     *variable* of type *T1*: The array or vector to extract from.
 index
     *variable* of type *T2*: The index of the element to extract.
-return value
+result:
     Type is the element type of *T1*: The extracted element.
 
 +------+-----+-----+------+-------+
@@ -1556,7 +1566,7 @@ index
     *variable* of type *T2*: The index of the element to insert.
 newVal
     *variable* of the element type of *T1*: The new value for that element.
-return value
+result:
     Type is *T1*: A new array or vector with the *index*-th element being
     *newVal*.
 
@@ -1594,7 +1604,7 @@ vec1, vec2
 mask
     *variable* of type *T2*: The mask that determines the elements to select
     from *vec1* and *vec2*.
-return value
+result:
     Type is a vector type of the element type of *T1* and the size of *T2*: The
     new vector with elements selected from *T1* and *T2* according to *mask*.
 
@@ -1682,7 +1692,7 @@ T2
 excClause
     *exception clause*: Specifies the basic block to handle allocation failure.
 
-return value
+result:
     - For ``NEW`` and ``NEWHYBRID``: Type is ``ref<T>``: An object reference to
       the newly allocated object.
     - For ``ALLOCA`` and ``ALLOCAHYBRID``: Type is ``iref<T>``: An internal
@@ -1778,7 +1788,7 @@ T
 opnd
     *variable* of type ``ref<T>``: The object reference to derive internal
     reference.
-return value
+result:
     Type is ``iref<T>``: An internal reference of the memory location of type
     *T* at the beginning of the memory location of object *opnd*.
 
@@ -1818,7 +1828,7 @@ Other Memory Addressing Instructions
 - ``GETVARPARTIREF`` ``PTR`` :sub:`opt` ``<`` *T1* ``>`` *opnd*
 
 PTR :sub:`opt`
-    If present, the types of *opnd* and the return value are pointers. Otherwise
+    If present, the types of *opnd* and the result are pointers. Otherwise
     they are internal references.
 
 T1
@@ -1843,7 +1853,7 @@ opnd
     *variable* of type ``iref<T>`` or ``uptr<T>``: The reference/pointer to
     derive reference from.
 
-return value
+result
     Type is ``iref<U>`` or ``uptr<U>``: The derived reference/pointer.
 
     - For ``GETFIELDIREF``, *U* is the type of the *index*-th field of *T1*.
@@ -2008,7 +2018,7 @@ loc
     to load from.
 excClause
     *exception clause*: Used to handle NULL reference errors.
-return value
+result
     Type is the strong variant of *T*: The result of the load operation.
 
 +------+------+------+-----+------+-----------+
@@ -2108,9 +2118,12 @@ desired
     the memory.
 excClause
     *exception clause*: Used to handle NULL reference errors.
-return value:
-    Type is ``struct<U int<1>>`` where *U* is the strong variant of *T*:
-    The result of the compare exchange operation.
+results:
+    The underlying compare exchange operation produces a pair ``(v, s)``. The
+    ``CMPXCHG`` instruction produces two results:
+
+    1. Type is ``U`` where *U* is the strong variant of *T*: The value ``v``.
+    2. Type is ``int<1>``: The result ``s``. 1 for success and 0 for failure.
 
 +------+------+------+---------+---------+-----+------+----------+---------+-----------+
 | opct | opct | opct | opct    | opct    | idt | idt  | idt      | idt     | excClause |
@@ -2123,9 +2136,9 @@ argument (*isWeak*, *ordSucc*, *ordFail*, *T*, *loc*, *expected*, *desired*),
 where *isWeak* is true if ``WEAK`` is present, otherwise false.  The operation
 is defined in `Mu and the Memory <uvm-memory.rest>`__.
 
-The result is a struct. The two fields represents the *v* and *s* value as
-defined in `Mu and the Memory <uvm-memory.rest>`__. The second field is 1 for true
-and 0 for false.
+This instruction produces two results which represent the *v* and *s* value as
+defined in `Mu and the Memory <uvm-memory.rest>`__. The second result is 1 for
+true and 0 for false.
 
     For LLVM users: This is the counterpart of the ``cmpxchg`` instruction.
 
@@ -2136,13 +2149,10 @@ and 0 for false.
         .global @foo <@i64>
         .typedef @ResultType = struct<@i64 @i1>
 
-        %orig    = LOAD <@i64> @foo                 // @i64
-        %squared = MUL <@i64> %orig %orig           // @i64
-        %result  = CMPXCHG ACQ_REL RELAXED <@i64> @foo %orig %squared   // struct<@i64 @i1>
-
-        %old     = EXTRACTVALUE <@ResultType 0> %result     // @i64
-        %success = EXTRACTVALUE <@ResultType 1> %result     // @i1
-        BRANCH2 %success %cont %failed
+        %orig           = LOAD <@i64> @foo                 // @i64
+        %squared        = MUL <@i64> %orig %orig           // @i64
+        (%old %succ)    = CMPXCHG ACQ_REL RELAXED <@i64> @foo %orig %squared   // struct<@i64 @i1>
+        BRANCH2 %succ %cont() %failed()
 
 ..
 
@@ -2153,18 +2163,16 @@ and 0 for false.
         .global @foo <@i64>
         .typedef @ResultType = struct<@i64 @i1>
 
-        .funcsig @atomic_square.sig = @i64 ()
+        .funcsig @atomic_square.sig = () -> (@i64)
         .funcdef @atomic_square VERSION %v1 <@atomic_square.sig> {
             %entry():
                 %old     = LOAD <@i64> @foo             // @i64
                 BRANCH %loop(%old)
 
             %loop(<@i64> %old):
-                %squared = MUL <@i64> %old %old         // @i64
-                %result  = CMPXCHG WEAK ACQ_REL RELAXED <@i64> @foo %old %squared  // struct<@i64 @i1>
-                %old2    = EXTRACTVALUE <@ResultType 0> %result     // @i64
-                %success = EXTRACTVALUE <@ResultType 1> %result     // @i1
-                BRANCH2 %success %done(%old2) %loop(%old2)
+                %squared        = MUL <@i64> %old %old         // @i64
+                (%old2 %succ)   = CMPXCHG WEAK ACQ_REL RELAXED <@i64> @foo %old %squared  // <@i64 @i1>
+                BRANCH2 %succ %done(%old2) %loop(%old2)
 
             %done(<@i64> %old):
                 RET %old
@@ -2191,7 +2199,7 @@ opnd
     operation.  
 excClause
     *exception clause*: Used to handle NULL reference errors.
-return value
+result:
     Type is the strong variant of *T*: The result of the atomic-x operation
     where x is *op*.
 
@@ -2270,15 +2278,15 @@ Traps
 ``TRAP`` and ``WATCHPOINT`` Instruction
 ---------------------------------------
 
-``TRAP`` ``<`` *T* ``>`` *excClause* *keepAliveClause*
+``TRAP`` ``<`` *Ts* ``>`` *excClause* *keepAliveClause*
 
-``WATCHPOINT`` *wpid* ``<`` *T* ``>`` *dis* *ena* *(* ``WPEXC`` ``(`` *exc* ``)`` *)* :sub:`opt` *keepAliveClause*
+``WATCHPOINT`` *wpid* ``<`` *Ts* ``>`` *dis* *ena* *(* ``WPEXC`` ``(`` *exc* ``)`` *)* :sub:`opt` *keepAliveClause*
 
 wpid
     *integer literal*: Watchpoint identifier.
-T
-    *type*: The type of the return value.
-excClause:
+Ts
+    *list of types*: The types of the return values.
+excClause
     *exception clause*: For ``TRAP``, specify the basic block to handle
     exception.
 keepAliveClause
@@ -2292,75 +2300,84 @@ ena
 exc
     Optional *destination clause*: For ``WATCHPOINT``, the exceptional
     destination **after** the watchpoint is enabled. This can be omitted.
-return value:
-    Type is ``T``: The value returned from the client if the client chooses to
-    return normally.
+results
+    When the stack is rebound passing values, the results are those values
+    passed. There are as many results as the types *Ts*, matching each
+    type.
 
 ``TRAP``:
 
-+------+-----+-----------+-----------------+
-| opct | idt | excClause | keepAliveClause |
-+======+=====+===========+=================+
-| 0xE8 | T   | excClause | keepAliveClause |
-+------+-----+-----------+-----------------+
++------+--------------+-----------+-----------------+
+| opct | idList       | excClause | keepAliveClause |
++======+==============+===========+=================+
+| 0xE8 | T :sub:`rep` | excClause | keepAliveClause |
++------+--------------+-----------+-----------------+
 
 ``WATCHPOINT``:
 
-+------+------+-----+------------+------------+------------+-----------------+
-| opct | idt  | idt | destClause | destClause | destClause | keepAliveClause |
-+======+======+=====+============+============+============+=================+
-| 0xE9 | wpid | T   | dis        | ena        | exc        | keepAliveClause |
-+------+------+-----+------------+------------+------------+-----------------+
++------+------+--------------+------------+------------+------------+-----------------+
+| opct | idt  | idList       | destClause | destClause | destClause | keepAliveClause |
++======+======+==============+============+============+============+=================+
+| 0xE9 | wpid | T :sub:`rep` | dis        | ena        | exc        | keepAliveClause |
++------+------+--------------+------------+------------+------------+-----------------+
 
-The ``TRAP`` and the ``WATCHPOINT`` instructions are collectively called
-**traps**. A trap temporarily unbinds the current thread from the current stack
-and transfers the control to a trap handler in the Mu client.  Decided by the
-trap handler, this instruction may not continue, may continue normally with a
-return value of type *T*, and may continue exceptionally with a Mu exception.
+``TRAP`` and ``WATCHPOINTS`` are designed to let the trap handler registered by
+the client handle occasions which the Mu micro VM cannot handle by itself.
 
-A ``TRAP`` instruction is always enabled. Its return value is decided by the
-trap handler in the client. When the exception clause is present, the exception
-generated by the client is handled in the exceptional destination. When the
-exception clause is absent, the exception is thrown out of the current function
-activation.
+A ``TRAP`` instruction is always enabled. A ``WATCHPOINT`` can be enabled or
+disabled by its watch point ID *wpid*. A disabled ``WATCHPOINT`` does not
+produce any results and unconditionally branches to the destination *dis*.
 
-A ``WATCHPOINT`` instruction is associated with a watchpoint, identified by an
-integer *wpid*, which is disabled in the beginning. When the watchpoint is
-disabled, all ``WATCHPOINT`` instructions associated with it branches to the
-destination *dis* and the return value of this instruction is undefined. When
-the watchpoint is enabled, then all ``WATCHPOINT`` instructions associated with
-it transfer the control to a trap handler in the client. If this instruction
-continues normally, it branches to the destination *ena* and the return value of
-this instruction is decided by the client; if an exception is generated, it will
-be caught in the *exc* destination if the *exc* destination is present, or the
-exception will be thrown out of the current function activation if the *exc*
-destination is absent. If the watch point is disabled before the current stack
-is rebound, the current ``WATCHPOINT`` instruction continues as if it is still
-enabled.
+`The API <uvm-client-interface.rest>`__ provides functions to enable or disable
+watchpoints.
 
-    NOTE: The "enabled-ness" of a watchpoint is determined when the instruction
-    is executed, not when returning from the client. The client may disable the
-    watchpoint when handling a watchpoint which was enabled, but it does not
-    affect any watchpoints that are being executed.
+A ``TRAP`` or an enabled ``WATCHPOINT`` temporarily unbinds the current thread
+from the current stack, leaving the stack in the **READY<** *Ts* **>** state,
+and transfers the control to a trap handler in the Mu client. When the current
+stack is bound again, this instruction may continue normally with results of
+types *Ts*, and may continue exceptionally with a Mu exception.
+
+When rebinding to a stack stopping at an enabled ``TRAP`` or ``WATCHPOINT``
+instruction, if rebinding (normally) with values, the results of the ``TRAP`` or
+``WATCHPOINT`` instruction are the values passed to the current stack, and the
+instruction continues normally. Specifically, ``WATCHPOINT`` branches to the
+*ena* destination.
+
+When rebinding with an exception, the ``TRAP`` or ``WATCHPOINT`` continues
+exceptionally. Specifically, ``WATCHPOINT`` branches to the *exc* destination
+where the exception is received by the exception parameter. When the exception
+clause of ``TRAP`` or the *exc* destination of ``WATCHPOINT`` is absent, the
+exception is thrown out of the current frame.
+
+If a ``WATCHPOINT`` is enabled when it is executed, but is disabled before the
+current stack is rebound, the current ``WATCHPOINT`` instruction continues as if
+it is enabled.
+
+    NOTE: This means a particular evaluation of a ``WATCHPOINT`` determines its
+    "enabled-ness" as soon as the instruction starts. The client may disable the
+    very same watchpoint in the trap handler, but it does not make it branch to
+    the *dis* destination.
 
     Consider the following example::
     
-        %wp = WATCHPOINT 42 <@void> %dis() %ena() %exc()
+        [%wp] WATCHPOINT 42 <> %dis() %ena() %exc()
 
     If the client disabled watch point 42 when handling this watchpoint and
-    rebinds the current stack passing VOID (see `Threads and Stacks
+    rebinds the current stack (see `Threads and Stacks
     <threads-stacks.rest>`__ for stack/thread rebinding), then it will branch to
     ``%ena``. The ``%wp`` instruction will branch to ``%dis`` if and only if
     watch point 42 is disabled when it is executed.
 
+It is recommended to name the instruction so that the trap handler can identify
+each individual traps (using the syntax ``%rv = [%trap_name] TRAP <@T> ...``).
+
 In the binary form, an absent *exc* destination in ``WATCHPOINT`` is expressed
 as the ID of *exc* being 0.
 
-*Traps* are OSR points.
+``TRAP`` and ``WATCHPOINT`` are OSR points.
 
-    NOTE: *Traps* are deliberately designed as OSR points. Its main purpose is
-    to interact with the client to handle events that cannot be handled within
-    Mu.
+    NOTE: They are deliberately designed as OSR points. Its designed to interact
+    with the client, and OSR is one of the main purposes.
 
 ..
 
@@ -2375,7 +2392,7 @@ as the ID of *exc* being 0.
     Example 1::
 
         %bb1():
-            %trap1  = TRAP <@i64> EXC(%bb2() %bb3()) KEEPALIVE(%a %b %c ...)
+            %rv1 = [%trap1] TRAP <@i64> EXC(%bb2() %bb3()) KEEPALIVE(%a %b %c ...)
 
         %bb2():
             // %trap1 normally continues here
@@ -2384,7 +2401,7 @@ as the ID of *exc* being 0.
             // %trap1 handles exception here
 
         %bb4():
-            %wp1    = WATCHPINT 1 <@i64> %bb5() %bb6() WPEXC(%bb7()) KEEPALIVE(%a %b %c ...)
+            %rv2 = [%wp1] WATCHPINT 1 <@i64> %bb5() %bb6() WPEXC(%bb7()) KEEPALIVE(%a %b %c ...)
 
         %bb5():
             // %wp1 normally continues here when disabled
@@ -2402,14 +2419,14 @@ as the ID of *exc* being 0.
 
         .funcdef @some_func VERSION %v1 <...> {
             %entry(...):
-                %version_num = TRAP <@i64>
+                %version_num = [%the_trap] TRAP <@i64>
 
                 CALL <...> @print (%version_num)
                 ...
         }
 
     The hypothetical client identifies this concrete ``TRAP`` instruction by its
-    ID or its global name ``@some_func_v1.version_num``. Then it can help this
+    ID or its global name ``@some_func_v1.the_trap``. Then it can help this
     particular instruction by returning normally, supplying its version number.
 
 ..
@@ -2433,13 +2450,10 @@ as the ID of *exc* being 0.
             BRANCH2 %is_frequent %to_trap(...) %loop_head(...)
 
         %to_trap(...):
-            %trap12345 = TRAP <@void> KEEPALIVE(%some %local %variables)
+            [%trap12345] TRAP <> KEEPALIVE(%some %local %variables)
             ...
 
         %loop_exit(...):
-
-    NOTE: The "variable name" ``%trap12345`` is used to identify the trap, but
-    the return type of this trap is void (probably it will never return).
 
 ..
 
@@ -2464,7 +2478,7 @@ as the ID of *exc* being 0.
         %bb1(...):
             %obj    = ...
 
-            %wp1234 = WATCHPOINT 5678 <@void> %bb1_cont(%obj) %bb2() KEEPALIVE(%obj)
+            [%wp1234] WATCHPOINT 5678 <> %bb1_cont(%obj) %bb2() KEEPALIVE(%obj)
 
         %bb1_cont(<@ref_T> %obj):
             %rv     = CALL <...> @TheActualFunction (%obj ...)
@@ -2502,8 +2516,9 @@ argList
     *argument list*: Arguments to the callee.
 keepAliveClause
     *keep-alive clause*: For on-stack replacement.
-return value
-    Type is the return type of *sig*: The return value of the callee.
+results
+    The return values of the callee. There are as many results as the return
+    types in *sig*, matching each return type.
 
 +------+----------+-----+-----+--------+---------+-----------------+
 | opct | opct     | idt | idt | idt    | argList | keepAliveClause |
@@ -2526,12 +2541,12 @@ The ``CCALL`` instruction calls a native function.
 
 *callConv* specifies the calling convention used by this instruction.
 
-The *callee* must have type *T*. The allowed type of ``T`` is
-implementation-dependent and calling convention-dependent.
+The *callee* must have type *T*. The allowed type of ``T``, and the number of
+return values, are implementation-dependent and calling convention-dependent.
 
 See `<native-interface.rest>`__ for a detailed description of the native interface.
 
-The return value of ``CCALL`` is the return value of the native callee.
+The return values of ``CCALL`` are the return values of the native callee.
 
 ``CCALL`` cannot receive exceptions thrown by C++.
 
@@ -2578,7 +2593,7 @@ implementation-defined.
         .typedef @c_void    = void
         .typedef @c_ptrvoid = uptr<@c_void>
         .typedef @c_size_t  = int<64>
-        .funcsig @write_sig = @c_ssize_t (@c_int @c_ptrvoid @c_size_t)
+        .funcsig @write_sig = (@c_int @c_ptrvoid @c_size_t) -> (@c_ssize_t)
         .typedef @write_ptr = ufuncptr<@write_sig>
 
         // Define necessary constants and types
@@ -2629,69 +2644,103 @@ implementation-defined.
 Thread and Stack
 ================
 
-``NEWSTACK`` Instruction
-------------------------
+See `Thread and Stack <threads-stacks.rest>`__ for more information of stack
+creation and the swap-stack operation.
 
-``NEWSTACK`` ``<`` *sig* ``>`` *func* *argList* *excClause*
+NOTE: New stacks can be created by the ``@uvm.new_stack`` `common instruction
+<common-insts.rest>`__ or the ``new_stack`` `API <uvm-client-interface.rest>`__
+function.
 
-sig
-    *function signature*: The signature of the callee.
-func
-    *variable* of ``funcref<sig>``: The stack bottom function.
-argList
-    *argument list*: Argument list
+Common Structures
+-----------------
+
++ *newStackClause* ::= ``PASS_VALUES`` ``<`` *Ts* ``>`` ``(`` *vals* ``)``
++ *newStackClause* ::= ``THROW_EXC`` *exc*
+
+Ts
+    *list of types*: The type of *vals*.
+vals
+    *list of variables* matching the types of *Ts*: The values to pass to the
+    target stack.
+exc
+    *variable* of type ``ref``: The exception object to raise to the target
+    stack.
+
+*newStackClause* with ``PASS_VALUES``:
+
++------+--------+--------+
+| opct | idList | idList |
++======+========+========+
+| 0x01 | Ts    | vals   |
++------+--------+--------+
+
+*newStackClause* with ``THROW_EXC``:
+
++------+-----+
+| opct | idt |
++======+=====+
+| 0x02 | exc |
++------+-----+
+
+The **new stack clause** determines how to bind a thread to the target stack. It
+is used by both ``NEWTHREAD`` and ``SWAPSTACK``, since both binds a thread (new
+or existing) to a given stack.
+
+- ``PASS_VALUES`` will pass values *vals* which has types *Ts* to the target
+  stack.
+- ``THROW_EXC`` will raise the exception *exc* to the target stack.
+
+``NEWTHREAD`` Instruction
+-------------------------
+
+``NEWTHREAD`` *stack* *newStackClause *excClause*
+
++ *newStackClause* ::= ``PASS_VALUES`` ``<`` *Ts2* ``>`` ``(`` *vals* ``)``
++ *newStackClause* ::= ``THROW_EXC`` *exc*
+
+stack
+    *variable* of ``stackref``: The stack to bind the new thread to.
+newStackClause
+    *new stack clause*: Determines how to bind to the *stack*.
 excClause
-    *exception clause*: To handle stack allocation errors.
-return value:
-    Type is ``stackref``: The newly created stack.
+    *exception clause*: To handle thread creation errors.
+result:
+    Type is ``threadref``: The newly created thread.
 
-+------+-----+------+---------+-----------+
-| opct | idt | idt  | argList | excClause |
-+======+=====+======+=========+===========+
-| 0xE0 | sig | func | argList | excClause |
-+------+-----+------+---------+-----------+
++------+--------+----------------+-----------+
+| opct | idt    | newStackClause | excClause |
++======+========+================+===========+
+| 0xE0 | stack  | newStackClause | excClause |
++------+--------+----------------+-----------+
 
-The ``NEWSTACK`` instruction creates a new stack with *func* as the stack-bottom
-function and *argList* as its arguments.
+The ``NEWTHREAD`` instruction creates a new thread which immediately binds to
+*stack*, passing values or raising exceptions to it according to the
+*newStackClause*.
 
-This instruction continues exceptionally if Mu cannot allocate the new stack. 
-
-Which function version is used for the stack-bottom frame is determined by when
-the stack is created, not when the stack is resumed. See `Memory Model
-<memory-model.rest>`__.
-
-    NOTE: This means it may still run an old version if a newer version is
-    loaded by the client between when the stack is created and when the stack is
-    resumed.
-
-    TODO: Is this the most "implement-able" and most desirable way?
-
-Creating a stack for an undefined function is allowed. It will trap when that
-frame is executed. See `Mu IR <uvm-ir.rest>`__ for the behaviour of undefined
-functions.
+This instruction continues exceptionally if Mu cannot create the new thread. The
+exception parameter receives NULL.
 
 ..
 
-    For LLVM users: There is no native facilities provided by the official LLVM,
-    but `Dolan, Muralidharan and Gregg
-    <http://dl.acm.org/citation.cfm?id=2400695>`__ proposed an extension to LLVM
-    to support the SWAPSTACK operation. The SWAPSTACK interface of Mu is
-    inspired by their works.
+    Example::
 
-..
+        %stack  = COMMINST @uvm.new_stack <[@sig]> @func
+        %thread = NEWTHREAD %stack PASS_VALUES <@T1 @T2> (%a1 %a2)
 
-    Example: See the example in ``SWAPSTACK``.
+    Rare case: Create a thread to unwind a stack::
+
+        %stack  = ...
+        %thread = NEWTHREAD %stack THROW_EXC %some_exception
 
 ``SWAPSTACK`` Instruction
 -------------------------
 
 ``SWAPSTACK`` *swappee* *curStackClause* *newStackClause* *excClause* *keepAliveClause*
 
-- *curStackClause* ::= ``RET_WITH`` ``<`` *T1* ``>``
+- *curStackClause* ::= ``RET_WITH`` ``<`` *Ts* ``>``
 - *curStackClause* ::= ``KILL_OLD``
 
-+ *newStackClause* ::= ``PASS_VALUE`` ``<`` *T2* ``>`` *val*
-+ *newStackClause* ::= ``THROW_EXC`` *exc*
++ *newStackClause*: See above.
 
 ``SWAPSTACK``:
 
@@ -2703,11 +2752,11 @@ functions.
 
 *curStackClause* with ``RET_WITH``:
 
-+------+-----+
-| opct | idt |
-+======+=====+
-| 0x01 | T1  |
-+------+-----+
++------+--------+
+| opct | idList |
++======+========+
+| 0x01 | Ts     |
++------+--------+
 
 *curStackClause* with ``KILL_OLD``:
 
@@ -2717,38 +2766,15 @@ functions.
 | 0x02 |
 +------+
 
-*newStackClause* with ``PASS_VALUE``:
-
-+------+-----+-----+
-| opct | idt | idt |
-+======+=====+=====+
-| 0x01 | T2  | val |
-+------+-----+-----+
-
-*newStackClause* with ``THROW_EXC``:
-
-+------+-----+
-| opct | idt |
-+======+=====+
-| 0x02 | exc |
-+------+-----+
-
 swappee
     *variable* of type ``stackref``: The stack to swap to.
 curStackClause
     *current stack clause*: Action to the current stack.
-T1
-    *type*: The return type of this instruction if this stack is bound to a
-    thread again.
+Ts
+    *list of types*: The result types of this instruction if this stack is bound
+    to a thread again.
 newStackClause
     *new stack clause*: Action to the *swappee* stack.
-T2
-    *type*: The type of *val*.
-val
-    *variable* of type *T2*: The value to pass to the *swappee* stack.
-exc
-    *variable* of type ``ref``: The exception object to raise to the *swappee*
-    stack.
 excClause
     *exception clause*: To handle exceptions thrown to this stack.
 keepAliveClause
@@ -2760,27 +2786,22 @@ and rebinds it to another stack *swappee*.
 In the *curStackClause*:
 
 - If the *curStackClause* is ``RET_WITH``, then the swapper will enter the
-  ``READY<T1>`` state.
+  ``READY<Ts>`` state. *Ts1* can be an empty list, in which case it does not
+  expect values.
 
 - If the *curStackClause* is ``KILL_OLD``, then the swapper will enter the
   ``DEAD`` state.
 
-In the *newStackClause*:
-
-+ If the *newStackClause* is ``PASS_VALUE``, then it passes the value *val* of
-  type *T2* to the *swappee* stack. *T2* can be ``void``, in which
-  case *val* has to have the ``NULL`` value.
-
-+ If the *newStackClause* is ``THROW_EXC``, the exception object *exc* is thrown
-  to the *swappee* stack.
+According to the *newStackClause*, values or an exception can be passed to the
+*swappee* stack.
   
-See `Thread and Stack <threads-stacks.rest>`__ for more details about the SWAP-STACK
-operation.
+See `Thread and Stack <threads-stacks.rest>`__ for more details about the
+SWAP-STACK operation.
 
-When a stack in the ``READY<T>`` state is pausing on a ``SWAPSTACK`` instruction
-and is being re-bound to a thread, then it continues normally with the return
-value being the value received, or continues exceptionally, catching the
-exception received.
+When a stack in the ``READY<Ts>`` state is pausing on a ``SWAPSTACK``
+instruction and is being re-bound to a thread, then it continues normally with
+the return value being the value received, or continues exceptionally, catching
+the exception received.
 
 The ``SWAPSTACK`` instruction is an OSR point.
 
@@ -2794,7 +2815,7 @@ The ``SWAPSTACK`` instruction is an OSR point.
     3 and then raise an exception in the main coroutine to terminate the
     iteration::
 
-        .funcsig @sig1 = @void (@sref)
+        .funcsig @sig1 = (@sref) -> ()
         .const @I64_2 <@i64> = 2
         .const @I64_3 <@i64> = 3
 
@@ -2804,15 +2825,19 @@ The ``SWAPSTACK`` instruction is an OSR point.
         // param %from: the stack of the main coroutine, i.e. the "caller" stack
         .funcdef @one_two_three VERSION %v1 <@sig1> {
             %entry(<@sref> %from):
-                SWAPSTACK %from RET_WITH <@void> PASS_VALUE <@i64> @I64_1
-                SWAPSTACK %from RET_WITH <@void> PASS_VALUE <@i64> @I64_2
-                SWAPSTACK %from RET_WITH <@void> PASS_VALUE <@i64> @I64_3
+                // Return to the main stack after receiving the initial
+                // parameter %from. So the main stack can use a loop.
+                SWAPSTACK %from RET_WITH <> PASS_VALUES <> ()
+
+                SWAPSTACK %from RET_WITH <> PASS_VALUES <@i64> (@I64_1)
+                SWAPSTACK %from RET_WITH <> PASS_VALUES <@i64> (@I64_2)
+                SWAPSTACK %from RET_WITH <> PASS_VALUES <@i64> (@I64_3)
 
                 %exc = NEW <@StopIterationException>
                 SWAPSTACK %from KILL_OLD THROW_EXC %exc
         }
 
-        .funcsig @main_sig = @void ()
+        .funcsig @main_sig = () -> ()
 
         .funcdef @main VERSION %v1 <@main_sig> {
             %entry():
@@ -2820,12 +2845,17 @@ The ``SWAPSTACK`` instruction is an OSR point.
                 %cur_stack = COMMINST @uvm.current_stack
 
                 // Create a new stack
-                %coro = NEWSTACK <@sig1> @one_two_three (%cur_stack)
+                %coro = COMMINST @uvm.new_stack <[@sig1]> (@one_two_three)
+
+                // Initialise its parameters
+                SWAPSTACK %coro RET_WITH <> PASS_VALUES <@sref> (%cur_stack)
+
+                // Enter the loop
                 BRANCH %head
 
             %head(<@sref> %coro):
                 // Go to the coroutine
-                %cur_num = SWAPSTACK %coro RET_WITH <@i64> PASS_VALUE <@void> @VOID EXC(
+                %cur_num = SWAPSTACK %coro RET_WITH <@i64> PASS_VALUES <> () EXC(
                            %body(%coro %cur_num)
                            %exit()
                            )
@@ -2850,10 +2880,6 @@ Common Instructions
 ``COMMINST`` *inst* *flagList* :sub:`opt` *typeList* :sub:`opt` *funcSigList*
 :sub:`opt` *argList* :sub:`opt` *excClause* *keepAliveClause*
 
-+ *typeList* ::= ``<`` *type* :sub:`rep` ``>``
-
-+ *funcSigList* ::= ``<[`` *funcSig* :sub:`rep` ``]>``
-
 inst
     *global name*: The name of the common instruction.
 flagList :sub:`opt`
@@ -2871,9 +2897,8 @@ excClause
     *exception clause*: To provide an alternative control flow destination.
 keepAliveClause
     *keep-alive clause*: For on-stack replacement.
-return value:
-    Type is determined by the respective common instructions: The return value
-    is determined by the respective common instructions.
+results:
+    Determined by the respective common instructions.
 
 ``COMMINST``:
 
@@ -2882,22 +2907,6 @@ return value:
 +======+======+==========+=========+===========+=================+
 | 0xE4 | inst | typeList | argList | excClause | keepAliveClause |
 +------+------+----------+---------+-----------+-----------------+
-
-*typeList*:
-
-+--------+-------+-------+-----+
-| lent   | idt   | idt   | ... |
-+========+=======+=======+=====+
-| ntypes | type1 | type2 | ... |
-+--------+-------+-------+-----+
-
-*funcSigList*:
-
-+--------+-------+-------+-----+
-| lent   | idt   | idt   | ... |
-+========+=======+=======+=====+
-| nsigs  | sig1  | sig2  | ... |
-+--------+-------+-------+-----+
 
 The ``COMMINST`` instruction calls a common instruction identified by *inst* in
 the text form or *ID* in the binary form. A list of flags *flagList*, a list of

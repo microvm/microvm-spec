@@ -54,14 +54,14 @@ instructions or changing the grammar.
 
 This document uses the following notation::
 
-    [id]@name [F1 F2 ...] < T1 T2 ... > ( p1:t1, p2:t2, ... ) excClause KEEPALIVE -> RT
+    [id]@name [F1 F2 ...] < T1 T2 ... > ( p1:t1, p2:t2, ... ) excClause KEEPALIVE -> RTs
     
 ``id`` is the ID and ``@name`` is the name. ``F1 F2 ...`` is a list of flags.
 ``T1 T2 ...`` is a list of types.  It is the type parameter list. ``p1:t1,
 p2:t2, ...`` is a list of symbolic name and type pair. It is the value parameter
 list with the type of each parameter.  If ``excClause`` or ``KEEPALIVE`` are
 present, they mean that the common instruction accepts exception clause or
-keepalive clause, respectively.  ``RT`` is the return type. If the type
+keepalive clause, respectively.  ``RTs`` are the return types. If the type
 parameter list or the value parameter list are omitted, it means the common
 instruction takes no type parameters or value parameters, respectively. If the
 return type is omitted, it returns ``void``.
@@ -75,12 +75,24 @@ Thread and Stack operations
 
 ::
 
-    [0x201]@uvm.new_thread (%s: stackref) -> threadref
+    [0x201]@uvm.new_stack <[sig]> (%func: funcref<sig>) -> stackref
 
-Create a new thread for a given stack ``%s``. The stack must be in the **READY**
-state. After executing ``@uvm.new_thread``, the stack enters the **ACTIVE**
-state and the new thread starts running immediately. Return the handle to the
-newly created thread.
+Create a new stack with ``%func`` as the stack-bottom function. ``%func`` must
+have signature ``sig``. Returns the stack reference to the new stack.
+
+The new stack is in the state **READY<Ts>**, where *Ts* is the parameter types
+of ``%func``.
+
+This instruction continues exceptionally if Mu failed to create the stack. The
+exception parameter receives NULL.
+
+..
+
+    For LLVM users: There is no native facilities provided by the official LLVM,
+    but `Dolan, Muralidharan and Gregg
+    <http://dl.acm.org/citation.cfm?id=2400695>`__ proposed an extension to LLVM
+    to support the SWAPSTACK operation. The SWAPSTACK interface of Mu is
+    inspired by their works.
 
 ::
 

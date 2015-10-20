@@ -104,16 +104,17 @@ Function Signature Definition
 
 Function signature definition has the following form:
 
-+------+-----+-------+----------+
-| opct | idt | idt   | idList   |
-+======+=====+=======+==========+
-| 0x02 | id  | retty | paramtys |
-+------+-----+-------+----------+
++------+-----+----------+----------+
+| opct | idt | idList   | idList   |
++======+=====+==========+==========+
+| 0x02 | id  | paramtys | rettys   |
++------+-----+----------+----------+
 
-``id`` is the identifier of the defined function signature. ``retty`` is the
-ID of the return type. ``paramtys`` is a list of IDs of its parameter types.
+``id`` is the identifier of the defined function signature. ``paramtys`` is a
+list of IDs of its parameter types. ``rettys`` is a list of IDs of the return
+types. 
 
-    NOTE: this is equivalent to: ``.funcsig id = retty (paramtys)``
+    NOTE: this is equivalent to: ``.funcsig id = (paramtys) -> (rettys)``
 
 Constant Definition
 -------------------
@@ -294,14 +295,15 @@ ninsts instructions following the header.
 
 An **instruction** has the following form:
 
-+-----+------------------+
-| idt | instruction body |
-+=====+==================+
-| id  | instbody         |
-+-----+------------------+
++--------+-----+------------------+
+| idList | idt | instruction body |
++========+=====+==================+
+| resIDs | id  | instbody         |
++--------+-----+------------------+
 
-``id`` is the ID of the instruction. ``instbody`` is instruction body which is
-specific to each instruction. See `<instruction-set.rest>`__ for an exhaustive list.
+``resIDs`` is a list of IDS for the results. ``id`` is the ID of the
+instruction. ``instbody`` is instruction body which is specific to each
+instruction. See `<instruction-set.rest>`__ for an exhaustive list.
 
 Function Exposing Definition
 ============================

@@ -41,7 +41,7 @@ Here is an example of Mu IR in the text form::
     .typedef @Node = struct<@i64 @NodeRef>
     .typedef @NodeRef = ref<@Node>
 
-    .funcsig @BinaryFunc = @i64 (@i64 @i64)
+    .funcsig @BinaryFunc = (@i64 @i64) -> (@i64)
 
     .funcdecl @square_sum <@BinaryFunc>
 
@@ -154,10 +154,9 @@ bundle.
         .typedef    @i64 = int<64>
         .typedef    @ir_i8 = iref<@i8>
         .typedef    @ir_ir_i8 = iref<@ir_i8>
-        .typedef    @void = void
 
-        .funcsig    @some_fun_sig = @void ()
-        .funcsig    @main_sig = @i32 (@i32 @ir_ir_i8)
+        .funcsig    @some_fun_sig = () -> ()
+        .funcsig    @main_sig = (@i32 @ir_ir_i8) -> (@i32)
 
         .const      @i32_1 <@i32> = 1
         .const      @i64_0 <@i64> = 0
@@ -167,7 +166,7 @@ bundle.
         .funcdecl @some_fun <@some_fun_sig>
 
 A **local name** begins with ``%``. Function versions, basic blocks, parameters
-and instructions may use local names in the IR.
+and instruction results may use local names in the IR.
 
     NOTE: Local names can only be used in the IR as a syntax sugar. The API
     must use IDs or global names.
@@ -180,9 +179,9 @@ The global names are inferred from their syntactic parents:
 - Within a function version which has the global name ``@FuncVerGlobalName``, a
   basic block with local name ``%BB`` has global name ``@FuncVerGlobalName.BB``.
 
-- Within a basic block which has the global name ``@BBGlobalName``, a parameter
-  or an instruction with local name ``%LN`` has global name
-  ``@BBGlobalName.LN``.
+- Within a basic block which has the global name ``@BBGlobalName``, a parameter,
+  an instruction or an instruction result with local name ``%LN`` has global
+  name ``@BBGlobalName.LN``.
 
 ..
 
@@ -192,11 +191,11 @@ The global names are inferred from their syntactic parents:
 
         .funcdef @fac VERSION %v1 <@fac.sig> {
             %entry(<@i32> %n):
-                BRANCH %head(%n @I32_1 @I32_1)
+                [%first_br] BRANCH %head(%n @I32_1 @I32_1)
 
             %head(<@i32> %n <@i32> %p <@i32> %i):
                 %lt = SLT <@i32> %i %n
-                BRANCH2 %lt %body(%n %p %i) %exit(%p)
+                [%second_br] BRANCH2 %lt %body(%n %p %i) %exit(%p)
 
             %body(<@i32> %n <@i32> %p <@i32> %i):
                 %p2 = MUL <@i32> %p %i
@@ -215,7 +214,7 @@ The global names are inferred from their syntactic parents:
       - ``%entry`` -> ``@fac.v1.entry``
 
         - ``%n`` -> ``@fac.v1.entry.n``
-        - The anonymous ``BRANCH`` instruction: no global name.
+        - ``%first_br`` -> ``@fac.v1.entry.first_br``
 
       - ``%head`` -> ``@fac.v1.head``
 
@@ -223,7 +222,7 @@ The global names are inferred from their syntactic parents:
         - ``%p`` -> ``@fac.v1.head.p``
         - ``%i`` -> ``@fac.v1.head.i``
         - ``%lt`` -> ``@fac.v1.head.lt``
-        - The anonymous ``BRANCH2`` instruction: no global name.
+        - ``%second_br`` -> ``@fac.v1.head.second_br``
 
       - ``%body`` -> ``@fac.v1.body``
 
@@ -274,15 +273,15 @@ two local names have the same global name.
 
         .funcdef @foo VERSION @foo.v1 <...> {
             %entry():
-                %void_ret_val = CALL <...> @some_func (...)
-                %my_trap      = TRAP <...> KEEPALIVE (...)
+                (%rv1 %rv2 %rv3) = [%the_call_site] CALL <@T1 @T2 @T3> @some_func (...)
+                () = [%the_trap] TRAP <> KEEPALIVE (...)
                 ...
         }
 
-    The call site can be globally identified by ``@foo.v1.entry.void_ret_val``
-    even if the function returns ``void``. The trap can be identified by
-    ``@foo.v1.entry.my_trap``. The name is globally unique and can be tested in
-    *trap handlers* (see `the API <uvm-client-interface.rest>`__).
+    The call site can be globally identified by ``@foo.v1.entry.the_call_site``.
+    The trap can be identified by ``@foo.v1.entry.my_trap``. The name is
+    globally unique and can be used to identify individual traps and call sites
+    in *trap handlers* (see `the API <uvm-client-interface.rest>`__).
 
 Identifiers
 ~~~~~~~~~~~
@@ -351,19 +350,15 @@ where:
 
 A function signature constructor has the form::
 
-    RetTy (ParamTys)
+    (ParamTys) -> (RetTys)
 
-where:
+where both ``ParamTys`` and ``RetTys`` are a list of global names separated by
+spaces for the types of parameters and return values, respectively.
 
-* ``RetTy`` is a global name for the return type and
-* ``ParamTys`` is a list of global names separated by spaces for the types of
-  parameters.
+    Example: The following signature receives no parameters and return no
+    values::
 
-    Example: The following signature receives no parameters and returns
-    ``void``::
-
-        .typedef @void = void
-        .funcsig @empty_func_s = @void ()
+        .funcsig @empty_func_s = () -> ()
 
     The following signature receives a 64-bit integer and a double as parameters
     and returns an object reference to a 64-bit integer::
@@ -371,7 +366,7 @@ where:
         .typedef @double = double
         .typedef @i64 = int<64>
         .typedef @refi64 = ref<@i64>
-        .funcsig @some_func_s = @refi64 (@i64 @double)
+        .funcsig @some_func_s = (@i64 @double) -> (@refi64)
 
 Constant Definition
 ===================
@@ -502,9 +497,9 @@ A **constant constructor** can be the following:
         .typedef @nested_record_t = struct<@i64 @record_t @float>
         .const @nested_record <@nested_record_t> = {@hex1 @record @float2} // nesting
 
-        .typedef @void = void
-        .funcsig @noparamsnoret = @void ()
+        .funcsig @noparamsnoret = () -> ()
 
+        .typedef @void = void
         .typedef @ref_void = ref<@void>
         .const @null_ref <@ref_void> = NULL
 
@@ -580,7 +575,7 @@ A global cell definition has the form::
 
         .funcdef @func VERSION ... <...> {
             %entry():
-                %a = LOAD <@i32> @my_errno       // @my_errno has type @i32
+                %a = LOAD <@i32> @my_errno       // @my_errno has type iref<@i32>
                 STORE <@i32> @my_errno @i32_0
                 ...
         }
@@ -620,7 +615,7 @@ where:
         .typedef @float = float
         .typedef @double = double
 
-        .funcsig @ExampleSig = @i64 (@float @double)
+        .funcsig @ExampleSig = (@float @double) -> (@i64)
 
         .funcdef @example VERSION %v1 <@ExampleSig> {
             ...
@@ -641,20 +636,19 @@ version defined as::
 
     .funcdef Name VERSION NoVersion <Sig> {
         %entry(ParamList):
-            TRAP <@void> KEEPALIVE (ParamList)
+            TRAP <> KEEPALIVE (ParamList)
             TAILCALL <Sig> Name (ParamList)
     }
 
 That is, it will trap to the client, using all parameters as the keep-alive
-variables. If the stack is ever rebound passing the expected ``void`` value, it
-will try to tail-call the same function (**Not necessarily the same hidden
-version!** It may have been defined by the client in the trap!) using the same
-arguments. If an exception is thrown when rebound, the ``TRAP`` will re-throw it
-to the parent frame. The ``cur_func`` API will return the ID of the function.
-This hidden version is still not a real version, so the ``cur_func_ver`` API
-will return 0. The ``TRAP`` is not a real instruction, either, so the
-``cur_inst`` API will also return 0.  ``dump_keepalives`` will dump the
-arguments.
+variables. If the stack is ever rebound passing 0 values, it will try to
+tail-call the same function (**Not necessarily the same hidden version!** It may
+have been defined by the client in the trap!) using the same arguments. If an
+exception is thrown when rebound, the ``TRAP`` will re-throw it to the parent
+frame. The ``cur_func`` API will return the ID of the function.  This hidden
+version is still not a real version, so the ``cur_func_ver`` API will return 0.
+The ``TRAP`` is not a real instruction, either, so the ``cur_inst`` API will
+also return 0.  ``dump_keepalives`` will dump the arguments.
 
 It is an error to have multiple function declarations and/or function
 definitions of the same function name in the same bundle.
@@ -683,6 +677,14 @@ where ``ParamList`` is a list of type-name pairs: ``<T1> N1 <T2> N2 <T3> N3
 ``ExcName`` is the name of the **exception parameter**, which is also a
 (non-normal) parameter. The exception parameter always has the ``ref<void>``
 type. Many instructions follow the colon ``:``.
+
+    Example::
+
+        %bb1(<@T1> %p1 <@T2> %p2 <@T3> %p3):
+            ...
+
+        %bb2() [%exc]:
+            ...
 
 The first basic block is the **entry block**. The entry block must have as many
 parameters as the function parameters (determined by its signature).  The
@@ -720,23 +722,52 @@ and ``SWAPSTACK``.
 Each basic block contains a sequence of **instructions**. An instruction has one
 of the following forms::
 
-    InstName = InstBody
+    ( Name1 Name2 Name3 ... ) = InstName InstBody
 
-    InstBody
+    Name = InstName InstBody
 
-where:
+    InstName InstBody
 
-* ``InstName`` is a name for the instruction, and
-* ``InstBody`` defines the instruction itself.
+The left hand side can be a list of names: ``( Name1 Name2 Name3 ... )``, each
+is bound to a result of an instruction.
 
-The name of an instruction can be omitted in the text form, in which case the
-instruction has no name. The grammar of the ``InstBody`` part for each
-instruction is defined separately in `<instruction-set.rest>`__.
+The latter two forms are syntax sugars. A single name without brackets is a
+syntax sugar of ``( Name )``. If both the name and the equal sign ``=`` are
+omitted, it is equivalent to an empty list of names: ``()``.
 
-    Example::
+The number of results written in the IR must match the actual number of results
+the instruction produces.
+
+The ``InstName`` is optional. When present, it has the form ``[ Name ]``, where
+``Name`` is the name of the instruction. This can be used to identify a
+particular instruction, especially ``CALL`` and ``TRAP``. If ``InstName`` is
+absent, the instruction does not have a name.
+
+    Examples:
+
+    ``%call_site`` is the name of the instruction; ``%rv1``, ``%rv2`` and
+    ``%rv3`` are the names of return values::
+
+        (%rv1 %rv2 %rv3) = [%call_site] CALL <@sig> @callee (%a1 %a2)
+
+    The instruction has no name; ``%rv`` is the return value::
+
+        %rv = ADD <@i64> %x %y
+
+    ``%trap1`` is the name of the instruction; There is no return values. The
+    empty angular bracket ``<>`` means the TRAP is not expecting any return
+    values::
+
+        [%trap1] TRAP <> KEEPALIVE (%x %y %z)
+
+
+The grammar of the ``InstBody`` part for each instruction is defined separately
+in `<instruction-set.rest>`__.
+
+    Full example::
 
         .typedef @i64 = int<64>
-        .funcsig @gcd_sig = @i64 (@i64 @i64)
+        .funcsig @gcd_sig = (@i64 @i64) -> (@i64)
 
         .const @i64_0 <@i64> = 0
 
@@ -755,31 +786,6 @@ instruction is defined separately in `<instruction-set.rest>`__.
             %exit(<@i64> %a):
                 RET %a
         }
-
-..
-
-    NOTE: It is allowed to give names to instructions that has void return
-    values. In this case, the client can refer to such instructions using their
-    names. It is usually used for OSR point instructions, most likely ``TRAP``.
-
-    For example, ``%tr = TRAP <@void>`` is still valid even if ``%tr`` has void
-    type.  This is useful when performing stack introspection. The name
-    identifies the instruction itself, i.e. "Which ``TRAP`` is executed?"::
-    
-        %trap1 = TRAP <@void>
-        ...
-        %trap2 = TRAP <@void>
-    
-    The name ``%tr`` can be interpreted in two ways:
-
-    - The name ``%tr`` identifies the particular instance of ``TRAP``
-      instruction.
-
-    - The name ``%tr`` is an SSA variable of type ``void`` and it is defined by
-      the ``TRAP`` instruction.
-
-    Both are correct. Both ways are true for any other instructions, including
-    those that actually have non-void values.
 
 The last instruction of any basic block must be a **terminator instruction**,
 which is one of the following:
@@ -814,7 +820,7 @@ which is one of the following:
 Function Exposing Definition
 ============================
 
-A **function exposing definition** has the following syntax:
+A **function exposing definition** has the following syntax::
 
     .expose Name = FuncName CallConv Cookie
 

@@ -68,10 +68,11 @@ States of Stacks
 A stack is in one of the following states at any moment. Some operations may
 change its state.
 
-READY<T>
-    The stack is ready to run, but is not running. When bound, a value of type
-    *T* must be supplied. This value will be received by some specific
-    instructions. *T* can be ``void``.
+READY<Ts>
+    (Ts = T1 T2 T3 ..., a list of types) The stack is ready to run, but is not
+    running. When bound, values of types *T1 T2 T3 ...* must be supplied. This
+    value will be received by some specific instructions. *Ts* can be an empty
+    list.
 
 ACTIVE
     A thread is executing on the stack.
@@ -87,10 +88,10 @@ Operation               Current Stack                   New/Destination Stack
 ======================= =============================== =======================
 create new stack        N/A                             READY<void>
 create new thread       N/A                             READY<void> -> ACTIVE
-swap-stack              ACTIVE -> READY<T> or DEAD      READY<U> -> ACTIVE
-@uvm.kill_stack         N/A                             READY<T> -> DEAD
+swap-stack              ACTIVE -> READY<Ts> or DEAD     READY<Us> -> ACTIVE
+@uvm.kill_stack         N/A                             READY<Ts> -> DEAD
 @uvm.thread_exit        ACTIVE -> DEAD                  N/A
-trap to client          ACTIVE -> READY<T>              N/A
+trap to client          ACTIVE -> READY<Ts>             N/A
 undefined function      ACTIVE                          N/A
 stack-related errors    ACTIVE                          N/A
 ======================= =============================== =======================

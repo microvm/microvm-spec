@@ -470,11 +470,7 @@ Void Type
 | 0x0A |
 +------+
 
-The ``void`` type has exactly one value: ``NULL``.
-
-    NOTE: Having exactly one value is equivalent to having no value: both convey
-    no information at all. It is usually implemented as not being represented by
-    any bytes.
+The ``void`` type has no value.
 
 It can only be used in the following ways:
 
@@ -489,25 +485,6 @@ It can only be used in the following ways:
   allowed.
 
 * As the fixed part of a ``hybrid`` to indicate the absence of the fixed part.
-
-* As the return type of instructions and functions, and the type of passed value
-  during SWAP-STACK, to indicate that the instruction/function/swap-stack
-  operation does not return/pass any meaningful value.
-
-  For this reason, the following instructions may take a ``void`` value, i.e.
-  ``NULL``, as their arguments:
-
-  * ``RET``: when returning from a function that returns ``void``.
-  * ``SWAPSTACK`` in the ``PASS_VAL`` clause: when the swappee is expecting a
-    ``void`` value to be passed.
-
-  In addition to many instructions that always return ``void``, the following
-  instructions may return ``void`` if the callee/swappee returns/passes
-  ``void``:
-
-  * ``CALL``
-  * ``CCALL``
-  * ``SWAPSTACK``
 
 Opaque Reference Type
 ---------------------
@@ -547,8 +524,8 @@ A ``NULL`` value of a ``funcref`` type does not refer to any function.
         .typedef @i64 = int<64>
         .typedef @void = void
 
-        .funcsig @sig1 = @i64 (@i64 @i64)
-        .funcsig @sig2 = @void ()
+        .funcsig @sig1 = (@i64 @i64) -> (@i64)
+        .funcsig @sig2 = () -> ()
 
         .typedef @func1 = funcref<@sig1>
         .typedef @func2 = funcref<@sig2>
@@ -685,8 +662,9 @@ space which represents the data type *T*.
 ``ufuncptr`` is the function pointer type. It points to a native function whose
 signature is *sig*.
 
-The type parameter *T* and both the return type and the parameter types of *sig*
-must be *native-safe*.
+The type parameter *T* and both the return types and the parameter types of
+*sig* must be *native-safe*. It is implementation-defined whether multiple
+return values are allowed for a particular calling convention.
 
     For LLVM users: ``uptr<T>`` is the counterpart of pointer types ``T*``.
     ``ufuncptr<sig>`` is the counterpart of function pointers ``R (P1 P2 ...)*``.
@@ -711,16 +689,16 @@ must be *native-safe*.
         .typedef @void          = void          // void
         .typedef @void_p        = uptr<@void>   // void*
         .typedef @size_t        = int<64>       // size_t, ssize_t
-        .funcsig @write_s       = @size_t (@i32 @void_p @size_t)  
+        .funcsig @write_s       = (@i32 @void_p @size_t) -> (@size_t)
         .typedef @write_fp      = ufuncptr<@write_s>
         // @write_fp may point to the native function "write".
 
         // typedef void (*sig_t) (int);
         // sig_t signal(int sig, sig_t func);
         // See man (3) signal.
-        .funcsig @sig_s         = @void (@i32)       
+        .funcsig @sig_s         = (@i32) -> ()
         .typedef @sig_t         = ufuncptr<@sig_s>
-        .funcsig @signal_s      = @sig_t (@i32 @sig_t)
+        .funcsig @signal_s      = (@i32 @sig_t) -> (@sig_t)
         .typedef @signal_fp     = ufuncptr<@signal_s>
         // @signal_fp may point to the native function "signal".
 
