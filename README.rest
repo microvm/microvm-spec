@@ -2,8 +2,10 @@
 Mu Specification
 ================
 
-This is a fork of the `Mu Specification` to support the long-demanded
-"goto-with-value" form.
+This branch still uses the PHI form. There is a
+`goto-with-values <https://github.com/microvm/microvm-spec/tree/goto-with-values>`__
+branch which uses the new form, where PHIs and LANDINGPADs are replaced by basic
+block parameters.
 
 This document aims to provide a detailed description of Mu, a micro virtual
 machine, including its architecture, instruction set and type system.
