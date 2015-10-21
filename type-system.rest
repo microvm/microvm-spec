@@ -41,7 +41,7 @@ The following type constructors are available in Mu:
 - weakref < T >
 - struct < T1 T2 ... >
 - array < T length >
-- hybrid < F V >
+- hybrid < F1 F2 ... V >
 - void
 - funcref < sig >
 - threadref
@@ -79,9 +79,9 @@ There are several kinds of types.
   variant of themselves.
 
 A **member** of a composite type T is either a field of T if T is a struct, or
-an element of T if T is an array or a vector, or the fixed part or any element
-in the variable part if T is a hybrid. A **component** of type T is either
-itself or a member of any component of T.
+an element of T if T is an array or a vector, or a field in the fixed part or
+any element in the variable part if T is a hybrid. A **component** of type T is
+either itself or a member of any component of T.
 
     NOTE: This means a component is anything in a type, including itself and any
     arbitrarily nested members.
@@ -92,9 +92,9 @@ following:
 
 * ``void``, ``int<n>``, ``float`` and ``double`` are *native-safe*.
 
-* ``struct<T1 T2 ...>``, ``array<T n>``, ``vec<T n>`` and ``hybrid<F V>`` are
-  native-safe if all of their type arguments *T1*, *T2*, ..., *T*, *F*, *V* are
-  native-safe.
+* ``struct<T1 T2 ...>``, ``array<T n>``, ``vec<T n>`` and ``hybrid<F1 F2 ...
+  V>`` are native-safe if all of their type arguments *T1*, *T2*, ..., *T*,
+  *F1*, *F2*, ..., *V* are native-safe.
 
 * ``uptr<T>`` and ``ufuncptr<sig>`` are *native-safe* if *T* and the return type
   and all parameter types in *sig* are native-safe. Otherwise the ``uptr`` or
@@ -340,7 +340,7 @@ In the binary form, an integer literal ``nfields`` determines the number of
 fields. Exactly that number of type IDs follows the ``nfields`` literal.
 
     For LLVM users: This is the same as LLVM's structure type, except structures
-    with a "flexible array element" (a 0-length array as the last element)
+    with a "flexible array member" (a 0-length array as the last element)
     corresponds to the ``hybrid`` type in Mu.
 
 ..
@@ -412,30 +412,31 @@ It is not recommended to have SSA variables of ``array`` type.
 Hybrid
 ------
 
-``hybrid < F V >``
+``hybrid < F1 F2 ... V >``
 
-    ``F``
-        *type*: The type of the fixed part
+    ``F1 F2 ...``
+        *list of types*: The types in the fixed part
     ``V``
         *type*: The type of the elements of the variable part
 
-+------+-----+-----+
-| opct | idt | idt |
-+======+=====+=====+
-| 0x09 | F   | V   |
-+------+-----+-----+
++------+---------+-----+-----+-----+-----+
+| opct | lent    | idt | idt | ... | idt |
++======+=========+=====+=====+=====+=====+
+| 0x09 | nfields | F1  | F2  | ... | V   |
++------+---------+-----+-----+-----+-----+
 
 A hybrid is a combination of a fixed-length prefix, i.e. its ``fixed part``, and
 a variable-length array suffix, i.e. its ``variable part``, whose length is
-decided at allocation time. *F* is the type of the fixed part. *V* is the type
-of the *elements* of the variable part.
+decided at allocation time. *F1* *F2* ... are the types of fields in the fixed
+part. *V* is the type of the *elements* of the variable part.
 
     NOTE: This is intended to play the part of "struct with flexible array
-    member" in C99, i.e. ``struct { F fixedPart; V varPart[]; }``.
+    member" in C99, i.e. ``struct { F1 f1; F2 f2; ... V v[]; }``.
 
-*F* can be ``void``. In this case, the fixed part is empty, and the variable
-part is in the beginning of this ``hybrid`` memory location, like a
-variable-length array without a header. *V* cannot be ``void``.
+The fixed part may contain 0 fields. In this case, the fixed part is empty, and
+the variable part is in the beginning of this ``hybrid`` memory location, like a
+variable-length array without a header. The variable part cannot be omitted.
+Neither any fixed-part field nor *V* can be ``void``.
 
 ``hybrid`` cannot be the type of any SSA variable.
 
@@ -448,7 +449,6 @@ rather than determined by the type itself.
 
     Example::
 
-        .typedef @void = void
         .typedef @byte = int<8>
         .typedef @long = int<64>
         .typedef @double = double
@@ -456,8 +456,9 @@ rather than determined by the type itself.
         .typedef @struct1 = struct<@long @long @long>
 
         .typedef @hybrid1 = hybrid<@long @byte>         // one int<64> followed by many int<8>
-        .typedef @hybrid2 = hybrid<@struct1 @double>    // one struct followed by many double
-        .typedef @hybrid3 = hybrid<@void @byte>         // no header. Just many int<8>.
+        .typedef @hybrid2 = hybrid<@long @long @long @double>    // three int<64>, followed by many double
+        .typedef @hybrid3 = hybrid<@struct1 @double>    // similar to @hybrid2, but using struct as the header
+        .typedef @hybrid4 = hybrid<@byte>               // no fixed-part header. Just many int<8>.
 
 Void Type
 ---------
@@ -472,19 +473,12 @@ Void Type
 
 The ``void`` type has no value.
 
-It can only be used in the following ways:
-
-* As the type of allocation units that do not store any values. 
-
-  This allows allocating ``void`` in the heap/stack/global memory. Particularly,
-  the ``NEW`` instruction with the type ``void`` creates a new empty heap object
-  which is not the same as any others. This is similar to the ``new Object()``
-  expression in Java.
-  
-  ``ref<void>``, ``iref<void>``, ``weakref<void>`` and ``uptr<void>`` are also
-  allowed.
-
-* As the fixed part of a ``hybrid`` to indicate the absence of the fixed part.
+It can only be used as the type of allocation units that do not store any
+values.  This allows allocating ``void`` in the heap/stack/global memory.
+Particularly, the ``NEW`` instruction with the type ``void`` creates a new empty
+heap object which is not the same as any others. This is similar to the ``new
+Object()`` expression in Java.  ``ref<void>``, ``iref<void>``, ``weakref<void>``
+and ``uptr<void>`` are also allowed, which can refer/point to "anything".
 
 Opaque Reference Type
 ---------------------
@@ -522,7 +516,6 @@ A ``NULL`` value of a ``funcref`` type does not refer to any function.
     Example::
         
         .typedef @i64 = int<64>
-        .typedef @void = void
 
         .funcsig @sig1 = (@i64 @i64) -> (@i64)
         .funcsig @sig2 = () -> ()
@@ -548,7 +541,7 @@ A ``NULL`` value of a ``funcref`` type does not refer to any function.
 
 ``threadref`` and ``stackref`` are opaque reference types to Mu threads and Mu
 stacks, respectively. They are not interchangeable with reference types. Only
-some special instructions (e.g. ``NEWSTACK``, ``@uvm.new_thread``) or API
+some special instructions (e.g. ``@uvm.new_stack``, ``NEWTHREAD``) or API
 calls can operate on them.
 
 Both ``threadref`` and ``stackref`` values can be ``NULL``, which does not refer

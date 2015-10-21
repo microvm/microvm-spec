@@ -57,7 +57,7 @@ An array type ``array<T n>`` is required if T is implemented and n is less than
     However, arrays must be in the memory. Whether such an array can be
     successfully allocated is a different story.
 
-A hybrid type ``hybrid<F V>`` is required if both ``F`` and ``V`` are
+A hybrid type ``hybrid<Fs V>`` is required if all fields in ``Fs`` and ``V`` are
 implemented.
 
 The void type ``void`` is required.
@@ -158,7 +158,7 @@ in the memory, they have undefined behaviours.
 its variable part.
 
 All memory addressing instructions ``GETIREF``, ``GETFIELDIREF``,
-``GETELEMIREF``, ``SHIFTIREF``, ``GETFIXEDPARTIREF`` and ``GETVARPARTIREF`` give
+``GETELEMIREF``, ``SHIFTIREF`` and ``GETVARPARTIREF`` give
 undefined behaviour when applied to ``NULL`` references. But when applied to
 pointers, these instructions calculates the result by calculating the offset
 according to the memory layout, which is implementation-defined.
@@ -209,8 +209,8 @@ implemented using ``CMPXCHG`` or load-link store-conditional constructs.
 ``CCALL`` is required, but the behaviour is implementation-defined. The
 available calling conventions are implementation-defined.
 
-``NEWSTACK`` is allowed to result in error, in which case the exceptional
-control flow is taken.
+``@uvm.new_stack`` and ``NEWTHREAD`` is allowed to result in error, in which
+case the exceptional control flow is taken.
 
 The availability of ``COMMINST`` is specified in the next section.
 

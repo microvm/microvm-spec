@@ -5,7 +5,7 @@ Instruction Set
 Overview
 ========
 
-Mu uses the static single assignment (SSA) form and a comprehensive but
+Mu uses a variant of static single assignment (SSA) form and a comprehensive but
 low-level instruction set.
 
 Conventions
@@ -55,12 +55,14 @@ present::
 SSA Variables
 =============
 
-Mu uses the static single assignment (SSA) form.
+Mu uses a variant of static single assignment (SSA) form. The single-definition
+rule still applies, but PHI-nodes are replaced with parameters at the beginning
+of basic blocks. Variables also do not live across basic blocks, and must be
+explicitly passed.
 
 An **SSA variable**, or **variable** when unambiguous, holds a data value of a
-specific type. In the SSA form, every variable is defined (assigned) in exactly
-one place, but an SSA variable may hold different values in different contexts
-at different times.
+specific type. Every variable is defined (assigned) in exactly one place, but an
+SSA variable may hold different values in different contexts at different times.
 
     NOTE: The original publications about SSA used the term "SSA form" and
     simply "variable". This specification uses the term "SSA variable" to
@@ -194,7 +196,7 @@ In the binary form, types, signatures and arguments are all represented as IDs.
         CALL     <@sig> @func (%arg0 %arg1 %arg2)
         TAILCALL <@sig> @func (%arg0 %arg1 %arg2)
         CCALL    #DEFAULT <@func_ty @sig> @func (%arg0 %arg1 %arg2)
-        NEWSTACK <@sig> @func (%arg0 %arg1 %arg2)
+        NEWTHREAD %stack PASS_VALUES <@T1 @T2 @T3> (%arg0 %arg1 %arg2)
         COMMINST @some.common.instruction (%arg0 %arg1 %arg2)
 
 Destination Clause
@@ -1824,7 +1826,6 @@ Other Memory Addressing Instructions
 - ``GETFIELDIREF`` ``PTR`` :sub:`opt` ``<`` *T1* *index* ``>`` opnd
 - ``GETELEMIREF``  ``PTR`` :sub:`opt` ``<`` *T1* *T2* ``>`` *opnd* *index*
 - ``SHIFTIREF``    ``PTR`` :sub:`opt` ``<`` *T1* *T2* ``>`` *opnd* *offset*
-- ``GETFIXEDPARTIREF`` ``PTR`` :sub:`opt` ``<`` *T1* ``>`` *opnd*
 - ``GETVARPARTIREF`` ``PTR`` :sub:`opt` ``<`` *T1* ``>`` *opnd*
 
 PTR :sub:`opt`
@@ -1834,9 +1835,9 @@ PTR :sub:`opt`
 T1
     *type*: The referent type of *opnd*.
 
-    - For ``GETFIELDIREF``, *T1* must be ``struct``.
+    - For ``GETFIELDIREF``, *T1* must be ``struct`` or ``hybrid``.
     - For ``GETELEMIREF``, *T1* must be ``array``.
-    - For ``GETFIXEDPARTIREF`` and ``GETVARPARTIREF``, *T1* must be ``hybrid``.
+    - For ``GETVARPARTIREF``, *T1* must be ``hybrid``.
 
 T2
     *type*, must be ``int``: The type of *index* (for ``GETELEMIREF``) and
@@ -1856,10 +1857,10 @@ opnd
 result
     Type is ``iref<U>`` or ``uptr<U>``: The derived reference/pointer.
 
-    - For ``GETFIELDIREF``, *U* is the type of the *index*-th field of *T1*.
+    - For ``GETFIELDIREF``, *U* is the type of the *index*-th field of struct
+      *T1* or the fixed part of hybrid *T1*.
     - For ``GETELEMIREF``, *U* is the element type of *T1*.
     - For ``SHIFTIREF``, *U* is the same as *T1*.
-    - For ``GETFIXEDPARTIREF``, *U* is the type of the fixed part of *T1*.
     - For ``GETVARPARTIREF``, *U* is the type of the elements of the variable
       part of *T1*.
 
@@ -1887,14 +1888,6 @@ SHIFTIREF:
 | 0x17 | PTR  | T1  | T2  | opnd   | offset |
 +------+------+-----+-----+--------+--------+
 
-GETFIXEDPARTIREF:
-
-+------+------+-----+------+
-| opct | opct | idt | idt  |
-+======+======+=====+======+
-| 0x18 | PTR  | T   | opnd |
-+------+------+-----+------+
-
 GETVARPARTIREF:
 
 +------+------+-----+------+
@@ -1904,7 +1897,8 @@ GETVARPARTIREF:
 +------+------+-----+------+
 
 The ``GETFIELDIREF`` instruction gets an internal reference/pointer to the
-*index*-th field of the struct referenced by *opnd*.
+*index*-th field of the struct or the fixed part of the hybrid referenced by
+*opnd*.
 
 The ``GETELEMIREF`` instruction gets an internal reference/pointer to the
 *index*-th element of the array referenced by *opnd*.
@@ -1918,9 +1912,6 @@ moves the reference/pointer backwards by the absolute value of *offset*.
 For ``GETELEMIREF`` and ``SHIFTIREF``, *T2* can be any integer type and is
 treated as signed. When working with internal references, if the resulting
 memory location is outside the range of the array, it has undefined behaviour.
-
-The ``GETFIXEDPARTIREF`` instruction gets an internal reference/pointer to the
-fixed part of the hybrid referenced by *opnd*.
 
 The ``GETVARPARTIREF`` instruction gets an internal reference/pointer to the
 first (0-th) element in the variable part of the hybrid referenced by *opnd*.
@@ -1946,18 +1937,27 @@ elements, the ``GETVARPARTIREF`` has undefined behaviour.
 
         %bar_r = NEW <@Bar>                                 // ref<@Bar>
         %bar_i = GETIREF <@Bar> %bar_r                      // iref<@Bar>
-        %bar_5 = GETELEMIREF <@Bar @i64> %bar_i @I64_5      // iref<@i32> the 5-th element
-        %bar_6 = SHIFTIREF   <@Bar @i64> %bar_5 @I64_1      // iref<@i32> the 6-th element
-        %bar_4 = SHIFTIREF   <@Bar @i64> %bar_6 @I64_NEG_2  // iref<@i32> the 4-th element
+        %bar_5 = GETELEMIREF <@Bar @i64> %bar_i @I64_5      // iref<@i32> the 5th element
+        %bar_6 = SHIFTIREF   <@Bar @i64> %bar_5 @I64_1      // iref<@i32> the 6th element
+        %bar_4 = SHIFTIREF   <@Bar @i64> %bar_6 @I64_NEG_2  // iref<@i32> the 4th element
 
         .typedef @Baz = hybrid <@Foo @i8>
 
         .const @I64_42 <@i64> = 42
 
         %baz_i = ALLOCAHYBRID <@Bar @i64> @I64_42           // iref<@Baz>
-        %baz_f = GETFIXEDPARTIREF <@Bar> %baz_i             // iref<@Foo>
-        %baz_v = GETVARPARTIREF   <@Bar> %baz_i             // iref<@i8> the 0-th element
-        %baz_v5 = SHIFTIREF <@Bar @i64> %baz_i @I64_5       // iref<@i8> the 5-th element
+        %baz_f = GETFIELDIREF <@Bar 0> %baz_i               // iref<@Foo>
+        %baz_v = GETVARPARTIREF   <@Bar> %baz_i             // iref<@i8> the 0th element
+        %baz_v5 = SHIFTIREF <@Bar @i64> %baz_i @I64_5       // iref<@i8> the 5th element
+
+        .typedef @BigHybrid = hybrid <@i32 @i64 @double @i8>    // 3 fields in the fixed part.
+
+        %bh_i = ALLOCAHYBRID <@BigHybrid @i64> @I64_42      // iref<@BigHybrid>
+        %bh_0 = GETFIELDIREF <@BigHybrid 0> %bh_i           // iref<@i32>
+        %bh_1 = GETFIELDIREF <@BigHybrid 1> %bh_i           // iref<@i64>
+        %bh_2 = GETFIELDIREF <@BigHybrid 2> %bh_i           // iref<@double>
+        %bh_v = GETVARPARTIREF <@BigHybrid> %bh_i           // iref<@i8> the 0th element
+        %bh_v2 = SHIFTIREF <@i8 @i64> %bh_v @I64_2          // iref<@i8> the 1st element
 
 ..
 
@@ -2599,7 +2599,7 @@ However, whether a native frame can be popped is implementation-defined.
         // Define necessary constants and types
         .const @FD = 1      // 1 is for stdout
 
-        .typedef @DynByteArray = hybrid<@void @i8>
+        .typedef @DynByteArray = hybrid<@i8>        // No fixed part. Just a @i8 array of unknown length.
         .typedef @irefi8 = iref<@i8>
         .typedef @ptri8  = uptr<@i8>
         .const @ARY_SZ <@i64> = 13
@@ -2671,7 +2671,7 @@ exc
 +------+--------+--------+
 | opct | idList | idList |
 +======+========+========+
-| 0x01 | Ts    | vals   |
+| 0x01 | Ts     | vals   |
 +------+--------+--------+
 
 *newStackClause* with ``THROW_EXC``:
@@ -2807,7 +2807,11 @@ The ``SWAPSTACK`` instruction is an OSR point.
 
 ..
 
-    For LLVM users: See ``NEWSTACK``.
+    For LLVM users: There is no native facilities provided by the official LLVM,
+    but `Dolan, Muralidharan and Gregg
+    <http://dl.acm.org/citation.cfm?id=2400695>`__ proposed an extension to LLVM
+    to support the SWAPSTACK operation. The SWAPSTACK interface of Mu is
+    inspired by their works.
 
 ..
 

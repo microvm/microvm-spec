@@ -302,8 +302,8 @@ An evaluation A **synchronises with** another evaluation B if:
 
 ..
 
-    NOTE: A thread can be created by the ``@uvm.new_thread`` common instruction
-    or the ``new_thread`` API function.
+    NOTE: A thread can be created by the ``NEWTHREAD`` instruction or the
+    ``new_thread`` API function.
 
     NOTE: Since there is no explicit heap memory management in Mu, the
     "synchronises with" relation in C involving ``free`` and ``realloc`` does
@@ -574,8 +574,8 @@ The rules of memory access applies to functions as if
     1. calling a function by the ``CALL`` or ``TAILCALL`` instructions, or by
        native programs through exposed Mu functions, or
 
-    2. creating a new stack by the ``NEWSTACK`` instruction or the ``new_stack``
-       API, or
+    2. creating a new stack by the ``@uvm.new_stack`` instruction or the
+       ``new_stack`` API, or
 
     3. pushing a new frame by the ``push_frame`` API or the
        ``@uvm.meta.push_frame`` instruction.

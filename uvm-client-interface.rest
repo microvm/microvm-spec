@@ -322,8 +322,9 @@ context and return handles to them. Specifically:
   type ``int<len>``, truncated or zero-extended.
 
 * ``handle_from_float``:    Convert a C ``float`` value to a Mu ``float`` value.
-  * ``handle_from_double``:   Convert a C ``double`` value to a Mu ``double``
-    value.
+
+* ``handle_from_double``:   Convert a C ``double`` value to a Mu ``double``
+  value.
 
 * ``handle_from_ptr``:      Convert a C object pointer to a Mu pointer value.
   The Mu type is ``mu_type`` which must be ``uptr<T>`` for some type ``T``.
@@ -566,14 +567,13 @@ Memory addressing
     MuIRefValue     (*get_field_iref     )(MuCtx *ctx, MuIRefValue opnd, int field);
     MuIRefValue     (*get_elem_iref      )(MuCtx *ctx, MuIRefValue opnd, MuIntValue index);
     MuIRefValue     (*shift_iref         )(MuCtx *ctx, MuIRefValue opnd, MuIntValue offset);
-    MuIRefValue     (*get_fixed_part_iref)(MuCtx *ctx, MuIRefValue opnd);
     MuIRefValue     (*get_var_part_iref  )(MuCtx *ctx, MuIRefValue opnd);
 
 * ``get_iref`` converts an object reference into an internal reference to the
   memory location of the whole object.
 
 * ``get_field_iref`` gets an iref to the ``field``-th field of the struct
-  referred by the iref ``opnd``.
+  or of the fixed part of a hybrid referred by the iref ``opnd``.
 
 * ``get_elem_iref`` gets an iref to the ``index``-th element of the array or
   vector referred by the iref ``opnd``.
@@ -582,9 +582,6 @@ Memory addressing
   (including arrays, vectors and the variable part of hybrids in the memory, see
   `Mu and the Memory <uvm-memory.rest>`__). It returns the iref of ``opnd`` moved by
   ``offset`` (forward if positive, backward if negative).
-
-* ``get_fixed_part_iref`` gets an iref to the fixed part of the hybrid referred
-  by iref ``opnd``.
 
 * ``get_var_part_iref`` gets an iref to the 0-th element of the variable part of
   the hybrid referred by iref ``opnd``.

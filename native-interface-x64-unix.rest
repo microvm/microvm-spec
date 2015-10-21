@@ -59,12 +59,12 @@ All non-native-safe types have unspecified sizes and alignments.
     implementations are encouraged to support them in a way compatible with the
     AMD64 ABI.
 
-The structure type ``struct<...>`` and the hybrid type ``hybrid<F V>`` is
+The structure type ``struct<...>`` and the hybrid type ``hybrid<Fs V>`` is
 aligned to its most strictly aligned component. Each member is assigned to the
 lowest available offset with the appropriate alignment. This rule applies to
-hybrids as if the hybrid ``hybrid<F V>`` is a struct of ``F`` followed by an
-array of ``V`` of the actual length. Arrays ``array<T>`` use the same alignment
-as its elements.
+hybrids as if the hybrid ``hybrid<Fs V>`` is a struct of fields ``Fs`` followed
+by a flexible array member (as in C99) ``V fam[];``.  Arrays ``array<T>`` use
+the same alignment as its elements.
 
     NOTE: There is no union types in Mu. Arrays do not have special rules of
     16-byte alignment as the AMD64 ABI does. Mu arrays must be declared as an
@@ -86,7 +86,8 @@ The Default Calling Convention
 The *default* calling convention, denoted by the ``#DEFAULT`` flag in the IR,
 follows the AMD64 ABI in register usage, stack frame structure, parameter
 passing and returning. The parameter types and the return types are mapped to C
-types according to the above table. As a special case, if the native function
+types according to the above table. Functions in this calling convention can
+return at most one value. As a special case, if the native function signature
 returns void, the corresponding Mu signature returns no values ``(...) -> ()``.
 Mu ``struct`` and ``array`` types are mapped to C structs of corresponding
 members. ``array`` cannot be the type of parameters or return values because C

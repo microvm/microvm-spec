@@ -129,8 +129,8 @@ the type of data value the memory location represents:
 * The initial value of ``tagref64`` is a floating point number which is
   positive zero.
 * The initial values of all fields or elements in ``struct``, ``array``,
-  ``vector`` and the variable part of ``hybrid`` are the initial values
-  according to their respective types.
+  ``vector`` and the fixed and variable part of ``hybrid`` are the initial
+  values according to their respective types.
 
 Garbage Collection
 ------------------
@@ -385,7 +385,8 @@ A component C is a **prefix** of a type T if any of the following is true.
 
 + *C* is *T* itself.
 + *T* is a ``struct`` and *C* is its first field.
-+ *T* is a ``hybrid`` and *C* is its fixed part.
++ *T* is a ``hybrid`` and *C* is its first field of the fixed part, or the fixed
+  part of *T* has no fields and *C* is the first element of the variable part.
 + *T* is an ``array<T n>`` or ``vector<T n>`` and n >= 1, and *C* is its first
   element.
 + *C* is a prefix of another prefix of *T*.
@@ -411,7 +412,7 @@ Nested ``array``, ``vector`` and variable part of ``hybrid`` can be considered
 as a single memory array with the innermost element type of the nested type as
 the element type.
 
-    Example: The variable part of ``hybrid<void array<array<vector<float 4> 10
+    Example: The variable part of ``hybrid<T array<array<vector<float 4> 10
     20>>`` can be treated as:
 
     + a memory array of ``float``, or,

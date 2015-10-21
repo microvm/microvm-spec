@@ -47,10 +47,10 @@ instructions or changing the grammar.
     implement those special high-level language functions in "ordinary" Mu IR
     code, which may or may not involve common instructions. For example,
     creating a thread is a "magic" in Java, but it is not more special than
-    executing an instruction (``@uvm.new_thread``) in Mu. Some Java libraries
-    require Mu to make a ``CCALL`` to some C functions which are provided by the
-    JVM, and they slip under the level of Mu. But Mu and the client always know
-    the fact that "it call C function" and it is not magic.
+    executing an instruction (``NEWTHREAD``) in Mu. Some Java libraries require
+    Mu to make a ``CCALL`` to some C functions which are provided by the JVM,
+    and they slip under the level of Mu. But Mu and the client always know the
+    fact that "it call C function" and it is not magic.
 
 This document uses the following notation::
 
@@ -85,14 +85,6 @@ of ``%func``.
 
 This instruction continues exceptionally if Mu failed to create the stack. The
 exception parameter receives NULL.
-
-..
-
-    For LLVM users: There is no native facilities provided by the official LLVM,
-    but `Dolan, Muralidharan and Gregg
-    <http://dl.acm.org/citation.cfm?id=2400695>`__ proposed an extension to LLVM
-    to support the SWAPSTACK operation. The SWAPSTACK interface of Mu is
-    inspired by their works.
 
 ::
 

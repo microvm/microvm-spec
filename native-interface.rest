@@ -324,7 +324,6 @@ See `Instruction Set <instruction-set.rest>`__ and `Common Instructions
   * ``GETFIELDIREF``
   * ``GETELEMIREF``
   * ``SHIFTIREF``
-  * ``GETFIXEDPARTIREF``
   * ``GETVARPARTIREF``
   * ``LOAD``
   * ``STORE``
@@ -340,7 +339,6 @@ example:
 * ``%new_ptr = GETFIELDIREF PTR <@some_struct 3>   %ptr_to_some_struct``
 * ``%new_ptr = GETELEMIREF  PTR <@some_array @i64> %ptr_to_some_array @const1``
 * ``%new_ptr = SHIFTIREF    PTR <@some_elem  @i64> %ptr_to_some_elem  @const2``
-* ``%new_ptr = GETFIXEDPARTIREF PTR <@some_hybrid> %ptr_to_some_hybrid``
 * ``%new_ptr = GETVARPARTIREF   PTR <@some_hybrid> %ptr_to_some_hybrid``
 * ``%old_val = LOAD          PTR SEQ_CST         <@T> %ptr_to_T``
 * ``%void    = STORE         PTR SEQ_CST         <@T> %ptr_to_T %newval``

@@ -807,9 +807,11 @@ which is one of the following:
   - ``NEW``, ``NEWHYBRID``, ``ALLOCA``, ``ALLOCAHYBRID``
   - ``LOAD``, ``STORE``, ``CMPXCHG``, ``ATOMICRMW``
   - ``TRAP``, ``WATCHPOINT``
-  - ``NEWSTACK``, ``SWAPSTACK``
+  - ``NEWTHREAD``, ``SWAPSTACK``
   - Some `Common Instructions <common-insts.rest>`__ when having exception
-    clause (currently none)
+    clause
+
+    - ``@uvm.new_stack``
 
 ..
 
@@ -861,10 +863,10 @@ function.
 After a function definition redefines a function, all calls to the function that
 happen after the bundle loading operation will call the newly defined version of
 the function. Defines of functions (bundle loading) and uses of functions
-(including function calls and the creation of stacks, i.e. the ``NEWSTACK``
-instruction or the ``new_stack`` API) obey the memory model of the ``RELAXED``
-order as if the definition is a store and the use is a load. See `Memory Model
-<memory-model.rest>`__.
+(including function calls and the creation of stacks, i.e. the
+``@uvm.new_stack`` instruction or the ``new_stack`` API) obey the memory model
+of the ``RELAXED`` order as if the definition is a store and the use is a load.
+See `Memory Model <memory-model.rest>`__.
 
 All existing activations of any functions remain unchanged, that is, they remain
 to be the old versions of the functions. 

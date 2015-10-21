@@ -190,7 +190,6 @@ struct MuCtx {
     MuIRefValue     (*get_field_iref     )(MuCtx *ctx, MuIRefValue opnd, int field);
     MuIRefValue     (*get_elem_iref      )(MuCtx *ctx, MuIRefValue opnd, MuIntValue index);
     MuIRefValue     (*shift_iref         )(MuCtx *ctx, MuIRefValue opnd, MuIntValue offset);
-    MuIRefValue     (*get_fixed_part_iref)(MuCtx *ctx, MuIRefValue opnd);
     MuIRefValue     (*get_var_part_iref  )(MuCtx *ctx, MuIRefValue opnd);
 
     // Memory accessing
