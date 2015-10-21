@@ -2550,11 +2550,11 @@ The return values of ``CCALL`` are the return values of the native callee.
 
 ``CCALL`` cannot receive exceptions thrown by C++.
 
-``CCALL`` is an OSR point. A stack may enter the ``READY<T>`` state with some Mu
-frames stopping on ``CCALL`` instructions. If the top frame is stopping at this
-instruction, the value passed to the stack when rebinding becomes the return
-value of this instruction. However, whether a native frame can be popped is
-implementation-defined.
+``CCALL`` is an OSR point. A stack may enter the ``READY<Rs>`` state, where Rs
+are the return types of the callee, with some Mu frames stopping on ``CCALL``
+instructions. If the top frame is stopping at this instruction, the value passed
+to the stack when rebinding becomes the return value of this instruction.
+However, whether a native frame can be popped is implementation-defined.
 
     For LLVM users: Mu is not designed to be compatible with C and functions
     defined in Mu IR does not use the native C ABI. This instruction is
@@ -2959,8 +2959,8 @@ See `<common-insts.rest>`__ for a complete list of common instructions.
             // Handle signed integer overflow here.
 
         // extra stack/thread operations
-        %s = NEWSTACK <...> @foo (...)
-        %t = COMMINST @uvm.new_thread (%s)
+        %s = COMMINST @uvm.new_stack <[@sig]> (@func)
+        %t = NEWTHREAD %s THROW_EXC %some_exc
 
         // the proper thread exit
         COMMINST @uvm.thread_exit       // no type args or value args

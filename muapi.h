@@ -18,7 +18,6 @@ typedef void *MuIRefValue;          // iref<T>
 typedef void *MuStructValue;        // struct<...>
 typedef void *MuArrayValue;         // array<T l>
 typedef void *MuVectorValue;        // vector<T l>
-typedef void *MuVoidValue;          // void
 typedef void *MuFuncRefValue;       // funcref<sig>
 typedef void *MuThreadRefValue;     // threadref
 typedef void *MuStackRefValue;      // stackref
@@ -36,9 +35,11 @@ typedef void (*MuCFP)();
 
 // Result of a trap handler
 typedef int MuTrapHandlerResult;
+// Used by new_thread
+typedef int MuHowToResume;
 
 #define MU_THREAD_EXIT          0x00
-#define MU_REBIND_PASS_VALUE    0x01
+#define MU_REBIND_PASS_VALUES   0x01
 #define MU_REBIND_THROW_EXC     0x02
 
 // Declare the types here because they are used in the following signatures.
@@ -48,7 +49,8 @@ typedef struct MuCtx MuCtx;
 // Signature of the trap handler
 typedef void (*MuTrapHandler)(MuCtx *ctx, MuThreadRefValue thread,
         MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
-        MuStackRefValue *new_stack, MuValue *value, MuRefValue *exception,
+        MuStackRefValue *new_stack, MuValue *values, int nvalues,
+        MuRefValue *exception,
         MuCPtr userdata);
 
 // Memory orders
@@ -202,8 +204,9 @@ struct MuCtx {
     void        (*fence    )(MuCtx *ctx, MuMemOrd ord);
 
     // Thread and stack creation and stack destruction
-    MuStackRefValue     (*new_stack )(MuCtx *ctx, MuFuncRefValue func, MuValue *args, int nargs);
-    MuThreadRefValue    (*new_thread)(MuCtx *ctx, MuStackRefValue stack);
+    MuStackRefValue     (*new_stack )(MuCtx *ctx, MuFuncRefValue func);
+    MuThreadRefValue    (*new_thread)(MuCtx *ctx, MuStackRefValue stack,
+                            MuHowToResume *htr, MuValue *vals, int nvals, MuRefValue *exc);
     void                (*kill_stack)(MuCtx *ctx, MuStackRefValue stack);
 
     // Stack introspection

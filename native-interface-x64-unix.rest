@@ -86,10 +86,11 @@ The Default Calling Convention
 The *default* calling convention, denoted by the ``#DEFAULT`` flag in the IR,
 follows the AMD64 ABI in register usage, stack frame structure, parameter
 passing and returning. The parameter types and the return types are mapped to C
-types according to the above table. Mu ``struct`` and ``array`` types are mapped
-to C structs of corresponding members. ``array`` cannot be the type of
-parameters or return values because C disallows this, but arrays within structs
-and pointers to arrays are is allowed.
+types according to the above table. As a special case, if the native function
+returns void, the corresponding Mu signature returns no values ``(...) -> ()``.
+Mu ``struct`` and ``array`` types are mapped to C structs of corresponding
+members. ``array`` cannot be the type of parameters or return values because C
+disallows this, but arrays within structs and pointers to arrays are is allowed.
 
 Arguments and return values are passed in registers and the memory according to
 the AMD64 ABI, with the types of Mu arguments and the return type mapped to the

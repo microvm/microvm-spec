@@ -109,7 +109,6 @@ opaque **handles**. Those handles are defined as::
     typedef void *MuIRefValue;          // iref<T>
     typedef void *MuStructValue;        // struct<...>
     typedef void *MuArrayValue;         // array<T l>
-    typedef void *MuVoidValue;          // void
     typedef void *MuFuncRefValue;       // funcref<sig>
     typedef void *MuThreadRefValue;     // threadref
     typedef void *MuStackRefValue;      // stackref
@@ -669,8 +668,13 @@ Stack and thread operations
 ::
 
     MuStackRefValue     (*new_stack )(MuCtx *ctx, MuFuncRefValue func);
-    MuThreadRefValue    (*new_thread)(MuCtx *ctx, MuStackRefValue stack, MuValue *vals, int nvals);
+    MuThreadRefValue    (*new_thread)(MuCtx *ctx, MuStackRefValue stack,
+                            MuHowToResume *htr, MuValue *vals, int nvals, MuRefValue *exc);
     void                (*kill_stack)(MuCtx *ctx, MuStackRefValue stack);
+
+    typedef int MuHowToResume;
+    #define MU_REBIND_PASS_VALUES   0x01
+    #define MU_REBIND_THROW_EXC     0x02
 
 ``new_stack`` creates a new Mu stack with ``func`` as the bottom function.
 Returns a stackref to the new stack. The new stack stops in the very beginning
@@ -678,24 +682,24 @@ of ``func``, and its state is ``READY<Ts>``, where *Ts* is the parameter types
 of ``func``.
 
 ``new_thread`` creates a new Mu thread and binds it to ``stack``. ``stack`` must
-be in the ``READY<Ts>`` state for some types *Ts*. Arguments are provided in the
-``args`` array.  ``nargs`` is the number of arguments. The type of arguments
-must match the signature of ``func``.Returns a threadref to the new thread.
+be in the ``READY<Ts>`` state for some types *Ts*. ``*htr`` determines how to
+bind to the stack. Possible values are ``MU_REBIND_PASS_VALUES`` for passing
+values and ``MU_REBIND_THROW_EXC`` for throwing an exception. Values are
+provided by the ``args`` array. ``nargs`` is the number of values. The types of
+values must match *Ts*. The exception is provided by ``*exc``. Returns a
+threadref to the new thread.
 
-``kill_stack`` kills the ``stack``. The stack must be in the ``READY<T>`` state,
-where *T* can be void. The stack enters the ``DEAD`` state.  If the stack
-contains native frames, the behaviour is implementation-defined.
+``kill_stack`` kills the ``stack``. The stack must be in the ``READY<Ts>`` state
+for some *Ts*.  The stack enters the ``DEAD`` state.  If the stack contains
+native frames, the behaviour is implementation-defined.
 
 ``func`` and ``stack`` must not be ``NULL``.
 
-    For Lua users: ``new_stack`` is similar to creating a coroutine by creating
-    a new ``lua_State`` and pushing the function and its arguments.
-    ``new_thread`` is like resuming a coroutine, but on a different stack, and
-    Mu supplies the arguments when creating the stack rather than creating the
-    thread. The real counterpart of ``lua_resume`` is the ``SWAPSTACK``
-    instruction, which is not available in the API. ``kill_stack`` is similar to
-    ``lua_close``.
-
+    For Lua users: ``new_stack`` is similar to ``coroutine.create``.
+    ``new_thread`` is similar to ``coroutine.resume``, but actually creates a
+    new thread. The real counterpart of ``lua_resume`` is the ``SWAPSTACK``
+    instruction, which is in the Mu IR but not available in the API.
+    ``kill_stack`` is similar to ``lua_close``.
 
     For JVM users: The JVM does not distinguish stacks and threads. The closest
     counterpart is the JVM TI function ``StopThread``, but the Mu ``kill_stack``
@@ -756,16 +760,15 @@ On-stack replacement
 ::
 
     void        (*pop_frame )(MuCtx *ctx, MuStackRefValue stack);
-    void        (*push_frame)(MuCtx *ctx, MuStackRefValue stack, MuFuncRefValue func, MuValue *args, int nargs);
+    void        (*push_frame)(MuCtx *ctx, MuStackRefValue stack, MuFuncRefValue func);
 
 * ``pop_frame`` pops the top frame of the stack. Popping native frames has
   implementation-defined behaviour. Popping a Mu frame changes the state of the
-  stack to ``READY<T>`` where T is the return type of the function of the popped
-  frame.
+  stack to ``READY<Ts>`` where Ts are the return types of the function of the
+  popped frame.
 
 * ``push_frame`` creates a new frame on the top of ``stack`` for function
-  ``func``, using the values in the ``args`` array as its arguments. ``nargs``
-  is the number of arguments. Arguments must match the signature of ``func``.
+  ``func``.
 
   If the previous stack top frame is a Mu frame, it must be pausing on the
   ``CALL`` instruction. The return type of ``func`` must be the same as return
@@ -774,9 +777,10 @@ On-stack replacement
   If the previous stack top frame is a native frame, the new function must
   have the same return type as the previous Mu callee.
 
-  After ``push_frame``, the stack enters the ``READY<void>`` state. When the
-  stack is rebound, it continues from the beginning of ``func``. The return
-  value or exceptions from ``func`` are received by the caller.
+  After ``push_frame``, the stack enters the ``READY<Ts>`` state where Ts are
+  the argument types of ``func``. When the stack is rebound, it continues from
+  the beginning of ``func``. The return value or exceptions from ``func`` are
+  received by the caller.
 
 ..
 
@@ -920,7 +924,8 @@ The signature of trap handlers is::
 
     typedef void (*MuTrapHandler)(MuCtx *ctx, MuThreadRefValue thread,
             MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
-            MuStackRefValue *new_stack, MuValue *value, MuRefValue *exception,
+            MuStackRefValue *new_stack, MuValue *values, int nvalues,
+            MuRefValue *exception,
             MuCPtr userdata);
 
 where::
@@ -928,7 +933,7 @@ where::
     typedef int MuTrapHandlerResult;
 
     #define MU_THREAD_EXIT          0x00
-    #define MU_REBIND_PASS_VALUE    0x01
+    #define MU_REBIND_PASS_VALUES   0x01
     #define MU_REBIND_THROW_EXC     0x02
 
 ``ctx`` is a new client context created for this particular trap event.
@@ -944,18 +949,12 @@ close it manually.
 Before returning, the trap handler should set ``*result``:
 
 * ``MU_THREAD_EXIT``: The thread ``thread`` terminates.
-* ``Mu_REBIND_PASS_VALUE``: The thread ``thread`` will be rebound to a stack
-  ``*new_stack``. The value ``*value`` is passed to ``*new_stack``. The type of
-  ``*value`` must match the type expected by ``*new_stack``.
+* ``Mu_REBIND_PASS_VALUES``: The thread ``thread`` will be rebound to a stack
+  ``*new_stack``. The values ``*values`` are passed to ``*new_stack``. The types
+  of ``*values`` must match the type expected by ``*new_stack``. ``nvalues`` is
+  the number of elements in the ``*values`` array.
 * ``Mu_REBIND_THROW_EXC``: The thread ``thread`` will be rebound to a stack
   ``*new_stack``. It throws exception ``*exception`` to the stack.
-
-..
-
-    NOTE: More often than not, it is desirable to pass the ``void`` value:
-    ``NULL``. The client should have pre-defined a Mu ``void`` constant, such
-    as: ``.const @VOID <@void> = NULL``. Then this constant can be obtained by
-    ``ctx->handle_from_const``.
 
 In all cases, if ``*new_stack``, ``*value`` and/or ``*exception`` are used, they
 must be set and must be held by ``ctx``.

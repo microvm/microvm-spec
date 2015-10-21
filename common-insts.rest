@@ -64,7 +64,7 @@ present, they mean that the common instruction accepts exception clause or
 keepalive clause, respectively.  ``RTs`` are the return types. If the type
 parameter list or the value parameter list are omitted, it means the common
 instruction takes no type parameters or value parameters, respectively. If the
-return type is omitted, it returns ``void``.
+return type is omitted, it returns no results (equivalent to ``-> ()``).
 
 The names of many common instructions are grouped by prefixes, such as
 ``@uvm.tr64.``. In this document, their common prefixes may be omitted in their
@@ -271,7 +271,7 @@ Object pinning
 ::
 
     [0x240]@uvm.native.pin   <T> (%opnd: T) -> uptr<U>
-    [0x241]@uvm.native.unpin <T> (%opnd: T) -> void
+    [0x241]@uvm.native.unpin <T> (%opnd: T)
 
 *T* must be ``ref<U>`` or ``iref<U>`` for some U.
 
@@ -306,7 +306,7 @@ convention *callConv* with cookie *cookie*.
 
 ::
 
-    [0x243]@uvm.native.unexpose [callconv] (%value: U) -> void
+    [0x243]@uvm.native.unexpose [callconv] (%value: U)
 
 *callconv* is a platform-specific calling convention flag. *U* is determined by
 the calling convention.
@@ -335,7 +335,7 @@ line::
     .typedef @uvm.meta.refs    = hybrid <int<64> ref<void>> // ID: 0x262
     .typedef @uvm.meta.refs.r  = ref<@uvm.meta.refs.r>      // ID: 0x263
 
-    .funcsig @uvm.meta.trap_handler.sig       = void (stackref int<32> ref<void>)   // ID: 0x264
+    .funcsig @uvm.meta.trap_handler.sig       = (stackref int<32> ref<void>) -> ()   // ID: 0x264
 
 In ``bytes`` and ``refs``, the fixed part is the length of the variable part.
 ``bytes`` represents a byte array. ASCII strings are also represented this way.
@@ -407,16 +407,14 @@ On-stack replacement
 ::
 
     [0x258]@uvm.meta.pop_frame (%stack: stackref)
-    [0x259]@uvm.meta.push_frame <[sig]> (%stack: stackref, %func: funcref<sig>, ...)
+    [0x259]@uvm.meta.push_frame <[sig]> (%stack: stackref, %func: funcref<sig>)
 
 ``%stack`` and ``%func`` must not be ``NULL``.
 
 - ``pop_frame`` pops the top frame of the stack ``%stack``.
 
 - ``push_frame`` creates a new frame on top of the stack ``%stack`` for the Mu
-  function ``%func``. ``%func`` must have the signature ``sig``. There are many
-  arguments after ``%func``. Each will be an argument to ``%func``. Their types
-  must match the argument types of ``%func``.
+  function ``%func``. ``%func`` must have the signature ``sig``.
   
   The return type of ``%func`` must match the expected return type of the
   previous frame. If the previous frame is a native frame, the new function must
@@ -452,9 +450,8 @@ A trap handler takes three parameters:
 2. The watchpoint ID, or 0 if triggered by the ``TRAP`` instruction.
 3. The user data, which is provided when registering.
 
-A trap handler is run by the same Mu thread that caused the trap and is
-guaranteed to run on a different stack from the one that caused the trap. The
-stack that runs the trap handler is allowed to be killed.
+A trap handler is run by the same Mu thread that caused the trap and is executed
+on a new stack.
 
 A trap handler *usually* terminates by either executing the ``@uvm.thread_exit``
 instruction (probably also kill the old stack before exiting), or ``SWAPSTACK``

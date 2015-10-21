@@ -347,7 +347,6 @@ a dependency from* A, if:
 
 - the data value of A is used as a data argument of B unless:
 
-  * the value of A has type void, or
   * A is used in the ``KEEPALIVE`` clause of B, or
   * B is a ``SELECT`` instruction and A is its ``cond`` argument or a is the
     ``iftrue`` or ``iffalse`` argument not selected by ``cond``, or

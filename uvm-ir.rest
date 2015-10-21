@@ -187,7 +187,7 @@ The global names are inferred from their syntactic parents:
 
     Example::
 
-        .funcsig @fac.sig = ... (... ...)
+        .funcsig @fac.sig = (... ...) -> (...)
 
         .funcdef @fac VERSION %v1 <@fac.sig> {
             %entry(<@i32> %n):

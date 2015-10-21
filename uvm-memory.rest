@@ -189,7 +189,8 @@ value of the strong variant of type *T*.
 
 A **store** operation has parameters ``(ord, T, loc, newVal)``. *ord is the
 memory order of the operation. *T* is the type of *loc*, a memory location.
-*newVal* is a value whose type is the strong variant of *T*. The result is void.
+*newVal* is a value whose type is the strong variant of *T*. This operation does
+not produce values as result.
 
 A **compare exchange** operation is an atomic read-modify-write operation. Its
 parameters are ``(isWeak, ordSucc, ordFail, T, loc, expected, desired)``.
