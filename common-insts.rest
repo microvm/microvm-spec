@@ -80,8 +80,8 @@ Thread and Stack operations
 Create a new stack with ``%func`` as the stack-bottom function. ``%func`` must
 have signature ``sig``. Returns the stack reference to the new stack.
 
-The new stack is in the state **READY<Ts>**, where *Ts* is the parameter types
-of ``%func``.
+The stack-bottom frame is in the state **READY<Ts>**, where *Ts* are the
+parameter types of ``%func``.
 
 This instruction continues exceptionally if Mu failed to create the stack. The
 exception parameter receives NULL.
@@ -408,9 +408,8 @@ On-stack replacement
 - ``push_frame`` creates a new frame on top of the stack ``%stack`` for the Mu
   function ``%func``. ``%func`` must have the signature ``sig``.
   
-  The return type of ``%func`` must match the expected return type of the
-  previous frame. If the previous frame is a native frame, the new function must
-  have the same return type as the previous Mu callee.
+  The previous top frame must be in the **READY<Ts>** state for some Ts. The
+  return type of ``%func`` must be *Ts*.
 
 Watchpoint operations
 ---------------------

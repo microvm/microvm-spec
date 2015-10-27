@@ -1180,6 +1180,10 @@ TAILCALL:
 The ``CALL`` instruction creates a new stack frame for the callee, passes the
 arguments in *argList* and starts executing from the entry block of the callee.
 
+The ``CALL`` instruction sets the state of the frame of the caller to
+**READY<Ts>** where ``Ts`` is the return types of the callee. The callee frame's
+state is **ACTIVE**.
+
 A ``CALL`` instruction *continues normally* when the callee returns. In this
 case the results of the ``CALL`` instruction are the return values of the
 callee.
@@ -1213,18 +1217,20 @@ produce results.
 
 The ``CALL`` instruction is an OSR point.
 
-When a stack in the ``READY<Ts>`` state is pausing on a ``CALL`` instruction and
-is being re-bound to a thread, it continues normally with the results being the
-values received, or continues exceptionally, catching the exception received.
+When a stack is rebound and the top frame is pausing on a ``CALL`` instruction,
+it continues normally with the results being the values received, or continues
+exceptionally, catching the exception received.
 
-    NOTE: Such a state can be the result of OSR: Upper frames are popped and the
-    current callee is forced to return a value provided by the client.
+    NOTE: This can be the result of OSR: Upper frames are popped and the current
+    ``CALL`` instruction receives values provided by the client, or by other
+    means of stack binding. See `Threads and Stacks <threads-stacks.rest>`__.
 
 The ``TAILCALL`` instruction replaces the caller's stack frame with a new stack
-frame for the callee. The ``TAILCALL`` requires that the callee must have the
-same return types as the caller. The caller of the current function becomes the
-caller of the function ``TAILCALL`` calls. The ``TAILCALL`` instruction cannot
-have any exception clause and is not an OSR point.
+frame for the callee. If the frame below the current frame has state
+**READY<Ts>**, the callee must have return type ``Ts``.  The caller of the
+current function becomes the caller of the function ``TAILCALL`` calls. The
+``TAILCALL`` instruction cannot have any exception clause and is not an OSR
+point. After ``TAILCALL``, the new frame is in the **ACTIVE** state.
 
     NOTE: ``TAILCALL`` is semantically similar to calling a function and
     immediately return the returned value, but replaces the current frame. OSR
@@ -1262,7 +1268,9 @@ the behaviour of undefined functions.
       pointer. See ``CCALL`` which calls a native function.
     - All parameters are passed by value and parameters are SSA Values. To pass
       on-stack data or arrays, use ``alloca`` and pass ``iref``.  
-    - The keep-alive clause is unique to Mu for OSR.
+    - The keep-alive clause is similar to the experimental intrinsic function
+      ``@llvm.experimental.stackmap`` and ``@llvm.experimental.patchpoint`` in
+      LLVM.
 
 ..
 
@@ -1327,6 +1335,9 @@ The ``RET`` instruction returns from the current function with a list of *rv* as
 the return values of the current function. The types of *rv* values must match
 the return types of the current function.
 
+From the stack's point of view, the ``RET`` instruction removes the current
+frame, and resumes the previous frame into the **ACTIVE** state.
+
 ``RET rv`` is a syntax sugar of ``RET (rv)``. In order to return from a function
 with zero return values, use ``RET ()``.
 
@@ -1375,8 +1386,8 @@ exc
 | 0x65 | exc |
 +------+-----+
 
-The ``THROW`` instruction throws the exception ``exc`` from the current
-function. Exceptions in Mu are object references to any type.
+The ``THROW`` instruction throws the exception ``exc`` from the current function
+to its caller frame. Exceptions in Mu are object references to any type.
 
     For LLVM users: There is no equivalent in LLVM. The ``resume`` instruction
     in LLVM continues the propagation of a in-flight exception. This can also be
@@ -2332,10 +2343,10 @@ produce any results and unconditionally branches to the destination *dis*.
 watchpoints.
 
 A ``TRAP`` or an enabled ``WATCHPOINT`` temporarily unbinds the current thread
-from the current stack, leaving the stack in the **READY<** *Ts* **>** state,
-and transfers the control to a trap handler in the Mu client. When the current
-stack is bound again, this instruction may continue normally with results of
-types *Ts*, and may continue exceptionally with a Mu exception.
+from the current stack, leaving the current frame in the **READY<** *Ts* **>**
+state, and transfers the control to a trap handler in the Mu client. When the
+current stack is bound again, this instruction may continue normally with
+results of types *Ts*, and may continue exceptionally with a Mu exception.
 
 When rebinding to a stack stopping at an enabled ``TRAP`` or ``WATCHPOINT``
 instruction, if rebinding (normally) with values, the results of the ``TRAP`` or
@@ -2550,11 +2561,16 @@ The return values of ``CCALL`` are the return values of the native callee.
 
 ``CCALL`` cannot receive exceptions thrown by C++.
 
-``CCALL`` is an OSR point. A stack may enter the ``READY<Rs>`` state, where Rs
-are the return types of the callee, with some Mu frames stopping on ``CCALL``
-instructions. If the top frame is stopping at this instruction, the value passed
-to the stack when rebinding becomes the return value of this instruction.
-However, whether a native frame can be popped is implementation-defined.
+When executing the ``CCALL`` instruction, the current frame enters the
+**READY<Rs>** state, where *Rs* are the return types of the callee. It creates a
+native frame which is in the **ACTIVE** state. Upon running from the native
+function, the current frame enters the **ACTIVE** state again.
+
+``CCALL`` is an OSR point.
+
+If a stack is rebound and the top frame stops on a ``CCALL`` instruction
+(because of OSR), the result values of ``CCALL`` are the values passed normally,
+or it receives the exception provided by the rebinding process.
 
     For LLVM users: Mu is not designed to be compatible with C and functions
     defined in Mu IR does not use the native C ABI. This instruction is
@@ -2785,12 +2801,11 @@ and rebinds it to another stack *swappee*.
 
 In the *curStackClause*:
 
-- If the *curStackClause* is ``RET_WITH``, then the swapper will enter the
-  ``READY<Ts>`` state. *Ts1* can be an empty list, in which case it does not
+- If the *curStackClause* is ``RET_WITH``, then the current frame will enter the
+  **READY<Ts>** state. *Ts1* can be an empty list, in which case it does not
   expect values.
 
-- If the *curStackClause* is ``KILL_OLD``, then the swapper will enter the
-  ``DEAD`` state.
+- If the *curStackClause* is ``KILL_OLD``, then the current stack is killed.
 
 According to the *newStackClause*, values or an exception can be passed to the
 *swappee* stack.
@@ -2798,10 +2813,9 @@ According to the *newStackClause*, values or an exception can be passed to the
 See `Thread and Stack <threads-stacks.rest>`__ for more details about the
 SWAP-STACK operation.
 
-When a stack in the ``READY<Ts>`` state is pausing on a ``SWAPSTACK``
-instruction and is being re-bound to a thread, then it continues normally with
-the return value being the value received, or continues exceptionally, catching
-the exception received.
+When a stack is rebound and the top frame pauses on a ``SWAPSTACK`` instruction
+it continues normally with the return value being the value received, or
+continues exceptionally, catching the exception received.
 
 The ``SWAPSTACK`` instruction is an OSR point.
 

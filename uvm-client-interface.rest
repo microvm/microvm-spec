@@ -674,20 +674,20 @@ Stack and thread operations
     #define MU_REBIND_THROW_EXC     0x02
 
 ``new_stack`` creates a new Mu stack with ``func`` as the bottom function.
-Returns a stackref to the new stack. The new stack stops in the very beginning
-of ``func``, and its state is ``READY<Ts>``, where *Ts* is the parameter types
-of ``func``.
+Returns a stackref to the new stack. The stack-bottom frame will resume from the
+very beginning of ``func`` when resumed, and its state is **READY<Ts>**, where
+*Ts* is the parameter types of ``func``.
 
 ``new_thread`` creates a new Mu thread and binds it to ``stack``. ``stack`` must
-be in the ``READY<Ts>`` state for some types *Ts*. ``*htr`` determines how to
+be in the **READY<Ts>** state for some types *Ts*. ``*htr`` determines how to
 bind to the stack. Possible values are ``MU_REBIND_PASS_VALUES`` for passing
 values and ``MU_REBIND_THROW_EXC`` for throwing an exception. Values are
 provided by the ``args`` array. ``nargs`` is the number of values. The types of
 values must match *Ts*. The exception is provided by ``*exc``. Returns a
 threadref to the new thread.
 
-``kill_stack`` kills the ``stack``. The stack must be in the ``READY<Ts>`` state
-for some *Ts*.  The stack enters the ``DEAD`` state.  If the stack contains
+``kill_stack`` kills the ``stack``. The stack must be in the **READY<Ts>** state
+for some *Ts*.  The stack enters the **DEAD** state.  If the stack contains
 native frames, the behaviour is implementation-defined.
 
 ``func`` and ``stack`` must not be ``NULL``.
@@ -760,24 +760,18 @@ On-stack replacement
     void        (*push_frame)(MuCtx *ctx, MuStackRefValue stack, MuFuncRefValue func);
 
 * ``pop_frame`` pops the top frame of the stack. Popping native frames has
-  implementation-defined behaviour. Popping a Mu frame changes the state of the
-  stack to ``READY<Ts>`` where Ts are the return types of the function of the
-  popped frame.
+  implementation-defined behaviour.
 
 * ``push_frame`` creates a new frame on the top of ``stack`` for function
   ``func``.
 
-  If the previous stack top frame is a Mu frame, it must be pausing on the
-  ``CALL`` instruction. The return type of ``func`` must be the same as return
-  type of the ``CALL`` instruction of the previous top.
+  The previous top frame must be in the **READY<Ts>** state for some Ts. The
+  return type of ``%func`` must be *Ts*.
 
-  If the previous stack top frame is a native frame, the new function must
-  have the same return type as the previous Mu callee.
-
-  After ``push_frame``, the stack enters the ``READY<Ts>`` state where Ts are
-  the argument types of ``func``. When the stack is rebound, it continues from
-  the beginning of ``func``. The return value or exceptions from ``func`` are
-  received by the caller.
+  After ``push_frame``, the new top frame is in the **READY<Ts>** state where Ts
+  are the argument types of ``func``. When the stack is rebound, it continues
+  from the beginning of ``func``. The return value or exceptions from ``func``
+  are received by the previous frame.
 
 ..
 

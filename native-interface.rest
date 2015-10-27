@@ -364,10 +364,6 @@ native frames are counted as one between two Mu frames.)
 The ``pop_frame`` function has implementation-defined behaviours when popping
 native frames.
 
-During OSR, if the top frame is a native frame, the state of the stack is
-``READY<Ts>`` where *Ts* are the return types of the previous frame on top of
-the native frame.
-
 When rebinding a thread to a stack with a value, and the top frame is on a call
 site (native or Mu), the value associated with the rebinding is the return value
 of the call.
