@@ -803,7 +803,7 @@ which is one of the following:
   exception clause, which are:
 
   - Binary operations (only ``UDIV``, ``SDIV``, ``UREM`` and ``SREM``)
-  - ``CALL``
+  - ``CALL``, ``CCALL``
   - ``NEW``, ``NEWHYBRID``, ``ALLOCA``, ``ALLOCAHYBRID``
   - ``LOAD``, ``STORE``, ``CMPXCHG``, ``ATOMICRMW``
   - ``TRAP``, ``WATCHPOINT``

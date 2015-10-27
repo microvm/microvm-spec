@@ -2550,7 +2550,7 @@ Unsafe Native Call
 ``CCALL`` Instruction
 ---------------------
 
-``CCALL`` *callConv* ``<`` *T* *sig* ``>`` *callee* *argList* *keepAliveClause*
+``CCALL`` *callConv* ``<`` *T* *sig* ``>`` *callee* *argList* *excClause* *keepAliveClause*
 
 callConv
     *flag*: The calling convention.
@@ -2562,17 +2562,19 @@ callee
     *variable* of type *T*: The callee.
 argList
     *argument list*: Arguments to the callee.
+excClause
+    *exception clause*: Specify the basic block to handle exception.
 keepAliveClause
     *keep-alive clause*: For on-stack replacement.
 results
     The return values of the callee. There are as many results as the return
     types in *sig*, matching each return type.
 
-+------+----------+-----+-----+--------+---------+-----------------+
-| opct | opct     | idt | idt | idt    | argList | keepAliveClause |
-+======+==========+=====+=====+========+=========+=================+
-| 0xEC | callConv | T   | sig | callee | argList | keepAliveClause |
-+------+----------+-----+-----+--------+---------+-----------------+
++------+----------+-----+-----+--------+---------+-----------+-----------------+
+| opct | opct     | idt | idt | idt    | argList | excClause | keepAliveClause |
++======+==========+=====+=====+========+=========+===========+=================+
+| 0xEC | callConv | T   | sig | callee | argList | excClause | keepAliveClause |
++------+----------+-----+-----+--------+---------+-----------+-----------------+
 
 *calling convention* is one in the following table or others defined by the
 platform-specific part of the Mu native interface:
@@ -2596,7 +2598,8 @@ See `<native-interface.rest>`__ for a detailed description of the native interfa
 
 The return values of ``CCALL`` are the return values of the native callee.
 
-``CCALL`` cannot receive exceptions thrown by C++.
+``CCALL`` may have an exception clause. How ``CCALL`` receives exceptions from
+the native callee is implementation-defined.
 
 When executing the ``CCALL`` instruction, the current frame enters the
 **READY<Rs>** state, where *Rs* are the return types of the callee. It creates a
