@@ -790,7 +790,7 @@ in `<instruction-set.rest>`__.
 The last instruction of any basic block must be a **terminator instruction**,
 which is one of the following:
 
-- ``BRANCH``, ``BRANCH2``, ``SWITCH``
+- ``BRANCH``, ``BRANCH2``, ``SWITCH``, ``WPBRANCH``
 - ``TAILCALL``
 - ``RET``
 - ``THROW``

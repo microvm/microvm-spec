@@ -2283,8 +2283,8 @@ The ``FENCE`` is a fence of memory order *ord*. Its semantics is specified in
         FENCE ACQ_REL
         FENCE SEQ_CST
 
-Traps
-=====
+Traps and Watchpoints
+=====================
 
 ``TRAP`` and ``WATCHPOINT`` Instruction
 ---------------------------------------
@@ -2506,6 +2506,43 @@ as the ID of *exc* being 0.
     no longer valid. Then the client can enable the watchpoint 5678 and the
     ``%wp1234`` instruction will go to the client.
 
+``WPBRANCH`` instruction
+------------------------
+
+``WPBRANCH`` *wpid* *dis* *ena*
+
+
+wpid
+    *integer literal*: Watchpoint identifier.
+dis, ena
+    *destination clause*: The destinations to jump to when *wpid* is disabled or
+    enabled.
+
+``WPBRANCH``:
+
++------+------+------------+------------+
+| opct | idt  | destClause | destClause |
++======+======+============+============+
+| 0xEA | wpid | dis        | ena        |
++------+------+------------+------------+
+
+The ``WPBRANCH`` instruction is a binary branching instruction. The destination
+is determined by whether the watchpoint ID *wpid* is enabled or disabled. It can
+be enabled or disabled in the same way as ``WATCHPOINT``.
+
+Unlike ``WATCHPOINT``, this instruction does not trap to the client, and is not
+an OSR point.
+
+    Example::
+
+        %entry():
+            WPBRANCH 42 %cont() %oops()
+
+        %cont():
+            // continue normally here
+
+        %oops():
+            // Oops! Something happened!
 
 Unsafe Native Call
 ==================
