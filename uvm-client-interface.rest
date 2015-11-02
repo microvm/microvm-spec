@@ -916,7 +916,7 @@ The signature of trap handlers is::
 
     typedef void (*MuTrapHandler)(MuCtx *ctx, MuThreadRefValue thread,
             MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
-            MuStackRefValue *new_stack, MuValue *values, int nvalues,
+            MuStackRefValue *new_stack, MuValue *values, int *nvalues,
             MuRefValue *exception,
             MuCPtr userdata);
 
@@ -943,7 +943,7 @@ Before returning, the trap handler should set ``*result``:
 * ``MU_THREAD_EXIT``: The thread ``thread`` terminates.
 * ``Mu_REBIND_PASS_VALUES``: The thread ``thread`` will be rebound to a stack
   ``*new_stack``. The values ``*values`` are passed to ``*new_stack``. The types
-  of ``*values`` must match the type expected by ``*new_stack``. ``nvalues`` is
+  of ``*values`` must match the type expected by ``*new_stack``. ``*nvalues`` is
   the number of elements in the ``*values`` array.
 * ``Mu_REBIND_THROW_EXC``: The thread ``thread`` will be rebound to a stack
   ``*new_stack``. It throws exception ``*exception`` to the stack.

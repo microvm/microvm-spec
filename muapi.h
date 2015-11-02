@@ -49,7 +49,7 @@ typedef struct MuCtx MuCtx;
 // Signature of the trap handler
 typedef void (*MuTrapHandler)(MuCtx *ctx, MuThreadRefValue thread,
         MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
-        MuStackRefValue *new_stack, MuValue *values, int nvalues,
+        MuStackRefValue *new_stack, MuValue *values, int *nvalues,
         MuRefValue *exception,
         MuCPtr userdata);
 
