@@ -24,154 +24,240 @@ A **HAIL script** has a text format and a binary format. The text format is
 similar to the text-based Mu IR, and the binary format is similar to the binary
 form Mu IR.
 
+This document uses EBNF to define the text-form syntax. A non-terminal starts
+with a capital letter and a terminal starts with a lower-case letter. Literal
+characters are quoted within pairs of ``'`` or ``"``. ``*`` means repeating 0 or
+more times. ``+`` means repeating 1 or more times. ``?`` means optional. ``|``
+means either its left-hand-side or its right-hand-side. ``|`` has the lowest
+precedence than simple concatenation; unary suffixes have the highest
+precedence. ``(`` and ``)`` group terms together to override the precedence.
+``[`` and ``]`` denote a set of characters.
+
 Lexical Structures
 ==================
 
-Comments start with two slashes ``//`` and ends at the end of the line.
+Comments start with two slashes ``//`` and ends at the end of the line. White
+spaces between lexicons are ignored.
 
 In HAIL, a **HAIL name**, i.e. the name of a heap-allocated object, start with a
-dollar sign ``$`` followed by many characters in the set: ``[0-9a-zA-Z_-.]``.
+dollar sign ``$`` followed by one or more characters in the set:
+``[0-9a-zA-Z_-.]``::
+
+    hailName ::= '$' [0-9a-zA-Z_-.]+
+
 The scope of a HAIL name is within a single HAIL script. In other words, they
 are temporary, and they become invalid as soon as the HAIL script is fully
 evaluated. Storing them to global cells is one way to keep references to the
 allocated objects.
 
 **Global name**, **integer literal**, **floating point literal** and **null
-literal** are defined the same way as in `Mu IR <uvm-ir.rest>`__.
+literal** are defined the same way as in `Mu IR <uvm-ir.rest>`__. They are
+denoted as ``globalName``, ``intLit``, ``floatLit``, ``'NULL'``, respectively.
+
+Expressions
+===========
+
+An **LValue** specifies a memory location::
+
+    LValue  ::= Name Index*
+    
+    Name    ::= globalName | hailName
+
+    Index   ::= '[' IntExpr ']'
+
+    IntExpr ::= intLit | globalName
+
+It is either a component of a global cell (when ``Name`` is a ``globalName``),
+or a component of a newly allocated heap object in the current HAIL script (when
+``Name`` is a ``hailName``). If the name appears alone, the memory location is
+the global cell or the heap object itself. Its fields or elements can be
+selected using indices. The index can be an integer literal (``intLit``) or a
+global name of a Mu constant of ``int<n>`` type of any ``n``, treated as
+unsigned integer.
+
+If a memory location ``l`` holds a struct or hybrid, then ``l[n]`` is its n-th
+field (n = 0, 1, 2...). Specifically, for hybrid, it means the n-th field in the
+fixed part. If n equals the number of fixed-part fields, it selects the variable
+part. In such cases, ``l[n][m]`` is the m-th element of the variable part.
+
+If a memory location ``l`` holds an array or a vector, then ``l[n]`` is its n-th
+element (n = 0, 1, 2...).
+
+An **RValue** specifies a Mu value::
+
+    RValue  ::= globalName | intLit | floatLit | ``'NULL'``
+                | hailName | '&' LValue | List
+
+    List    ::= '{' RValue* '}'
+
+It can be the address of an LValue, in which case the value is one of:
+
+- A Mu global SSA variable (constant, global cell, function, exposed function)
+  (``globalName``)
+- An integer literal (``intLit``)
+- A floating point literal (``floatLit``)
+- The ``NULL`` value of an appropriate type (``'NULL'``)
+- An object reference to an object just created in HAIL (``hailName``)
+- An internal reference of an LValue (``'&' LValue``)
+- A list of 0 or more RValue.
+
+See *memory initialisation* below for more details.
 
 Top-level Definitions
 =====================
 
-Top-level definitions in HAIL include **fixed object allocation**,
-**variable-length object allocation** and **memory initialisation**. All object
-allocations are evaluated before any memory initialisation
-definitions are evaluated.
+Top-level definitions in HAIL include **fixed object allocation**, **hybrid
+allocation** and **memory initialisation**. All object allocations are evaluated
+before any memory initialisation definitions are evaluated.
 
-A *fixed object allocation* definition has the form:
+A *fixed object allocation* allocates a fixed-size object::
 
-``.new name <T>``
+    FixedAlloc  ::= '.new' hailName <Type>
 
-where *name* is a HAIL name of the allocated object, and *T* is the global name
-of the type of the object. *T* must not be a ``hybrid`` type.
+    Type        ::= globalName
 
-A *variable-length object allocation* definition has the form:
 
-``.newhybrid name <T> len``
+where ``hailName`` is a HAIL name of the allocated object, and ``Type`` is the
+global name of the type of the object. ``Type`` must not be a ``hybrid`` type.
 
-where *name* is a HAIL name of the allocated object, and *T* is the global name
-of the type of the object. *len* is an integer literal, which determines the
-length of the variable part of the object. *T* must be a ``hybrid`` type.
+A *hybrid allocation* allocates a hybrid::
 
-A **memory initialisation** definition has the form:
+    HybridAlloc ::= '.newhybrid' hailName <Type> IntExpr
 
-``.init lvalue = rvalue``
+where ``hailName`` and ``Type`` are the name and the type. ``IntExpr`` specifies
+the length of the variable part of the hybrid, which can either be an integer
+literal, or a Mu ``int<n>`` constant of any ``n``, treated as unsigned integer.
+``Type`` must be a ``hybrid`` type.
 
-Here is a description of *lvalue* and *rvalue* in EBNF::
+A *memory initialisation* initialises a memory location::
 
-    lvalue      ::= name | fieldExpr
-    fieldExpr   ::= lvalue '[' intLiteral ']'
+    MemInit     ::= '.init' LValue = RValue
 
-    rvalue      ::= primary | list
-    primary     ::= name | literal
-    list        ::= '{' rvalue* '}'
+``RValue`` must be appropriate for the ``LValue`` type. Specifically,
 
-    name        ::= hailName | globalName
-    literal     ::= intLiteral | fpLiteral | nullLiteral
+- If ``LValue`` is ``int<n>``, ``uptr<T>`` or ``ufuncptr<sig>``, then ``RValue``
+  can be an ``intLit`` or a constant of the same ``LValue`` type.
 
-The *lvalue* determines the memory location to write to. Its **base** can be a
-global name (``@xxxx``), in which case it designates the memory location of a
-global cell (``.global @xxxx <T>``), or a HAIL name (``$xxxx``) which designates
-an object defined in the current HAIL script. The base can be followed by many
-``[xx]`` indices where *xx* is a integer indexing into a memory location. If the
-*lvalue* to the left of ``[xx]`` is a ``struct``, *xx* designates its xx-th
-field (start with 0); if it is an ``array`` or ``vector``, *xx* designates its
-xx-th element; if it is a ``hybrid``, then 0 is the fixed part and 1 is the
-variable part. The variable part is considered as an array, and can be indexed
-into.
+- If ``LValue`` is ``float`` or ``double``, then ``RValue`` can be a
+  ``floatLit`` or a Mu constant of the same type as ``LValue``.
 
-The *rvalue* determines the value to write in the location:
+- If ``LValue`` is ``ref<T>`` or ``weakref<T>``, then ``RValue`` can be ``NULL``
+  or a HAIL name of a newly created object. If the type ``T`` does not match, it
+  behaves as if it is cast to ``ref<T>`` using ``REFCAST``. (Note: This makes
+  sub-class instances assignable to a location that refers to a super-class
+  instance.)
 
-- If it is a literal, the value is the integral/FP/NULL value;
+- If ``LValue`` is ``iref<T>``, then ``RValue`` can be ``NULL`` or an ``LValue``
+  (with the ``&`` sign). Implicit ``REFCAST`` applies.
 
-- if it is a HAIL name, the value is an object reference (if the location has
-  ``ref`` or ``weakref`` type) or internal reference (if the location has
-  ``iref`` type) to the object just allocated;
-  
-- if it is a global name, it designates the value of the global SSA variable of
-  that name, as defined in `Instruction Set <instruction-set.rest>`__. Specifically,
+- If ``LValue`` is ``funcref<sig>``, then ``RValue`` can be ``NULL`` or the
+  global name of a Mu function. Implicit ``REFCAST`` applies.
 
-  * the name of a constant has the value of that constant;
+- If ``LValue`` is ``stackref`` or ``threadref``, then the only applicable
+  ``RValue`` is ``NULL``.
 
-  * the name of a global cell has the value of the internal reference of the
-    global cell;
+- If ``LValue`` is ``tagref64``, then ``RValue`` can be the appropriate value
+  suitable for ``double``, ``int<52>`` or ``struct<ref<void> int<6>``.
 
-  * the name of a Mu function has the value of ``func`` (function reference)
-    type, and refers to that function;
+- If ``LValue`` is a struct, hybrid, array or vector, then ``RValue`` must be a
+  ``List`` of ``RValue`` items. Each item will initialise a field or element of
+  the composite type. The entire variable part of a hybrid is treated as one
+  additional field to its fixed part fields, and is treated as an array of the
+  actual length. The list may have less fields/elements of the ``LValue``, in
+  which case only the first fields/elements are initialised, and others remain
+  their old values. (Note: All newly allocated memory locations, including heap
+  objects, stack cells and global cells, have initial values: 0 or NULL.)
 
-  * the name of an exposed function usually has a C function pointer as the
-    value.
+Multiple top-level definitions are applied in the order they appear in the HAIL
+script. In order to deal with cyclic references, it is advisable to put ``.new``
+and ``.newhybrid`` before ``.init``.
 
-- if it is a list, the *lvalue* must be a ``struct``, ``array``, ``vector`` or
-  ``hybrid``. In this case, the elements in the list are the values of each
-  field/element of it, or the fixed and the variable part, respectively.
+Example
+=======
 
-In the case when the *lvalue* is an array or a vector, if the value has less
-elements than its capacity, only the first elements are initialised. It is an
-error if the list has more elements than the number of fields/elements/parts of
-the *lvalue*.
-
-Multiple *memory initialisation* definitions are applied in the order they
-appear in the HAIL script.
-
-Example::
+Example 1::
 
     // Assume the following definitions in a previously loaded Mu IR bundle.
-    // .typedef @i8 = int<8>
-    // .typedef @i32 = int<32>
-    // .typedef @i64 = int<64>
-    // .typedef @float = float
+    // .typedef @i8     = int<8>
+    // .typedef @i32    = int<32>
+    // .typedef @i64    = int<64>
+    // .typedef @float  = float
     // .typedef @double = double
-    // .typedef @VarByteArray = hybrid<@i32 @i8>
+    //
+    // .typedef @NakedArray     = hybrid<@i8>           // no fields in the fixed part
+    // .typedef @LengthedArray  = hybrid<@i32 @i8>      // no fields in the fixed part
+    // .typedef @JavaStyleArray = hybrid<@TID @i32 @i8> // two fields in the fiexed part
     //
     // .typedef @TID = int<64>
     // .typedef @SmallFloatArray = array<@float 4>
     // .typedef @irefi64 = iref<@i64>
     // .typedef @Object = struct<@TID @SmallFloatArray @double @irefi64>
     //
-    // .typedef @Linkedlist = struct<@i64 @LinkedList>
+    // .typedef @LinkedList     = struct<@i64 @LinkedList_r>
+    // .typedef @LinkedList_r   = ref<@LinkedList>
     //
-    // .const  @PI <@double> = 3.14d
-    // .global @my_global <@i64>
+    // .typedef @irefi64 = iref<@i64>
     //
-    // .global @my_favourite_linked_list_node <@LinkedList>
+    // .const   @MAGICAL_NUMBER <@i64> = 42
+    // .const   @PI <@double> = 3.14d
+    //
+    // .global  @my_global          <@i64>
+    // .global  @a_global_iref_cell <@irefi64>
+    // .global  @another_global_iref_cell <@irefi64>
+    //
+    // .global  @my_favourite_linked_list_node <@LinkedList>
+    //
+
 
     .new        $my_long_obj    <@i64>
-    .newhybrid  $my_array_obj   <@VarByteArray> 10000
+    .init       $my_long_obj    = 0x123456789abcdef0
 
-    .init       $my_long_obj            = 0x123456789abcdef0
-    .init       $my_array_obj           = {100 {0 1 2 3 4}} // Only init 5 elems
-    .init       $my_array_obj[1][99]    = 99                // Also init the last elem
+    .newhybrid  $my_array1      <@NakedArray> 4
+    .newhybrid  $my_array2      <@LengthedArray> 10000
+    .newhybrid  $my_array3      <@JavaStyleArray> @MAGICAL_NUMBER
 
-    .new        $my_obj         <@Object>
+    .init       $my_array1      = {1 2 3 4}
 
-    .init       $my_obj     = {42 {1.0f 2.0f 3.0f 4.0f} @PI @my_global}
+    .init       $my_array2          = {100              // claim length 100, while the capacity is really 10000
+                                        {0 1 2 3 4}}    // Only init 5 elems
+    .init       $my_array2[1][99]   = 99                // Also init the 99-th elem
 
-    .init       @my_global  = -1    // Can initialise global cells, too.
+    .init       $my_array3      = {1001 42 {1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8
+                                            9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6
+                                            7 8 9 0 1 2}}
+
+    .new        $my_obj     <@Object>
+
+    .init       $my_obj     = {@MAGICAL_NUMBER {1.0f 2.0f 3.0f 4.0f} @PI @my_global}
     
-    .new    $node0  <@LinkedList>
-    .new    $node1  <@LinkedList>
-    .new    $node2  <@LinkedList>
+    .new        $node0  <@LinkedList>
+    .new        $node1  <@LinkedList>
+    .new        $node2  <@LinkedList>
 
-    .init   $node0 = {0 $node1}     // All objects are allocated before init.
-    .init   $node1 = {1 $node0}     // so they can form a ring
+    .init       $node0 = {0 $node1}     // All objects are allocated before init.
+    .init       $node1 = {1 $node0}     // so they can form a ring
 
-    .init   $node2 = {2 NULL}
+    .init       $node2 = {2 NULL}       // Isolated node
+
+    // Global cells can be initialised, too.
+    .init       @my_global  = -1
+
+    // @a_global_iref_cell will hold an iref<@i64> to the global cell @my_global
+    .init       @a_global_iref_cell = &@myglobal
+
+    // Equivalent. The global variable @myglobal is already an iref.
+    .init       @a_global_iref_cell = @myglobal
+
+    .new        $foo <@i64>
+
+    // This refers into the gut of $foo
+    .init       @another_global_iref_cell = &$foo
 
     // In fact, all objects except $node0 and $node1 will become garbages after
     // this HAIL script is fully evaluated.
     .init   @my_favourite_linked_list_node = $node0
 
-Example 2: String constant initialization. In order to keep references to these
+Example 2: String constant initialisation. In order to keep references to these
 objects, we need to store them to global cells::
 
     // Assume the following Java code:
@@ -200,6 +286,10 @@ objects, we need to store them to global cells::
     .init   $hwbuf  = {{0x1234 12} {0x48 0x65 0x6c 0x6c 0x6f 0x20 0x77 0x6f 0x72 0x6c 0x64 0x21}} 
 
     .init   @const_hello_world = $hw    // Store it to the global cell.
+
+    // Then out.println("Hello world!") can be compiled to:
+    // %1 = LOAD <@RefString> @const_hello_world
+    //      CALL <@sig1> @PrintStream.println (%out %1) // in the real world it may need dynamic dispatching
 
 Binary Form
 ===========
@@ -239,14 +329,23 @@ the length of the variable part.
 
 A *memory initialisation* definition has the form:
 
-+------+--------+----------+------+------+-----+--------+
-| opct | genid  | i8       | i64  | i64  | ... | rvalue |
-+======+========+==========+======+======+=====+========+
-| 0x03 | lvbase | nindices | ind0 | ind1 | ... | rvalue |
-+------+--------+----------+------+------+-----+--------+
++------+--------+--------+
+| opct | LValue | RValue |
++======+========+========+
+| 0x03 | LValue | RValue |
++------+--------+--------+
 
-*lvbase* is the base of the l-value. *lvbase* has a "general ID" binary type
-``genid``, which is:
+LValue:
+
++------+------+---------+-----+
+| Name | lent | IntExpr | ... |
++======+======+=========+=====+
+| Name | n    | IntExpr | ... |
++------+------+---------+-----+
+
+*n* is the number of *IntExpr* following.
+
+Name:
 
 +------+-----+
 | opct | idt |
@@ -254,76 +353,125 @@ A *memory initialisation* definition has the form:
 | tag  | id  |
 +------+-----+
 
-If *tag* is 1, *id* is the HAIL ID; if *tag* is 2, *id* is the Mu ID.
+If *tag* is 0x04, *id* is the HAIL ID; if *tag* is 0x05, *id* is the Mu ID. 
 
-*lvbase* is followed by many indices. *nindices* is the number of indices.
+IntExpr can be intLit or a global name (Name with tag=2)
 
-*rvalue* can be one of the following:
+intLit:
 
-1. Referring to another thing by a ``genid``:
++------+-----+
+| opct | i64 |
++======+=====+
+| 0x12 | lit |
++------+-----+
 
-+------+----------+
-| opct | genid    |
-+======+==========+
-| 0x01 | referent |
-+------+----------+
+*lit* is the literal. There is currently no way to express integer literals
+longer than 64 bits. *lit* is truncated or zero-extended to the LValue length.
 
-2. A literal with value
+*RValue* can be one of the following:
 
-+--------+-------+
-| opct   | type  |
-+========+=======+
-| opcode | value |
-+--------+-------+
+1. A Mu global SSA variable:
 
-where *opcode* determines the *type* of *value*:
++------+-----+
+| opct | idt |
++======+=====+
+| 0x11 | gv  |
++------+-----+
 
-=========== =========
- opcode      type
-=========== =========
- 0x02        i8
- 0x03        i16
- 0x04        i32
- 0x05        i64
- 0x06        float
- 0x07        double
-=========== =========
+gv it the ID of the global SSA variable.
 
-3. A NULL literal
+2. An integer literal (see intLit above)
 
-+--------+
-| opct   |
-+========+
-| 0x08   |
-+--------+
+3. A 32-bit float literal
 
-6. A list of other values of any kinds.
++------+-------+
+| opct | float |
++======+=======+
+| 0x13 | value |
++------+-------+
+
+4. A 64-bit float literal
+
++------+--------+
+| opct | double |
++======+========+
+| 0x14 | value  |
++------+--------+
+
+5. A ``NULL`` literal
+
++------+
+| opct |
++======+
+| 0x15 |
++------+
+
+6. An object reference to an object allocated in HAIL
+
++------+-----+
+| opct | idt |
++======+=====+
+| 0x16 | id  |
++------+-----+
+
+*id* is the HAIL id.
+
+7. An internal reference of an LValue
+
++------+--------+
+| opct | LValue |
++======+========+
+| 0x17 | LValue |
++------+--------+
+
+8. A list of other values of any kinds.
 
 +------+--------+--------+--------+--------+
-| opct | i64    | rvalue | rvalue | ...    |
+| opct | i64    | RValue | RValue | ...    |
 +======+========+========+========+========+
-| 0x09 | nelems | rv1    | rv2    | ...    |
+| 0x18 | nelems | rv1    | rv2    | ...    |
 +------+--------+--------+--------+--------+
 
-*nelems* is the number of r-values following it. This structure is recursive.
+*nelems* is the number of RValues following it. This structure is recursive.
 
-7. A list of other values of the same kind of literals.
+9. A list of other values of the same kind of literals.
 
 +------+--------+------+---------+---------+--------+
 | opct | i64    | opct | literal | literal | ...    |
 +======+========+======+=========+=========+========+
-| 0x0a | nelems | kind | lit1    | lit2    | ...    |
+| 0x19 | nelems | kind | lit1    | lit2    | ...    |
 +------+--------+------+---------+---------+--------+
 
-*nelems* is the number of literals following. *kind* can be 0x02-0x07
-corresponding to the *opcode* in case 2 above. The literals *lit1*, *lit2* ...
-have the same type as the table in case 2 indicates.
+*nelems* is the number of literals following. *kind* can be one in the following
+table, and *kind* determines the following *literal* element type.
+
+=========== ==============
+opct        literal type
+----------- --------------
+0x12        i64
+0x13        float
+0x14        double
+0x1a        i8
+0x1b        i16
+0x1c        i32
+=========== ==============
+
+This allows more compact encoding of large arrays of simple elements. The
+literal type, however, does not need to match the actual type of the LValue,
+because implicit truncating or zero-extension always happen.
 
 Future Work
 ===========
 
-The binary format is not ultimately efficient. There could be
-implementation-specific ways of serialising data faster than a generic
-interface.
+The binary format is not the most efficient format possible. HAIL is still an
+interpreted format, even when it is binary. It is designed to be convenient,
+reasonably efficient and platform-independent.
+
+There could be implementation-specific ways of serialising data faster than this
+portable interface.
+
+The native interface can also potentially outperform HAIL. Using object pinning
+and pointers, Mu IR programs can directly memcpy data from files, such as
+copying strings from ``.class`` files.
 
 .. vim: tw=80
