@@ -112,7 +112,7 @@ before any memory initialisation definitions are evaluated.
 
 A *fixed object allocation* allocates a fixed-size object::
 
-    FixedAlloc  ::= '.new' hailName <Type>
+    FixedAlloc  ::= '.new' hailName '<' Type '>'
 
     Type        ::= globalName
 
@@ -122,7 +122,7 @@ global name of the type of the object. ``Type`` must not be a ``hybrid`` type.
 
 A *hybrid allocation* allocates a hybrid::
 
-    HybridAlloc ::= '.newhybrid' hailName <Type> IntExpr
+    HybridAlloc ::= '.newhybrid' hailName '<' Type '>' IntExpr
 
 where ``hailName`` and ``Type`` are the name and the type. ``IntExpr`` specifies
 the length of the variable part of the hybrid, which can either be an integer
