@@ -147,8 +147,9 @@ A *memory initialisation* initialises a memory location::
   sub-class instances assignable to a location that refers to a super-class
   instance.)
 
-- If ``LValue`` is ``iref<T>``, then ``RValue`` can be ``NULL`` or an ``LValue``
-  (with the ``&`` sign). Implicit ``REFCAST`` applies.
+- If ``LValue`` is ``iref<T>``, then ``RValue`` can be ``NULL``, the global name
+  of a global cell, or an ``LValue`` (with the ``&`` sign). Implicit ``REFCAST``
+  applies.
 
 - If ``LValue`` is ``funcref<sig>``, then ``RValue`` can be ``NULL`` or the
   global name of a Mu function. Implicit ``REFCAST`` applies.
