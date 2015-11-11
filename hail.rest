@@ -86,7 +86,7 @@ element (n = 0, 1, 2...).
 An **RValue** specifies a Mu value::
 
     RValue  ::= globalName | intLit | floatLit | ``'NULL'``
-                | hailName | '&' LValue | List
+                | hailName | '&' LValue | '*' LValue | List
 
     List    ::= '{' RValue* '}'
 
@@ -99,6 +99,7 @@ It can be the address of an LValue, in which case the value is one of:
 - The ``NULL`` value of an appropriate type (``'NULL'``)
 - An object reference to an object just created in HAIL (``hailName``)
 - An internal reference of an LValue (``'&' LValue``)
+- The current value held at the memory location of an LValue (``'*' LValue``)
 - A list of 0 or more RValue.
 
 See *memory initialisation* below for more details.
@@ -133,19 +134,19 @@ A *memory initialisation* initialises a memory location::
 
     MemInit     ::= '.init' LValue = RValue
 
-``RValue`` must be appropriate for the ``LValue`` type. Specifically,
+``RValue`` must be appropriate for the ``LValue`` type. Specifically, the star
+notation ``*LValue`` copies the value from the memory location of the ``LValue``
+after the ``*``. It is applicable to all types as long as the type matches the
+``LValue`` being written to. In addition:
 
 - If ``LValue`` is ``int<n>``, ``uptr<T>`` or ``ufuncptr<sig>``, then ``RValue``
-  can be an ``intLit`` or a constant of the same ``LValue`` type.
+  can be an ``intLit``, a constant of the same ``LValue`` type.
 
 - If ``LValue`` is ``float`` or ``double``, then ``RValue`` can be a
   ``floatLit`` or a Mu constant of the same type as ``LValue``.
 
 - If ``LValue`` is ``ref<T>`` or ``weakref<T>``, then ``RValue`` can be ``NULL``
-  or a HAIL name of a newly created object. If the type ``T`` does not match, it
-  behaves as if it is cast to ``ref<T>`` using ``REFCAST``. (Note: This makes
-  sub-class instances assignable to a location that refers to a super-class
-  instance.)
+  or a HAIL name of a newly created object.
 
 - If ``LValue`` is ``iref<T>``, then ``RValue`` can be ``NULL``, the global name
   of a global cell, or an ``LValue`` (with the ``&`` sign). Implicit ``REFCAST``
@@ -169,9 +170,27 @@ A *memory initialisation* initialises a memory location::
   their old values. (Note: All newly allocated memory locations, including heap
   objects, stack cells and global cells, have initial values: 0 or NULL.)
 
+When assigning to an LValue of ``ref<T>``, ``weakref<T>``, ``iref<T>``,
+``funcref<sig>``, ``uptr<T>`` or ``ufuncptr<sig>`` types, if the RValue only
+differs in the ``T`` or ``sig`` parameter, then implicit ``REFCAST`` or
+``PTRCAST`` are applied. ``weakref`` and ``ref`` can be assigned to each other.
+``PTRCAST`` can only change the type/sig parameters ``T`` and ``sig``, but not
+the base type ``int``, ``uptr`` and ``ufuncptr``.  (Note: This makes sub-class
+instances assignable to a location that refers to a super-class instance.)
+
 Multiple top-level definitions are applied in the order they appear in the HAIL
 script. In order to deal with cyclic references, it is advisable to put ``.new``
 and ``.newhybrid`` before ``.init``.
+
+Memory Order
+============
+
+All loads (via ``*LValue``) and stores (via ``.init``) are non-atomic. In
+``.init``, it has undefined behaviour if any values in the ``LValue`` in the
+left-hand-side of the ``=`` is accessed by the right-hand-side ``RValue``.
+
+    NOTE: This is to say, don't load from the memory location being initialised
+    because the implementation may write into the left-hand-side in any order.
 
 Example
 =======
@@ -193,6 +212,12 @@ Example 1::
     // .typedef @SmallFloatArray = array<@float 4>
     // .typedef @irefi64 = iref<@i64>
     // .typedef @Object = struct<@TID @SmallFloatArray @double @irefi64>
+    //
+    // .typedef @vtable     = hybrid<...>
+    // .typedef @vtable_r   = ref<@vtable>
+    // .global  @g_vtable <@vtable>
+    //
+    // .typedef @Object2 = struct<@vtable_r @i64>
     //
     // .typedef @LinkedList     = struct<@i64 @LinkedList_r>
     // .typedef @LinkedList_r   = ref<@LinkedList>
@@ -230,6 +255,14 @@ Example 1::
     .new        $my_obj     <@Object>
 
     .init       $my_obj     = {@MAGICAL_NUMBER {1.0f 2.0f 3.0f 4.0f} @PI @my_global}
+
+    .new        $my_obj2    <@Object2>
+
+    // This object has a pointer to an existing v-table allocated before loading
+    // this HAIL script. A reference to the v-table is held in the global cell @g_vtable.
+    // The star notation *@g_vtable loads the value from an LValue and assign it
+    // to the field.
+    .init       $my_obj2    = {*@g_vtable 42}
     
     .new        $node0  <@LinkedList>
     .new        $node1  <@LinkedList>
