@@ -367,57 +367,73 @@ Stack introspection
 
 ::
 
-    [0x254]@uvm.meta.cur_func           (%stack: stackref, %frame: int<32>) -> int<32>
-    [0x255]@uvm.meta.cur_func_Ver       (%stack: stackref, %frame: int<32>) -> int<32>
-    [0x256]@uvm.meta.cur_inst           (%stack: stackref, %frame: int<32>) -> int<32>
-    [0x257]@uvm.meta.dump_keepalives    (%stack: stackref, %frame: int<32>) -> @uvm.meta.refs.r
+    [0x254]@uvm.meta.new_cursor         (%stack: stackref) -> framecursorref
+    [0x255]@uvm.meta.next_frame         (%cursor: framecursorref)
+    [0x256]@uvm.meta.copy_cursor        (%cursor: framecursorref) -> framecursorref
+    [0x257]@uvm.meta.close_cursor       (%cursor: framecursorref)
 
-``%stack`` and ``%frame`` selects a frame in the stack ``%stack``. 0 is the top,
-1 is the next top, ... ``%stack`` must not be null.
+In all cases, ``cursor`` and ``stack`` cannot be ``NULL``.
 
-- ``cur_func`` returns the ID of the current function of ``%frame`` in
-  ``%stack``. Returns 0 if the frame is native.
+- ``new_cursor`` allocates a frame cursor, referring to the top frame of
+  ``%stack``. Returns the frame cursor reference.
 
-- ``cur_func_ver`` returns the ID of the current function version of ``%frame``
-  in ``%stack``. Returns 0 if the frame is native, or the function of the frame
-  is undefined.
+- ``next_frame`` moves the frame cursor so that it refers to the frame below its
+  current frame.
 
-- ``cur_inst`` returns the ID of the current instruction of ``%frame`` in
-  ``%stack``. Returns 0 if the frame is just created, its function is undefined,
-  or the frame is native.
+- ``copy_cursor`` allocates a frame cursor which refers to the same frame as
+  ``%cursor``. Returns the frame cursor reference.
+
+- ``close_cursor`` deallocates the cursor.
+
+::
+
+    [0x258]@uvm.meta.cur_func           (%cursor: framecursorref) -> int<32>
+    [0x259]@uvm.meta.cur_func_Ver       (%cursor: framecursorref) -> int<32>
+    [0x25a]@uvm.meta.cur_inst           (%cursor: framecursorref) -> int<32>
+    [0x25b]@uvm.meta.dump_keepalives    (%cursor: framecursorref) -> @uvm.meta.refs.r
+
+These functions operate on the frame referred by ``%cursor``. In all cases,
+``%cursor`` cannot be ``NULL``.
+
+- ``cur_func`` returns the ID of the frame. Returns 0 if the frame is native.
+
+- ``cur_func_ver`` returns the ID of the current function version of the frame.
+  Returns 0 if the frame is native, or the function of the frame is undefined.
+
+- ``cur_inst`` returns the ID of the current instruction of the frame. Returns 0
+  if the frame is just created, its function is undefined, or the frame is
+  native.
 
 - ``dump_keepalives`` dumps the values of the keep-alive variables of the
-  current instruction in the selected frame. If the function is undefined, the
-  arguments are the keep-alive variables. Cannot be used on native frames. The
-  return value is a list of object references, each of which refers to an object
-  which has type *T* and contains value *v*, where *T* and *v* are the type and
-  the value of the corresponding keep-alive variable, respectively.
+  current instruction in the frame. If the function is undefined, the arguments
+  are the keep-alive variables. Cannot be used on native frames. The return
+  value is a list of object references, each of which refers to an object which
+  has type *T* and contains value *v*, where *T* and *v* are the type and the
+  value of the corresponding keep-alive variable, respectively.
 
 On-stack replacement
 --------------------
 
 ::
 
-    [0x258]@uvm.meta.pop_frame (%stack: stackref)
-    [0x259]@uvm.meta.push_frame <[sig]> (%stack: stackref, %func: funcref<sig>)
+    [0x25c]@uvm.meta.pop_frames_to (%cursor: framecursorref)
+    [0x25d]@uvm.meta.push_frame <[sig]> (%stack: stackref, %func: funcref<sig>)
 
-``%stack`` and ``%func`` must not be ``NULL``.
+``%cursor``, ``%stack`` and ``%func`` must not be ``NULL``.
 
-- ``pop_frame`` pops the top frame of the stack ``%stack``.
+- ``pop_frames_to`` pops all frames above ``%cursor``.
 
-- ``push_frame`` creates a new frame on top of the stack ``%stack`` for the Mu
-  function ``%func``. ``%func`` must have the signature ``sig``.
-  
-  The previous top frame must be in the **READY<Ts>** state for some Ts. The
-  return type of ``%func`` must be *Ts*.
+- ``push_frame`` creates a new frame on top of the stack ``%stack`` for the
+  current version of the Mu function ``%func``. ``%func`` must have the
+  signature ``sig``.
 
 Watchpoint operations
 ---------------------
 
 ::
 
-    [0x25a]@uvm.meta.enable_watchpoint  (%wpid: int<32>)
-    [0x25b]@uvm.meta.disable_watchpoint (%wpid: int<32>)
+    [0x25e]@uvm.meta.enable_watchpoint  (%wpid: int<32>)
+    [0x25f]@uvm.meta.disable_watchpoint (%wpid: int<32>)
 
 - ``enable_watchpoint``    enables  all watchpoints of watchpoint ID ``%wpid``.
 - ``disenable_watchpoint`` disables all watchpoints of watchpoint ID ``%wpid``.
@@ -427,7 +443,7 @@ Trap handling
 
 ::
 
-    [0x25c]@uvm.meta.set_trap_handler (%handler: funcref<@uvm.meta.trap_handler.sig>, %userdata: ref<void>)
+    [0x260]@uvm.meta.set_trap_handler (%handler: funcref<@uvm.meta.trap_handler.sig>, %userdata: ref<void>)
 
 This instruction registers a trap handler. ``%handler`` is the function to be
 called and ``%userdata`` will be their last argument when called.

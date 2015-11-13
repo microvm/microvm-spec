@@ -113,6 +113,7 @@ opaque **handles**. Those handles are defined as::
     typedef void *MuFuncRefValue;       // funcref<sig>
     typedef void *MuThreadRefValue;     // threadref
     typedef void *MuStackRefValue;      // stackref
+    typedef void *MuFCRefValue;         // framecursorref
     typedef void *MuTagRef64Value;      // tagref64
     typedef void *MuUPtrValue;          // uptr
     typedef void *MuUFPValue;           // ufuncptr
@@ -709,36 +710,54 @@ Stack introspection
 
 ::
 
-    MuID        (*cur_func       )(MuCtx *ctx, MuStackRefValue stack, int frame);
-    MuID        (*cur_func_ver   )(MuCtx *ctx, MuStackRefValue stack, int frame);
-    MuID        (*cur_inst       )(MuCtx *ctx, MuStackRefValue stack, int frame);
-    void        (*dump_keepalives)(MuCtx *ctx, MuStackRefValue stack, int frame, MuValue *results);
+    MuFCRefValue    (*new_cursor  )(MuCtx *ctx, MuStackRefValue stack);
+    void            (*next_frame  )(MuCtx *ctx, MuFCRefValue cursor);
+    MuFCRefValue    (*copy_cursor )(MuCtx *ctx, MuFCRefValue cursor);
+    void            (*close_cursor)(MuCtx *ctx, MuFCRefValue cursor);
 
-* ``cur_func`` returns the ID of the current function of ``frame``
-  in ``stack``. Returns 0 if the frame is native.
+In all cases, ``cursor`` and ``stack`` cannot be ``NULL``.
 
-* ``cur_func_ver`` returns the ID of the current function version of ``frame``
-  in ``stack``. Returns 0 if the frame is native, or the function of the frame
-  is undefined.
+* ``new_cursor`` allocates a frame cursor, referring to the top frame of
+  ``stack``. Returns the frame cursor reference.
 
-* ``cur_inst`` returns the ID of the current instruction of ``frame`` in
-  ``stack``. Returns 0 if the frame is just created, its function is undefined,
-  or the frame is native.
+* ``next_frame`` moves the frame cursor so that it refers to the frame below its
+  current frame.
+
+* ``copy_cursor`` allocates a frame cursor which refers to the same frame as
+  ``cursor``. Returns the frame cursor reference.
+
+* ``close_cursor`` deallocates the cursor.
+
+::
+
+    MuID        (*cur_func       )(MuCtx *ctx, MuFCRefValue cursor);
+    MuID        (*cur_func_ver   )(MuCtx *ctx, MuFCRefValue cursor);
+    MuID        (*cur_inst       )(MuCtx *ctx, MuFCRefValue cursor);
+    void        (*dump_keepalives)(MuCtx *ctx, MuFCRefValue cursor, MuValue *results);
+
+These functions operate on the frame referred by ``cursor``. In all cases,
+``cursor`` cannot be the Mu value ``NULL``, and ``results`` cannot be the C
+pointer ``NULL``.
+
+* ``cur_func`` returns the ID of the frame. Returns 0 if the frame is native.
+
+* ``cur_func_ver`` returns the ID of the current function version of the frame.
+  Returns 0 if the frame is native, or the function of the frame is undefined.
+
+* ``cur_inst`` returns the ID of the current instruction of the frame. Returns 0
+  if the frame is just created, its function is undefined, or the frame is
+  native.
 
 * ``dump_keepalives`` dumps the values of the keep-alive variables of the
-  current instruction in the selected frame. If the function is undefined, the
-  arguments are the keep-alive variables. Cannot be used on native frames.  As
-  many handles as the keep-alive variables are written in the ``results`` array.
+  current instruction of the frame. If the function is undefined, the arguments
+  are the keep-alive variables. Cannot be used on native frames.  As many
+  handles as the keep-alive variables are written in the ``results`` array.
 
 ..
 
     NOTE: The current instruction ID uniquely decides the list of keep-alive
     variables, so the client can always know how long the ``results`` array
     should be allocated.
-
-The frame is the ``frame``-th frame below the top frame, starting with 0.  (If
-``frame`` is 0, it is the top frame. 1 is the frame below the top. 2 is the one
-below 1, and so on.)
 
 ..
 
@@ -757,26 +776,21 @@ On-stack replacement
 
 ::
 
-    void        (*pop_frame )(MuCtx *ctx, MuStackRefValue stack);
-    void        (*push_frame)(MuCtx *ctx, MuStackRefValue stack, MuFuncRefValue func);
+    void        (*pop_frames_to)(MuCtx *ctx, MuFCRefValue cursor);
+    void        (*push_frame   )(MuCtx *ctx, MuStackRefValue stack, MuFuncRefValue func);
 
-* ``pop_frame`` pops the top frame of the stack. Popping native frames has
-  implementation-defined behaviour.
+``cursor``, ``stack`` and ``func`` cannot be ``NULL``.
 
-* ``push_frame`` creates a new frame on the top of ``stack`` for function
-  ``func``.
+* ``pop_frames_to`` pops all frames above ``cursor``.
 
-  The previous top frame must be in the **READY<Ts>** state for some Ts. The
-  return type of ``%func`` must be *Ts*.
-
-  After ``push_frame``, the new top frame is in the **READY<Ts>** state where Ts
-  are the argument types of ``func``. When the stack is rebound, it continues
-  from the beginning of ``func``. The return value or exceptions from ``func``
-  are received by the previous frame.
+* ``push_frame`` creates a new frame on the top of ``stack`` for the current
+  version of function ``func``.
 
 ..
 
-    For JVM users: ``pop_frame`` is similar to the ``PopFrame`` JVM TI function.
+    For JVM users: ``pop_frames_to`` is similar to the ``PopFrame`` JVM TI
+    function, but the resumption point is immediately after the call site, not
+    immediately before.
 
 
 Tagged reference operations

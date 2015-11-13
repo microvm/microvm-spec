@@ -361,8 +361,8 @@ The ``cur_func_ver`` function, in addition to returning the function version
 ID, it may also return 0 if the selected frame is a native frame. (Multiple
 native frames are counted as one between two Mu frames.)
 
-The ``pop_frame`` function has implementation-defined behaviours when popping
-native frames.
+The ``pop_frames_to`` function has implementation-defined behaviours when
+popping native frames.
 
 When rebinding a thread to a stack with a value, and the top frame is on a call
 site (native or Mu), the value associated with the rebinding is the return value

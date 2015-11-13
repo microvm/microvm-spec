@@ -111,8 +111,8 @@ pushing a frame         READY<Ts> -> READY<Us>          N/A                     
 Stack and Thread Creation
 =========================
 
-Mu stacks and Mu threads can be created by Mu instructions ``@uvm.new_stack`` and
-``NEWTHREAD``, or the API function ``new_stack`` and ``new_thread``.
+Mu stacks and Mu threads can be created by Mu instructions ``@uvm.new_stack``
+and ``NEWTHREAD``, or the API function ``new_stack`` and ``new_thread``.
 
 When a stack is created, a Mu function must be provided. The stack will contain
 a frame created for the current version of the function (as seen by the current
@@ -125,8 +125,8 @@ thread because of concurrency and the memory model). This frame is called the
     stack-bottom frame. They are implementation-specific details.
 
 The stack-bottom frame (and also the stack) is in the **READY<Ts>** state, where
-Ts are the parameter types of the stack-bottom function. When bound (explained
-later), it continues from the beginning of its stack-bottom function.
+Ts are the parameter types of the stack-bottom function. The resumption point is
+the beginning of the function version.
 
 When a thread is created, a stack must be provided as its **initial stack**.
 Creating a thread binds the thread to the stack, passing values or raising
@@ -171,6 +171,59 @@ shall be performed on the stack:
 
 It gives undefined behaviour if the stack is not in the expected state.
 
+Resumption Point
+----------------
+
+A frame in the **READY<Ts>** state has a **resumption point**. The resumption
+point determines how the received values and the received exception are
+processed when binding to a thread.
+
+For a Mu frame, the resumption point is either the beginning of a function
+version, or an OSR point instruction in the function version.
+
+- In the former case, the *Ts* in **READY<Ts>** are the parameters of the
+  function (also the entry block). Received values are bound to the parameters
+  and the execution continues from the beginning of the entry block. Received
+  exception is re-thrown.
+
+- In the latter case, the *Ts* types are determined by the concrete
+  instructions. Specifically, *Ts* are the return types for ``CALL`` and
+  ``CCALL``, and are explicitly specified for ``TRAP``, ``WATCHPOINT`` and
+  ``SWAPSTACK``. The received values are bound to the results of the OSR point
+  instruction. The received exception is handle by the instruction or re-thrown
+  depending on the instruction.
+
+Undefined Mu functions behaves as defined in `Mu IR <uvm-ir.rest>`__.
+
+Native frames can only enter the **READY<Ts>** state when it calls back to Mu.
+Thus the resumption point is where it will continue after the native-to-Mu call
+returns. The received values are the return values to the native function.
+Throwing exceptions to native frames has implementation-defined behaviour.
+
+Mu gives the client a unified model of stack binding. The binding operation is
+only aware of the *Ts* types of the **READY<Ts>** state, but oblivious of the
+resumption point. Therefore it can resume any **READY<Ts>** stack in the same
+way, whether the resumption point is the beginning of a function, a call site, a
+trap or a swap-stack instruction, or a native frame.
+
+    Note to the Mu implementers: swap-stack, Mu-to-Mu calls and Mu-native calls
+    may all have different calling conventions, but the implementation must
+    present a unified "resumption protocol" to the client: all stack-binding
+    operations work on all OSR point instructions, as long as the *Ts* in
+    *READY<Ts>* match the passed values. In practice, some "adapter" frames may
+    need to be inserted to convert one convention to another, but these frames
+    must not be seen by the client. This implies that some API functions
+    (especially stack introspection) must "lie" to the client about the presence
+    of such frames.
+
+    For example, on x86_64, assume ``SWAPSTACK`` passes values to the other
+    stack via rdi and rsi, but ``RET`` returns values to the caller via rax and
+    rdx. If, during OSR, a frame pausing on the ``CALL`` instruction becomes the
+    top frame of a stack, then the Mu implementation must also create some glue
+    code and an adapter frame above that frame, so that when a thread SWAP-STACK
+    to this stack, values passed in rdi and rsi can be moved to rax and rdx,
+    respectively. This "adapter" frame must also recover callee-saved registers.
+
 Unbinding
 ---------
 
@@ -182,7 +235,7 @@ be performed on the stack:
 
 An unbinding operation can **leave the stack** with a return types *Ts*. In this
 case, the state of its top frame changes from **ACTIVE** to **READY<Ts>** for
-some given *Ts*.
+some given *Ts*. The instruction becomes the resumption point of the frame.
 
 An unbinding operation can **kill the stack**. In this case, the state of all
 frames of the stack changes from **ACTIVE** to **DEAD**. Specifically the
@@ -218,20 +271,95 @@ stack.
 The Mu may change the value of ``stackref`` type to ``NULL`` if the stack it
 refers to is in the **DEAD** state.
 
+Stack Introspection
+===================
+
+Stacks in the **READY<Ts>** state can be introspected. Stacks in other states
+cannot.
+
+The stack introspection API uses **frame cursors**. A *frame cursor* is a
+mutable opaque structure allocated by Mu. It refers to a Mu frame, and also
+keeps implementation-dependent states necessary to iterate through frames in a
+stack.
+
+    Note: The reason why it is mutable is that the cursor may be big. The states
+    to be kept is specific to the implementation. Generally speaking, the more
+    callee-saved registers there are, the bigger the cursor is. Allocating a new
+    structure whenever moving down a frame may not scale for deep stacks.
+
+The ``new_cursor`` API call allocates a frame cursor that refers to the top
+frame of a given stack, and returns a ``framecursorref`` that refers to the
+cursor. Then the client can use the ``next_frame`` API to move the cursor to the
+frame below. The ``copy_cursor`` copies the given frame cursor. The original
+frame cursor and the copied cursor can move down independently. This is useful
+when the client wishes to iterate through the stack in different paces. The
+``close_cursor`` API closes the frame cursor and deallocates its resources.
+
+It has undefined behaviour if a stack is bound to a thread or a stack is killed
+while there are frame cursors to its frames not closed. It has undefined
+behaviour if ``next_frame`` goes below the bottom frame.
+
+    Note: There are several reasons why it needs explicit closing.
+
+    * It forces the client to avoid racing stack modification and stack
+      introspection.
+    
+    * It will not force the Mu implementation to use a particular way to
+      allocate such cursors. The Mu implementation can use malloc and free. If
+      the implementation uses garbage collection for such cursors, it can still
+      treat the ``close_cursor`` operation as a no-op.
+
+    * An alternative is to close all related cursors automatically when the
+      stack is re-bound. But that will involve one extra check for every
+      swap-stack operation, which may be much more frequent than stack
+      introspection, which is usually only used in exceptional cases.
+
+The ``cur_func``, ``cur_func_ver``, ``cur_inst`` and ``dump_keepalives`` API
+calls take a ``framecursorref`` as argument, and returns the ID of the function,
+function version or current instruction of the frame, or dumps the keep-alive
+variables of the current instruction of the frame.
+
+Multiple threads may introspect the stack concurrently as long as there is no
+concurrent modification using the on-stack replacement API (see below). However,
+it has undefined behaviour to operate on a closed frame cursor.
+
+These operations can also be performed by their equivalent common instructions
+``@uvm.meta.*``.
+
 On-stack Replacement
 ====================
 
-The client can pop and push frames from or to a stack. The ``pop_frame`` API
-function pops the top frame from a stack. The ``push_frame`` function creates a
-new frame on the top of the stack, using the current version (as seen by the
-current thread) of a given function and the given arguments.
+The client can pop and push frames from or to a stack.
 
-After popping a frame from a stack, the next stack below the top becomes the new
-top frame. Then the state of the stack become the state of the new top frame.
+The ``pop_frames_to`` API function takes a ``framecursorref`` as argument. It
+will pop all frames above the frame cursor, and the frame of the cursor becomes
+the new top frame.
 
-After pushing a frame to a stack, the new top frame is in the **READY<Ts>**
-state, where Ts is the argument types of the new function. When rebound, it
-continues from the beginning of the function.
+Popping native frames has implementation-defined behaviour. It has undefined
+behaviour if a frame is popped but there are frame cursors referring to that
+frame.
+
+The ``push_frame`` API function takes a ``stackref`` and a ``funcref`` as
+arguments. It creates a new frame on the top of the stack, using the current
+version (as seen by the current thread) of the given function. The resumption
+point is the beginning of the function version. The return types of the function
+must match the *Ts* of the state of the previous frame, which must be
+**READY<Ts>**.
+
+There are equivalent common instructions in the IR, too.
+
+It has undefined behaviour if
+
+- there are two API calls or equivalent instructions executed by two threads,
+  and
+- one is ``new_cursor``, ``next_frame``, ``cur_func``, ``cur_func_ver``,
+  ``cur_inst``, ``dump_keepalives``, ``pop_frames_to`` or ``push_frame``, and
+- the other is ``pop_frames_to`` or ``push_frame``, and
+- neither happens before the other.
+
+After popping or pushing frames, the state of the stack become the state of the
+new top frame, which must be **READY<Ts>** for some *Ts*. The stack can be
+bound.
 
     NOTE: For the ease of Mu implementation, the new function must continue
     from the beginning rather than an arbitrary instruction in the middle.
@@ -253,30 +381,6 @@ continues from the beginning of the function.
     TODO: With the goto-with-values form defined, we can extend the IR and the
     API so that execution can continue from an arbitrary basic block of an
     arbitrary function version, rather than just the beginning of a function.
-
-Mu gives the client a unified model of stack and frame states. As long as a
-stack is in the **READY<Ts>** state, it can be resumed by binding a thread to
-it, passing values of types *Ts*. The binding operation is oblivious of the
-current instruction the top frame is pausing at, i.e. it can be any OSR point
-instructions: ``CALL``, ``TRAP``, ``WATCHPOINT``, ``CCALL`` and ``SWAPSTACK``.
-
-    Note to the Mu implementers: swap-stack, Mu-to-Mu calls and Mu-native calls
-    may all have different calling conventions, but the implementation must
-    present a unified "resumption protocol" to the client: all stack-binding
-    operations work on all OSR point instructions, as long as the *Ts* in
-    *READY<Ts>* match the passed values. In practice, some "adapter" frames may
-    need to be inserted to convert one convention to another, but these frames
-    must not be seen by the client. This implies that some API functions
-    (especially stack introspection) must "lie" to the client about the presence
-    of such frames.
-
-    For example, on x86_64, assume ``SWAPSTACK`` passes values to the other
-    stack via rdi and rsi, but ``RET`` returns values to the caller via rax and
-    rdx. If, during OSR, a frame pausing on the ``CALL`` instruction becomes the
-    top frame of a stack, then the Mu implementation must also create some glue
-    code and an adapter frame above that frame, so that when a thread SWAP-STACK
-    to this stack, values passed in rdi and rsi can be moved to rax and rdx,
-    respectively. This "adapter" frame must also recover callee-saved registers.
 
 Futex
 =====

@@ -46,6 +46,7 @@ The following type constructors are available in Mu:
 - funcref < sig >
 - threadref
 - stackref
+- framecursorref
 - tagref64
 - vector < T length >
 - uptr < T >
@@ -60,7 +61,8 @@ There are several kinds of types.
 * ``float`` and ``double`` are **floating point types**.
 * ``ref`` and ``weakref`` are **object referenct types**.
 * ``ref``, ``iref`` and ``weakref`` are **reference types**.
-* ``funcref``, ``threadref`` and ``stackref`` are **opaque reference types**.
+* ``funcref``, ``threadref``, ``stackref`` and ``framecursorref`` are **opaque
+  reference types**.
 * *Reference types* and *opaque reference types* are **general reference types**.
 * ``int``, ``float``, ``double``, *general reference types* and ``tagref64`` are
   **scalar types**.
@@ -71,8 +73,8 @@ There are several kinds of types.
 * ``hybrid`` is the only **variable-length type**. All other types are
   **fixed-length types**.
 * ``uptr`` and ``ufuncptr`` are **pointer types**.
-* ``int``, ``ref``, ``iref``, ``funcref``, ``stackref``, ``threadref`` and
-  pointer types are **EQ-comparable types**.
+* ``int``, ``ref``, ``iref``, ``funcref``, ``stackref``, ``threadref``,
+  ``framecursorref`` and pointer types are **EQ-comparable types**.
 * ``int``, ``iref`` and pointer types are **ULT-comparable types**.
 * ``ref<T>`` is the **strong variant** of ``weakref<T>``; ``weakref<T>`` is the
   **weak variant** of ``ref<T>``. All other types are the strong variant or weak
@@ -101,8 +103,9 @@ following:
   the ``ufuncptr`` type is not well-formed.
 
 * All other types are not native-safe. (Specifically, they are ``ref``,
-  ``iref``, ``weakref``, ``funcref``, ``threadref``, ``stackref`` as well as
-  ``struct``, ``array`` or ``hybrid`` that contains them.)
+  ``iref``, ``weakref``, ``funcref``, ``threadref``, ``stackref``,
+  ``framecursorref`` as well as ``struct``, ``array`` or ``hybrid`` that
+  contains them.)
 
 Integer Type
 ------------
@@ -539,13 +542,25 @@ A ``NULL`` value of a ``funcref`` type does not refer to any function.
 | 0x0D |
 +------+
 
-``threadref`` and ``stackref`` are opaque reference types to Mu threads and Mu
-stacks, respectively. They are not interchangeable with reference types. Only
-some special instructions (e.g. ``@uvm.new_stack``, ``NEWTHREAD``) or API
-calls can operate on them.
+``framecursorref``
 
-Both ``threadref`` and ``stackref`` values can be ``NULL``, which does not refer
-to any threads or stacks.
++------+
+| opct |
++======+
+| 0x12 |
++------+
+
+``threadref``, ``stackref`` and ``framecursorref`` are opaque reference types to
+Mu threads, Mu stacks and frame cursors, respectively. They are not
+interchangeable with reference types. Only some special instructions (e.g.
+``@uvm.new_stack``, ``NEWTHREAD``, ``@uvm.meta.new_cursor``) or API calls can
+operate on them.
+
+All opaque reference values can be ``NULL``, which does not refer to anything.
+
+A frame cursor is an internal structure which is used by the stack introspection
+API to iterate through stack frames. Its content is mutable but opaque. See
+`Threads and Stacks <threads-stacks.rest>`__ for more details.
 
 Tagged Reference
 ----------------
