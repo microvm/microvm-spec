@@ -1,3 +1,10 @@
+#ifndef __MUAPI_H__
+#define __MUAPI_H__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 
 // MuValue and MuXxxValue type are opaque handles to values in the Mu type
@@ -21,6 +28,7 @@ typedef void *MuVectorValue;        // vector<T l>
 typedef void *MuFuncRefValue;       // funcref<sig>
 typedef void *MuThreadRefValue;     // threadref
 typedef void *MuStackRefValue;      // stackref
+typedef void *MuFCRefValue;         // framecursorref
 typedef void *MuTagRef64Value;      // tagref64
 typedef void *MuUPtrValue;          // uptr
 typedef void *MuUFPValue;           // ufuncptr
@@ -208,15 +216,21 @@ struct MuCtx {
                             MuHowToResume *htr, MuValue *vals, int nvals, MuRefValue *exc);
     void                (*kill_stack)(MuCtx *ctx, MuStackRefValue stack);
 
+    // Frame cursor operations
+    MuFCRefValue    (*new_cursor  )(MuCtx *ctx, MuStackRefValue stack);
+    void            (*next_frame  )(MuCtx *ctx, MuFCRefValue cursor);
+    MuFCRefValue    (*copy_cursor )(MuCtx *ctx, MuFCRefValue cursor);
+    void            (*close_cursor)(MuCtx *ctx, MuFCRefValue cursor);
+
     // Stack introspection
-    MuID        (*cur_func       )(MuCtx *ctx, MuStackRefValue stack, int frame);
-    MuID        (*cur_func_ver   )(MuCtx *ctx, MuStackRefValue stack, int frame);
-    MuID        (*cur_inst       )(MuCtx *ctx, MuStackRefValue stack, int frame);
-    void        (*dump_keepalives)(MuCtx *ctx, MuStackRefValue stack, int frame, MuValue *results);
+    MuID        (*cur_func       )(MuCtx *ctx, MuFCRefValue cursor);
+    MuID        (*cur_func_ver   )(MuCtx *ctx, MuFCRefValue cursor);
+    MuID        (*cur_inst       )(MuCtx *ctx, MuFCRefValue cursor);
+    void        (*dump_keepalives)(MuCtx *ctx, MuFCRefValue cursor, MuValue *results);
     
     // On-stack replacement
-    void        (*pop_frame )(MuCtx *ctx, MuStackRefValue stack);
-    void        (*push_frame)(MuCtx *ctx, MuStackRefValue stack, MuFuncRefValue func, MuValue *args, int nargs);
+    void        (*pop_frames_to)(MuCtx *ctx, MuFCRefValue cursor);
+    void        (*push_frame   )(MuCtx *ctx, MuStackRefValue stack, MuFuncRefValue func);
 
     // 64-bit tagged reference operations
     int             (*tr64_is_fp   )(MuCtx *ctx, MuTagRef64Value value);
@@ -243,3 +257,8 @@ struct MuCtx {
     void        (*unexpose)(MuCtx *ctx, MuCallConv call_conv, MuValue value);
 };
 
+#ifdef __cplusplus
+}
+#endif
+
+#endif // __MUAPI_H__
