@@ -278,13 +278,13 @@ Converting values to/from handles
 
 ::
 
-    MuIntValue      (*handle_from_int8  )(MuCtx *ctx, int8_t   num, int len);
+    MuIntValue      (*handle_from_sint8 )(MuCtx *ctx, int8_t   num, int len);
     MuIntValue      (*handle_from_uint8 )(MuCtx *ctx, uint8_t  num, int len);
-    MuIntValue      (*handle_from_int16 )(MuCtx *ctx, int16_t  num, int len);
+    MuIntValue      (*handle_from_sint16)(MuCtx *ctx, int16_t  num, int len);
     MuIntValue      (*handle_from_uint16)(MuCtx *ctx, uint16_t num, int len);
-    MuIntValue      (*handle_from_int32 )(MuCtx *ctx, int32_t  num, int len);
+    MuIntValue      (*handle_from_sint32)(MuCtx *ctx, int32_t  num, int len);
     MuIntValue      (*handle_from_uint32)(MuCtx *ctx, uint32_t num, int len);
-    MuIntValue      (*handle_from_int64 )(MuCtx *ctx, int64_t  num, int len);
+    MuIntValue      (*handle_from_sint64)(MuCtx *ctx, int64_t  num, int len);
     MuIntValue      (*handle_from_uint64)(MuCtx *ctx, uint64_t num, int len);
     MuFloatValue    (*handle_from_float )(MuCtx *ctx, float    num);
     MuDoubleValue   (*handle_from_double)(MuCtx *ctx, double   num);
@@ -299,25 +299,25 @@ where ``MuCPtr`` and ``MuCFP`` are convenient definitions for C types::
 The ``handle_from_XXX`` functions convert C values to Mu values held in the
 context and return handles to them. Specifically:
 
-* ``handle_from_int8``:     Convert a C ``int8_t`` value to a Mu integer of type
-  ``int<len>``, truncated or sign-extended.
+* ``handle_from_sint8``:     Convert a C ``int8_t`` value to a Mu integer of
+  type ``int<len>``, truncated or sign-extended.
 
 * ``handle_from_uint8``:    Convert a C ``uint8_t`` value to a Mu integer of
   type ``int<len>``, truncated or zero-extended.
 
-* ``handle_from_int16``:    Convert a C ``int16_t`` value to a Mu integer of
+* ``handle_from_sint16``:    Convert a C ``int16_t`` value to a Mu integer of
   type ``int<len>``, truncated or sign-extended.
 
 * ``handle_from_uint16``:   Convert a C ``uint64_t`` value to a Mu integer of
   type ``int<len>``, truncated or zero-extended.
 
-* ``handle_from_int32``:    Convert a C ``int32_t`` value to a Mu integer of
+* ``handle_from_sint32``:    Convert a C ``int32_t`` value to a Mu integer of
   type ``int<len>``, truncated or sign-extended.
 
 * ``handle_from_uint32``:   Convert a C ``uint64_t`` value to a Mu integer of
   type ``int<len>``, truncated or zero-extended.
 
-* ``handle_from_int64``:    Convert a C ``int64_t`` value to a Mu integer of
+* ``handle_from_sint64``:    Convert a C ``int64_t`` value to a Mu integer of
   type ``int<len>``, truncated or sign-extended.
 
 * ``handle_from_uint64``:   Convert a C ``uint64_t`` value to a Mu integer of
