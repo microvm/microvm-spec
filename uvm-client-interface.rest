@@ -638,8 +638,9 @@ where::
   ``newval``).
 
 * ``cmpxchg`` performs a *compare exchange* operation with arguments (``weak``,
-  ``ord_sicc``, ``ord_fail``, *T*, ``loc``, ``expected``, ``desired``).
-  ``*is_succ`` is set to 1 if successful, or 0 if failed.
+  ``ord_sicc``, ``ord_fail``, *T*, ``loc``, ``expected``, ``desired``). ``weak``
+  is Boolean encoded as int, where 1 means true and 0 means false.  ``*is_succ``
+  is set to 1 if successful, or 0 if failed.
 
 * ``atomicrmw`` performs an *atomic-x* operation with argument (``ord``, *T*,
   ``loc``, ``opnd``), where the *x* in *atomic-x* is ``op``.
@@ -655,8 +656,8 @@ These instructions are guaranteed to be compatible with the Mu memory model.
 
 ..
 
-    For C users: Functions in ``stdatomic.h`` may be implemented in an
-    incompatible way to Mu.
+    For C users: Functions in ``stdatomic.h`` may be implemented in a way
+    incompatible with Mu.
 
     For JNI users: ``load`` and ``store`` are similar to ``Get<type>Field`` and
     ``Set<type>Field``.
@@ -668,7 +669,7 @@ Stack and thread operations
 
     MuStackRefValue     (*new_stack )(MuCtx *ctx, MuFuncRefValue func);
     MuThreadRefValue    (*new_thread)(MuCtx *ctx, MuStackRefValue stack,
-                            MuHowToResume *htr, MuValue *vals, int nvals, MuRefValue *exc);
+                            MuHowToResume htr, MuValue *vals, int nvals, MuRefValue exc);
     void                (*kill_stack)(MuCtx *ctx, MuStackRefValue stack);
 
     typedef int MuHowToResume;
@@ -680,13 +681,19 @@ Returns a stackref to the new stack. The stack-bottom frame will resume from the
 very beginning of ``func`` when resumed, and its state is **READY<Ts>**, where
 *Ts* is the parameter types of ``func``.
 
-``new_thread`` creates a new Mu thread and binds it to ``stack``. ``stack`` must
-be in the **READY<Ts>** state for some types *Ts*. ``*htr`` determines how to
-bind to the stack. Possible values are ``MU_REBIND_PASS_VALUES`` for passing
-values and ``MU_REBIND_THROW_EXC`` for throwing an exception. Values are
-provided by the ``args`` array. ``nargs`` is the number of values. The types of
-values must match *Ts*. The exception is provided by ``*exc``. Returns a
-threadref to the new thread.
+``new_thread`` creates a new Mu thread and binds it to ``stack``. Returns a
+threadref to the new thread. ``stack`` must be in the **READY<Ts>** state for
+some types *Ts*. ``*htr`` determines how to bind to the stack. Possible values
+are
+
+- ``MU_REBIND_PASS_VALUES``: Pass the first ``nvals`` values in the ``vals``
+  array to the stack. ``exc`` is ignored. The types of the values must match the
+  *Ts* types of the stack state.
+
+- ``MU_REBIND_THROW_EXC``: Throw the exception ``exc`` to the stack. ``vals``
+  and ``nvals`` are ignored.
+  
+In either case, the ignored MuValue arguments can be the C ``NULL`` pointer.
 
 ``kill_stack`` kills the ``stack``. The stack must be in the **READY<Ts>** state
 for some *Ts*.  The stack enters the **DEAD** state.  If the stack contains
@@ -930,8 +937,8 @@ The signature of trap handlers is::
 
     typedef void (*MuTrapHandler)(MuCtx *ctx, MuThreadRefValue thread,
             MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
-            MuStackRefValue *new_stack, MuValue *values, int *nvalues,
-            MuRefValue *exception,
+            MuStackRefValue *new_stack, MuValue **values, int *nvalues,
+            MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
             MuCPtr userdata);
 
 where::
@@ -941,6 +948,8 @@ where::
     #define MU_THREAD_EXIT          0x00
     #define MU_REBIND_PASS_VALUES   0x01
     #define MU_REBIND_THROW_EXC     0x02
+
+    typedef void (*MuValueFreer)(MuValue *values, MuCPtr freerdata);
 
 ``ctx`` is a new client context created for this particular trap event.
 ``thread`` is a threadref to the thread that causes the trap. ``stack`` is
@@ -955,15 +964,26 @@ close it manually.
 Before returning, the trap handler should set ``*result``:
 
 * ``MU_THREAD_EXIT``: The thread ``thread`` terminates.
+
 * ``Mu_REBIND_PASS_VALUES``: The thread ``thread`` will be rebound to a stack
-  ``*new_stack``. The values ``*values`` are passed to ``*new_stack``. The types
-  of ``*values`` must match the type expected by ``*new_stack``. ``*nvalues`` is
-  the number of elements in the ``*values`` array.
+  ``*new_stack``. ``*nvalues`` values at ``*values`` are passed to
+  ``*new_stack``. The types of ``*values`` must match the type expected by
+  ``*new_stack``. Mu will copy the values from the ``*values`` array. Then if
+  ``*freer`` is not ``NULL``, Mu will call ``(*freer)(*values, *freerdata)``.
+
+    NOTE: Effectively, the client is returning an array to Mu. Mu does not know
+    what stack the client is going to rebind to before calling, therefore the
+    client must allocate the array for the values. The client is also
+    responsible for freeing the array, but it loses control after returning to
+    Mu. So Mu will call the "freer" function on behalf of the client. Usually
+    the client can use ``malloc``, and provide a thin wrapper over ``free`` as
+    the ``freer``.
+
 * ``Mu_REBIND_THROW_EXC``: The thread ``thread`` will be rebound to a stack
   ``*new_stack``. It throws exception ``*exception`` to the stack.
 
-In all cases, if ``*new_stack``, ``*value`` and/or ``*exception`` are used, they
-must be set and must be held by ``ctx``.
+In all cases, if ``*new_stack``, any value in ``*values``, and/or ``*exception``
+are used, they must be set and must be held by ``ctx``.
 
 Signal Handling
 ===============
