@@ -899,7 +899,7 @@ where::
 
     typedef int MuCallConv;
 
-    #define MU_DEFUALT     0x00
+    #define MU_DEFAULT     0x00
 
 * ``expose`` exposes a Mu function ``func`` according to the calling convention
   ``call_conv``. ``cookie`` is the attached cookie. The return value is specific
