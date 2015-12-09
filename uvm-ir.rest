@@ -334,6 +334,22 @@ where:
     event, replacing all occurrences of ``@Foo`` with ``@Bar`` in the whole
     program is the desired approach.
 
+..
+
+    For C programmers: In Mu IR, types cannot be "inlined", i.e. all types
+    referenced by other definitions (such as other types, constants, globals,
+    functions, ...) must be defined at top-level. For example::
+
+        .typedef @refi64 = ref<int<64>>     // WRONG. Cannot write int<64> inside.
+        
+        .typedef @i64 = int<64>
+        .typedef @refi64 = ref<@i64>        // Right.
+
+        %sum = FADD <double> %a %b          // WRONG. "double" is a type constructor, not a type
+
+        .typedef @double = double
+        %sum = FADD <@double> %a %b         // Right.
+
 Function Signature Definition
 =============================
 
@@ -367,6 +383,22 @@ spaces for the types of parameters and return values, respectively.
         .typedef @i64 = int<64>
         .typedef @refi64 = ref<@i64>
         .funcsig @some_func_s = (@i64 @double) -> (@refi64)
+
+..
+
+    For C programmers: Just like types, function signatures cannot be inlined.
+    For example::
+
+        // Asssume @i64 is defined as int<64>
+
+        .typedef @foo_fp  = funcref<(@i64 @i64) -> (@i64)>      // WRONG.
+        
+        %rv = CALL <(@i64 @i64) -> (@i64)> @func (%arg1 %arg2)  // WRONG.
+
+        .funcsig @foo_sig = (@i64 @i64) -> (@i64)
+        .typedef @foo_fp  = funcref<@foo_sig>               // Right.
+
+        %rv = CALL <@foo_sig> @func (%arg1 %arg2)           // Right.
 
 Constant Definition
 ===================
@@ -539,6 +571,17 @@ A **constant constructor** can be the following:
         .typedef @i64ary = array<@i64 3>
         .const @constary <@i64ary> = {@oct1 @oct2 @dec1}
 
+..
+
+    For C programmers: Just like types, constants cannot be inlined.  For
+    example::
+
+        // Asssume @i64 is defined as int<64>
+
+        %b = ADD <@i64> %a 123          // WRONG. What type is 123?
+
+        .const @I64_123 <@i64> = 123    // 123 is an @i64
+        %b = ADD <@i64> %a @I64_123     // Right.
 
 Global Cell Definition
 ======================
@@ -579,6 +622,15 @@ A global cell definition has the form::
                 STORE <@i32> @my_errno @i32_0
                 ...
         }
+
+..
+
+    For C programmers: Unlike C, global cells cannot be initialised as C global
+    variables. Mu global cells (as any Mu memory locations) are initialised to 0
+    or NULL. Writing to global cells can only be done via memory accessing
+    (load, store, ...), or indirectly via the `HAIL <hail.rest>`__ language.
+    Beware that concurrent non-atomic access (even as a result of careless
+    initialisation) may result in data race, which has undefined behaviour.
 
 Function Definition and Declaration
 ===================================

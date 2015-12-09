@@ -52,6 +52,22 @@ The following type constructors are available in Mu:
 - uptr < T >
 - ufuncptr < sig >
 
+..
+
+    For C programmers: In Mu IR, types cannot be "inlined", i.e. all types
+    referenced by other definitions (such as other types, constants, globals,
+    functions, ...) must be defined at top-level. For example::
+
+        .typedef @refi64 = ref<int<64>>     // WRONG. Cannot write int<64> inside.
+        
+        .typedef @i64 = int<64>
+        .typedef @refi64 = ref<@i64>        // Right.
+
+        %sum = FADD <double> %a %b          // WRONG. "double" is a type constructor, not a type
+
+        .typedef @double = double
+        %sum = FADD <@double> %a %b         // Right.
+
 Parameters of a type are in the angular brackets. They can be integer literals,
 types and function signatures. In the text form, the latter two are global
 names (See `<uvm-ir.rest>`__). In the binary form, they are IDs.
