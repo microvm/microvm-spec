@@ -32,19 +32,39 @@ Memory is allocated in their respective **allocation units**. Every allocation
 unit has a **lifetime** which begins when the allocation unit is created and
 ends when it is destroyed.
 
-A **memory location** is a region of data storage in the memory which can
-represent a data value. For a memory location L that represents type T, if c is
-a member (if applicable) or a component of T, it also has a memory location
-which is a **member** or a **component** of the memory location L, respectively.
-Memory location L1 **contains** a memory location L2 if L2 is a component of L1.
+A **memory location** is a region of data storage in the memory which can hold
+data values. A memory location has a type and its value can only be of that
+type.
 
-    NOTE: The "object" in the C language is the counterpart of "memory location"
-    in Mu. Mu does not have bit fields and a memory location is always an
-    "object" in C's sense. The word "object" is a synonym of "heap object" or
-    "garbage-collected object" in the Mu context.
+    NOTE: The Mu memory is defined without mentioning "address". There is no
+    "size", "alignment" or "offset" of a memory location. The relation between a
+    memory location and an address is only established when pinning (discussed
+    later). Even when pinned, the address may or may not be the canonical
+    address where the location is allocated in Mu. For example, Mu objects can
+    be replicated.
+    
+    When allocating Mu memory locations (in the heap, stack or global memory),
+    Mu guarantee the location can hold Mu values of a particular type and, as
+    long as the type allows atomic access, the location can be accessed
+    atomically. The implementation must ensure all memory locations are
+    allocated in such a way. For example, it should not allocate an integer
+    across page boundary, but it may choose to use locks for atomicity, which,
+    in practice, is usually a bad idea.
+
+..
+
+    For C programmers: The word "object" in the C language is the counterpart of
+    "memory location" in Mu. Mu does not have bit fields and a memory location
+    is always an "object" in C's sense. In Mu's terminology, the word "object"
+    is a synonym of "heap object" or "garbage-collected object".
 
     In C, the word "memory location" must have scalar types, but Mu uses the
     word for composite types, too.
+    
+For a memory location L that represents type T, if c is a member (if applicable)
+or a component of T, it also has a memory location which is a **member** or a
+**component** of the memory location L, respectively.  Memory location L1
+**contains** a memory location L2 if L2 is a component of L1.
 
 The **lifetime** of a memory location is the same as the allocation unit that
 contains it.
