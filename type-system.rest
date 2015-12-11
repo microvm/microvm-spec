@@ -349,6 +349,17 @@ members cannot be ``void``.
     it is desired to allocate an empty unit in the heap, the appropriate type is
     ``void``.
 
+A ``struct`` cannot have itself as a component.
+
+    NOTE: If it could, the struct would be infinitely large. However, a struct
+    may contain a reference to the same struct type, since the size of
+    references is not dictated by the thing it points to. For example::
+
+        .typedef @foo = struct <@i32 @foo>      // WRONG. @foo is infinitely big.
+
+        .typedef @foo = struct <@i32 @fooref>
+        .typedef @fooref = ref<@foo>            // Okay. It is a linked list.
+
 ``struct`` cannot be the type of an SSA variable if any of its field types
 cannot be the type of an SSA variable.
 
@@ -394,6 +405,8 @@ Array
 An ``array`` is a sequence of values of the same type. *T* is its **element
 type**, i.e. the type of its elements, and *length* is the length of the array.
 *T* must not be ``void``. An array must have at least one element.
+
+An ``array`` cannot have itself as a component.
 
 It is not recommended to have SSA variables of ``array`` type.
 
@@ -463,6 +476,18 @@ Neither any fixed-part field nor *V* can be ``void``.
 
 ``hybrid`` is the only type in Mu whose length is determined at allocation site
 rather than determined by the type itself.
+
+``hybrid`` cannot be contained in any other composite types, including other
+hybrids.
+
+    NOTE: Since the length of hybrids are only known at allocation time,
+    allowing embedding hybrid members will make the size of other types
+    variable. In Mu's design, hybrid is the only type whose length is determined
+    at allocation site.
+    
+    For C programmers: Just like ``struct { F f; V v[]; }`` cannot be embedded
+    in other types, ``hybrid`` cannot, either. However, pointers/references to
+    hybrids are allowed.
 
 ..
 
@@ -633,6 +658,11 @@ type. *T* is the type of its elements and *length* is the number of elements.
 *T* cannot be void. *length* must be at least one.
 
 It is allowed to have SSA variables of vector types.
+
+Only some primitive element types, such as ``int<32>``, ``float`` and
+``double``, are `required <portability.rest>` for implementations. If the
+implementation allows other types, then any vector cannot directly or indirectly
+contain itself as a member.
 
     For LLVM users: This is the counterpart of the LLVM vector type.
 
