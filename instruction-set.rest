@@ -2947,8 +2947,6 @@ typeList :sub:`opt`
 funcSigList :sub:`opt`
     Optional *function signature list*: A list of function signature arguments.
     Can be omitted.
-type :sub:`rep`
-    List of *type*: The list of type arguments.
 argList :sub:`opt`
     Optional *argument list*: A list of value arguments. Can be omitted.
 excClause
