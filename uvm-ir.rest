@@ -85,6 +85,15 @@ or **function exposing definition**.
 
     NOTE: For Java users, a bundle is the counterpart of a Java class file.
 
+Top-level definitions in a bundle can appear in any order. One top-level
+definition can refer to itself or other top-level definitions that appear before
+or after it, unless such cyclic reference breaks other rules.
+
+    NOTE: For example, it is legal for a function to call itself. It is legal
+    for two functions to call each other without having to declare any
+    "prototype" as required by C.  But a struct type cannot contain itself as a
+    field, which is explicitly forbidden.
+
 Identifiers and Names
 ---------------------
 
