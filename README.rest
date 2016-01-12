@@ -29,5 +29,6 @@ Platform-specific parts: These extends the main specification. The main
 specification considers these parts as implementation-specific.
 
 - `AMD64 Unix Native Interface <native-interface-x64-unix.rest>`__
+- `Call-based Mu IR Building API <call-irbuilder.rest>`__
 
 .. vim: tw=80

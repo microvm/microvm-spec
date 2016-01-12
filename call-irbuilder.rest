@@ -1,0 +1,213 @@
+=============================
+Call-based Mu IR Building API
+=============================
+
+**This API needs to be reviewed to make sure it satisfies both the micro VM
+implementers and the users.**
+
+Purpose
+=======
+
+This is to support more traditional LLVM-style IR building API. Nodes of the IR
+are constructed by API function calls, and the micro VM receives a **node** of
+the bundle rather than text- or binary-encoded IR.
+
+Both text- or binary-encoded IR require parsers, which is difficult to verify.
+This API will make it easy to implement in a way such that as soon as the micro
+VM receives a bundle, it is in the micro VM's native format and is readily
+usable.
+
+This document defines a "*canonical*" API in the C language. Implementations
+*may* implement the API in different languages. Implementations may choose to
+(but not forced to) implement their API by calling the canonical C API
+underneath, or by any implementation-specific interfaces not defined by this
+specification, or other ways possible, as long as their API can accomplish the
+task of delivering the bundle to the micro VM.
+
+Principle of Design
+===================
+
+* **Minimalism**: This API is minimal, just like any other parts of the micro
+  VM. Higher-level convenient functions or objects (such as the ``IRBuilder<>``
+  class in LLVM) should be **designed** at a higher level. There is not a single
+  high-level API that satisfies all clients.
+
+* **Performance does not matter**: The priority goes to the verifiability of the
+  micro VM itself. Eliminating the parser within Mu is the main gain. It does
+  not matter as long as the cost of function calls are reasonable. (When the C
+  API is called from a foreign language, the cost may be higher than serialising
+  the IR node tree to an intermediate form. Even so, we would like to trade
+  performance of that particular case with verifiability.)
+
+Overview
+========
+
+A ``MuIRBuilder`` object is created and owned by a ``MuCtx``::
+
+    typedef void* MuIRNode;
+
+    typedef struct MuIRBuilder MuIRBuilder;
+    typedef struct MuIRBuilder {
+        void *header;
+
+        // Close the builder
+        void (*close_builder)(MuIRBuilder *b);
+
+        // Load a bundle into the micro VM
+        void (*load_bundle)(MuIRBuilder *b, MuIRNode bundle);
+
+        // Create node.
+        MuIRNode (*new_node)(MuIRBuilder *b, MuNodeType node_type);
+
+        // Refer to existing nodes
+        MuIRNode (*get_node)(MuIRBuilder *b, MuID id);
+
+        // Get the ID of the node.
+        MuID (*get_id)(MuIRBuilder *b, MuIRNode node);
+
+        // Set the name of the node. MuName is '\0' terminated char*.
+        void (*set_name)(MuIRBuilder *b, MuIRNode node, MuName name);
+
+        // Functions to populate IR nodes.
+        void (*populate_type_int) (MuIRBuilder *b, MuTypeInt  ty, int length);
+        void (*populate_type_ref) (MuIRBuilder *b, MuTypeRef  ty, MuIRNode referent_ty);
+        void (*populate_type_iref)(MuIRBuilder *b, MuTypeIRef ty, MuIRNode referent_ty);
+        ... // more populaters here...
+
+        void (*populate_func_sig)    (MuIRBuilder *b, MuFuncSig sig,
+                int nparams, int nrets, MuIRNode *param_tys, MuIRNode *ret_tys);
+        void (*populate_global_cell) (MuIRBuilder *b, MuGlobalCell g, MuIRNode type);
+        void (*populate_function)    (MuIRBuilder *b, MuFunction f, MuFuncSig sig);
+        ... // more populaters here...
+
+        void (*populate_inst_binop)  (MuIRBuilder *b, MuInstBinOp i, MuBinOptr optr, MuIRNode op1, MuIRNode op2, MuExcClause exc)
+        void (*populate_inst_cmp)    (MuIRBuilder *b, MuInstcmp   i, MuCmpOptr optr, MuIRNode op1, MuIRNode op2)
+        ... // more populaters here...
+    };
+
+The type ``MuIRNode`` is an abstract handle to a Mu IR node. It is owned by the
+``MuIRBuilder`` that creates it and should only be used by that ``MuIRBuilder``. 
+
+The IR builder uses a two-step node construction method:
+
+1. All nodes are created by the ``new_node`` function. The ``node_type``
+   specifies the concrete node type.
+
+2. All nodes are (if necessary), populated by the ``populate_*`` functions,
+   which fills in their fields.
+
+This allows nodes to be cyclic. If node ``A`` refers to node ``B`` and node
+``B`` also refers to node ``A``, then both ``A`` and ``B`` must be created by
+``new_node`` before they are populated, at which time they are linked with each
+other.
+
+The ID of each node is generated automatically. The builder guarantees the ID do
+not conflict with any existing IDs. The ID can be obtained by the ``get_id``
+function. The names are assigned by the client by the ``set_name`` function.
+
+The client usually need to refer to predefined node in the micro VM, nodes
+created by the client before, or loaded from the text or binary IR. The
+``get_node`` function gets a handle to that node.
+
+After a bundle is built, the client can call the ``load_bundle`` function to
+load the ``MuBundle`` node.
+
+IR Nodes
+========
+
+The following is a list of IR nodes::
+
+    #define MU_FOR_ALL_NODE(F) \
+        F(MuBundle) \
+        F(MuTypeInt) \
+        F(MuTypeFloat) \
+        F(MuTypeDouble) \
+        F(MuTypeUPtr) \
+        F(MuTypeUFP) \
+        F(MuTypeRef) \
+        F(MuTypeIRef) \
+        F(MuTypeWeakRef) \
+        F(MuTypeStruct) \
+        F(MuTypeArray) \
+        F(MuTypeVector) \
+        F(MuTypeHybrid) \
+        F(MuTypeVoid) \
+        F(MuTypeFuncRef) \
+        F(MuTypeThreadRef) \
+        F(MuTypeStackRef) \
+        F(MuTypeFrameCursorRef) \
+        F(MuTypeTagRef64) \
+        F(MuFuncSig) \
+        F(MuConstInt) \
+        F(MuConstFloat) \
+        F(MuConstDouble) \
+        F(MuConstNull) \
+        F(MuConstList) \
+        F(MuGlobalCell) \
+        F(MuFunction) \
+        F(MuFuncVer) \
+        F(MuExpFunc) \
+        F(MuBasicBlock) \
+        F(MuNorParam) \
+        F(MuExcParam) \
+        F(MuResult) \
+        F(MuInstBinOp) \
+        F(MuInstCmp) \
+        F(MuInstConv) \
+        F(MuInstSelect) \
+        F(MuInstBranch) \
+        F(MuInstBranch2) \
+        F(MuInstSwitch) \
+        F(MuInstCall) \
+        F(MuInstTailCall
+        F(MuInstRet) \
+        F(MuInstThrow) \
+        F(MuInstExtractValue) \
+        F(MuInstInsertValue) \
+        F(MuInstExtractElement) \
+        F(MuInstInsertElement) \
+        F(MuInstShuffleVector) \
+        F(MuInstNew) \
+        F(MuInstNewHybrid) \
+        F(MuInstAlloca) \
+        F(MuInstAllocaHybrid) \
+        F(MuInstGetIRef) \
+        F(MuInstGetFieldIRef) \
+        F(MuInstGetElemIRef) \
+        F(MuInstShiftIRef) \
+        F(MuInstGetVarPartIRef) \
+        F(MuInstLoad) \
+        F(MuInstStore) \
+        F(MuInstCmpXchg) \
+        F(MuInstAtmoicRMW) \
+        F(MuInstFence) \
+        F(MuInstTrap) \
+        F(MuInstWatchPoint) \
+        F(MuInstWPBranch) \
+        F(MuInstCCall) \
+        F(MuInstNewThread) \
+        F(MuInstSwapStack) \
+        F(MuInstCommInst)
+
+There is a typedef for each node to make them an alias of MuIRNode::
+
+    #define MU_F(t) typedef MuIRNode t;
+    MU_FOR_ALL_NODE(MU_F)
+    #undef MU_F
+
+``MuNodeType`` is an enum type::
+
+    typedef enum MuNodeType MuNodeType;
+    typedef enum MuNodeType {
+        Mu_NodeTypeStart = 0,
+        #define MU_F(t) t Mu_##t,
+        Mu_NodeTypeEnd
+    };
+    #undef MU_F
+
+Node Populaters
+===============
+
+TODO
+
+.. vim: tw=80
