@@ -1956,10 +1956,10 @@ elements, the ``GETVARPARTIREF`` has undefined behaviour.
 
         .const @I64_42 <@i64> = 42
 
-        %baz_i = ALLOCAHYBRID <@Bar @i64> @I64_42           // iref<@Baz>
-        %baz_f = GETFIELDIREF <@Bar 0> %baz_i               // iref<@Foo>
-        %baz_v = GETVARPARTIREF   <@Bar> %baz_i             // iref<@i8> the 0th element
-        %baz_v5 = SHIFTIREF <@Bar @i64> %baz_i @I64_5       // iref<@i8> the 5th element
+        %baz_i = ALLOCAHYBRID   <@Baz @i64> @I64_42         // iref<@Baz>
+        %baz_f = GETFIELDIREF   <@Baz 0>    %baz_i          // iref<@Foo>
+        %baz_v = GETVARPARTIREF <@Baz>      %baz_i          // iref<@i8> the 0th element
+        %baz_v5 = SHIFTIREF <@i8 @i64> %baz_i @I64_5        // iref<@i8> the 5th element
 
         .typedef @BigHybrid = hybrid <@i32 @i64 @double @i8>    // 3 fields in the fixed part.
 
@@ -2691,7 +2691,7 @@ or it receives the exception provided by the rebinding process.
         %callee = PTRCAST <@AddrType @write_ptr> @write_address
 
         // Then use the CCALL instruction to call the write function.
-        %bytes_written = CCALL #DEFAULT <@write_sig @write_sig> @callee (@FD %bufptr_pv @ARY_SZ)
+        %bytes_written = CCALL #DEFAULT <@write_ptr @write_sig> @callee (@FD %bufptr_pv @ARY_SZ)
 
         // Unpin the object after calling to C so that the garbage collector
         // can move the object again.
