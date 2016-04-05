@@ -159,7 +159,7 @@ after the ``*``. It is applicable to all types as long as the type matches the
   ``RValue`` is ``NULL``.
 
 - If ``LValue`` is ``tagref64``, then ``RValue`` can be the appropriate value
-  suitable for ``double``, ``int<52>`` or ``struct<ref<void> int<6>``.
+  suitable for ``double``, ``int<52>`` or ``struct<ref<void> int<6>>``.
 
 - If ``LValue`` is a struct, hybrid, array or vector, then ``RValue`` must be a
   ``List`` of ``RValue`` items. Each item will initialise a field or element of
@@ -215,7 +215,7 @@ Example 1::
     //
     // .typedef @vtable     = hybrid<...>
     // .typedef @vtable_r   = ref<@vtable>
-    // .global  @g_vtable <@vtable>
+    // .global  @g_vtable <@vtable_r>
     //
     // .typedef @Object2 = struct<@vtable_r @i64>
     //
