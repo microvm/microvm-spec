@@ -14,9 +14,15 @@ extern "C" {
 // value. Copies of MuValue values refer to the same value. A MuValue instance
 // can only be used in the MuCtx holding it.
 //
-// Values of subtypes can be cast to MuValue and back using the type cast
-// expression in C, similar to casting one pointer to another.
+// Values of subtypes can be cast to/from their abstract parents using the type
+// cast expression in C, similar to casting one pointer to another.
+
+// abstract value types
 typedef void *MuValue;              // Any Mu value
+typedef void *MuSeqValue;           // array or vector
+typedef void *MuGenRefValue;        // ref, iref, funcref, threadref, stackref, framecursorref
+
+// concrete value types
 typedef void *MuIntValue;           // int<n>
 typedef void *MuFloatValue;         // float
 typedef void *MuDoubleValue;        // double
@@ -61,10 +67,21 @@ typedef struct MuVM MuVM;
 typedef struct MuCtx MuCtx;
 
 // Signature of the trap handler
-typedef void (*MuTrapHandler)(MuCtx *ctx, MuThreadRefValue thread,
-        MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
-        MuStackRefValue *new_stack, MuValue **values, int *nvalues,
-        MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
+typedef void (*MuTrapHandler)(
+        // iutput parameters
+        MuCtx *ctx,
+        MuThreadRefValue thread,
+        MuStackRefValue stack,
+        int wpid,
+        // output parameters
+        MuTrapHandlerResult *result,
+        MuStackRefValue *new_stack,
+        MuValue **values,
+        int *nvalues,
+        MuValuesFreer *freer,
+        MuCPtr *freerdata,
+        MuRefValue *exception,
+        // input parameter (userdata)
         MuCPtr userdata);
 
 // Memory orders
@@ -181,25 +198,25 @@ struct MuCtx {
 
     // Compare reference or general reference types.
     // EQ. Available for ref, iref, funcref, threadref and stackref.
-    int         (*ref_eq )(MuCtx *ctx, MuValue lhs,     MuValue rhs);
+    int         (*ref_eq )(MuCtx *ctx, MuGenRefValue lhs, MuGenRefValue rhs);
     // ULT. Available for iref only.
     int         (*ref_ult)(MuCtx *ctx, MuIRefValue lhs, MuIRefValue rhs);
 
     // Manipulate Mu values of the struct<...> type
-    MuValue     (*extract_value)(MuCtx *ctx, MuStructValue str, int index);
-    MuValue     (*insert_value )(MuCtx *ctx, MuStructValue str, int index, MuValue newval);
+    MuValue         (*extract_value)(MuCtx *ctx, MuStructValue str, int index);
+    MuStructValue   (*insert_value )(MuCtx *ctx, MuStructValue str, int index, MuValue newval);
 
     // Manipulate Mu values of the array or vector type
     // str can be MuArrayValue or MuVectorValue
-    MuValue     (*extract_element)(MuCtx *ctx, MuValue str, MuIntValue index);
-    MuValue     (*insert_element )(MuCtx *ctx, MuValue str, MuIntValue index, MuValue newval);
+    MuValue     (*extract_element)(MuCtx *ctx, MuSeqValue str, MuIntValue index);
+    MuSeqValue  (*insert_element )(MuCtx *ctx, MuSeqValue str, MuIntValue index, MuValue newval);
 
     // Heap allocation
     MuRefValue  (*new_fixed )(MuCtx *ctx, MuID mu_type);
     MuRefValue  (*new_hybrid)(MuCtx *ctx, MuID mu_type, MuIntValue length);
 
     // Change the T or sig in ref<T>, iref<T> or func<sig>
-    MuValue     (*refcast)(MuCtx *ctx, MuValue opnd, MuID new_type);
+    MuGenRefValue   (*refcast)(MuCtx *ctx, MuGenRefValue opnd, MuID new_type);
 
     // Memory addressing
     MuIRefValue     (*get_iref           )(MuCtx *ctx, MuRefValue opnd);
