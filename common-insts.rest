@@ -106,6 +106,18 @@ the **DEAD** state. The current thread stops running.
 
 Return the current stack.
 
+::
+
+    [0x205]@uvm.set_threadlocal (%ref: ref<void>)
+
+Set the thread-local object reference of the current thread to ``%ref``.
+
+::
+
+    [0x206]@uvm.get_threadlocal -> ref<void>
+
+Return the current thread-local object reference of the current thread.
+
 64-bit Tagged Reference
 =======================
 

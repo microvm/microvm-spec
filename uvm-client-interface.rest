@@ -669,8 +669,14 @@ Stack and thread operations
 
     MuStackRefValue     (*new_stack )(MuCtx *ctx, MuFuncRefValue func);
     MuThreadRefValue    (*new_thread)(MuCtx *ctx, MuStackRefValue stack,
-                            MuHowToResume htr, MuValue *vals, int nvals, MuRefValue exc);
+                            MuRefValue threadlocal,
+                            MuHowToResume htr, MuValue *vals, int nvals,
+                            MuRefValue exc);
     void                (*kill_stack)(MuCtx *ctx, MuStackRefValue stack);
+
+    void        (*set_threadlocal)(MuCtx *ctx, MuThreadRefValue thread,
+                    MuRefValue threadlocal);
+    MuRefValue  (*get_threadlocal)(MuCtx *ctx, MuThreadRefValue thread);
 
     typedef int MuHowToResume;
     #define MU_REBIND_PASS_VALUES   0x01
@@ -695,6 +701,10 @@ are
   
 In either case, the ignored MuValue arguments can be the C ``NULL`` pointer.
 
+The ``threadlocal`` parameter is the initial thread-local reference of the new
+thread. If it is a C ``NULL`` pointer, it is equivalent to a Mu ``NULL`` object
+reference.
+
 ``kill_stack`` kills the ``stack``. The stack must be in the **READY<Ts>** state
 for some *Ts*.  The stack enters the **DEAD** state.  If the stack contains
 native frames, the behaviour is implementation-defined.
@@ -711,6 +721,15 @@ native frames, the behaviour is implementation-defined.
     counterpart is the JVM TI function ``StopThread``, but the Mu ``kill_stack``
     message does not unwind the stack. It simply marks the whole stack for
     deletion.
+
+``set_threadlocal`` sets the thread-local object reference of the ``thread``
+argument to ``threadlocal``.
+
+``get_threadlocal`` returns the current thread-local object reference of
+``thread``.
+
+Both ``get_threadlocal`` and ``set_threadlocal`` can only be used in the trap
+handler and only on the thread that caused the trap.
 
 Stack introspection
 -------------------

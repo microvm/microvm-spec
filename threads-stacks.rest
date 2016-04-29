@@ -62,6 +62,44 @@ stack) or terminates after returning from the trap handler.
     TODO: https://github.com/microvm/microvm-meta/issues/42 Extend the unbinding
     to undefined function handling.
 
+State of Threads
+================
+
+The state of a thread include:
+
+- the *stack* it is bound to (explained in this chapter)
+
+- a *thread-local object reference* (see below)
+
+- a thread-local *pinning multi-set* (see `object pinning
+  <native-interface.rest#pinning>`__)
+
+    NOTE: Implementations may keep more thread-local states, such as the
+    thread-local memory pool for the garbage collector. They are implementation
+    details.
+
+The **thread-local object reference** is an arbitrary object reference, and can
+be ``NULL``. It is initialised when a thread is created. It can be read and
+modified by the thread itself. It can also be read and modified by the client in
+the trap handler, but the trap handler can only read and modify the thread-local
+object reference of the thread that triggered the trap. It cannot be read or
+modified in any other ways.
+
+    NOTE: This design ensures that:
+
+    1. The access to the thread-local object reference itself is data-race-free.
+
+    2. It is only a single object reference, so the reference can fit in a
+       machine register. In this way, if the implementation reserves a register
+       for that reference, accessing fields in the object it refers to can be as
+       efficient as register-indexed addressing.
+
+    It also off-loads the responsibility of resizing or redefining the
+    thread-local object to the client. If the client wishes to add more fields
+    to that object (e.g. when more bundles are loaded), it can use watchpoints
+    to stop existing threads and replace their thread-local object references in
+    the trap handler.
+
 States of Stacks and Frames
 ===========================
 
