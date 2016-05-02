@@ -2749,13 +2749,17 @@ or existing) to a given stack.
 ``NEWTHREAD`` Instruction
 -------------------------
 
-``NEWTHREAD`` *stack* *newStackClause *excClause*
+``NEWTHREAD`` *stack* *threadLocalClause* :sub:`opt` *newStackClause* *excClause*
 
++ *threadLocalClause* ::= ``THREADLOCAL`` ``(`` *threadLocal* ``)``
 + *newStackClause* ::= ``PASS_VALUES`` ``<`` *Ts2* ``>`` ``(`` *vals* ``)``
 + *newStackClause* ::= ``THROW_EXC`` *exc*
 
 stack
     *variable* of ``stackref``: The stack to bind the new thread to.
+threadLocal
+    *variable* of ``ref<T>`` for any *T*: The initial thread-local object
+    reference of the created thread. If omitted, it defaults to ``NULL``.
 newStackClause
     *new stack clause*: Determines how to bind to the *stack*.
 excClause
@@ -2773,6 +2777,10 @@ The ``NEWTHREAD`` instruction creates a new thread which immediately binds to
 *stack*, passing values or raising exceptions to it according to the
 *newStackClause*.
 
+The *threadLocalClause* determines the initial thread-local object reference of
+the newly created thread. If it is omitted, the thread-local object reference
+will be ``NULL``.
+
 This instruction continues exceptionally if Mu cannot create the new thread. The
 exception parameter receives NULL.
 
@@ -2787,6 +2795,16 @@ exception parameter receives NULL.
 
         %stack  = ...
         %thread = NEWTHREAD %stack THROW_EXC %some_exception
+
+    Create a new thread with a thread-local objref::
+
+        .typedef @my_threadlocal_t = struct<...>  // an arbitrary type
+
+        %stack  = COMMINST @uvm.new_stack <[@sig]> @func
+        %tlobj  = NEW <@my_threadlocal_t>
+        %thread = NEWTHREAD %stack THREADLOCAL(%tlobj)
+                        PASS_VALUES <...> (...)
+        
 
 ``SWAPSTACK`` Instruction
 -------------------------
