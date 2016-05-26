@@ -256,12 +256,17 @@ Bundle and HAIL loading
 
 The ``load_bundle`` function loads a Mu IR bundle, and the ``load_hail``
 function loads a HAIL script. The content is held in the memory pointed to by
-``buf``, and ``sz`` is the length of the content in bytes. It contains the
-binary form if it begins with the 4-byte magic of the binary IR or the binary
-HAIL script, otherwise it is the text form.
+``buf``, and ``sz`` is the length of the content in bytes.
 
 Concurrency: The content of the bundle or the effect of the HAIL script is fully
 visible to other evaluations in the client that *happen after* this call.
+
+..
+
+    TODO: These two functions should be made optional or lifted to the
+    higher-level API which should be beyond this spec. The text-form bundle
+    needs a parser, and the HAIL script is also not the most efficient way to
+    load data into Mu at run time.
 
 ..
 

@@ -5,6 +5,14 @@ Intermediate Representation (Binary Form)
 This document describes the binary form of the Mu intermediate representation.
 For the text form, see `<uvm-ir.rest>`__.
 
+**DEPRECATED**: The binary format is deprecated. As mentioned in `this ticket
+<https://github.com/microvm/microvm-meta/issues/55>`__, we have come to the
+conclusion that the interface between the client and the micro VM should be a
+functional interface, i.e. constructing IR nodes by invoking API functions. This
+binary IR form is still a serialised data format that needs to be parsed. The
+text form, however, is still useful for debugging and for using in statically
+compiled implementations.
+
 Overview
 ========
 

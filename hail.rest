@@ -2,6 +2,11 @@
 Heap Allocation and Initialisation Language
 ===========================================
 
+**HAIL may not be the best tool**. The most efficient way to initialise a micro
+VM is by building a boot image (this is implementation-specific). The most
+efficient way to load objects from a serialised file is to build the
+de-serialiser (such as the ".class" file parser) in Mu IR.
+
 The Heap Allocation and Initialisation Language (HAIL) is a Mu IR-like language
 that allocates heap objects and initialise Mu memory locations with values.
 

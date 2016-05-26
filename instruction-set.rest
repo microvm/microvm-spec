@@ -168,12 +168,6 @@ Lists
 where type, funcSig and var are names of types, function signatures and SSA
 variables, respectively. The "rep" means there may be zero or more such names.
 
-+--------+-------+-------+-----+
-| lent   | idt   | idt   | ... |
-+========+=======+=======+=====+
-| nelems | elem1 | elem2 | ... |
-+--------+-------+-------+-----+
-
 A **type list** is a list of types.
 
 A **function signature list** is a list of function signatures. This is only
@@ -183,9 +177,6 @@ signature is written in angular brackets ``< >`` directly in the same way as
 types.
 
 An **argument list** is a list of SSA variables.
-
-In the binary form, types, signatures and arguments are all represented as IDs.
-*nelems* is the number of elements in the list.
 
     Example::
 
@@ -209,12 +200,6 @@ dest
 argList
     *list of SSA variable*: Arguments to the destination basic block
 
-+------+---------+
-| idt  | argList |
-+======+=========+
-| dest | argList |
-+------+---------+
-
 The destination clause designates a basic block as the destination of branching,
 either normal or exceptional.  It takes many arguments, which will be received
 by the normal parameters of ``dest``.  The arguments must match the number and
@@ -233,21 +218,13 @@ nor
 exc
     *destination clause*: The exceptional destination
 
-+------------+------------+
-| destClause | destClause |
-+============+============+
-| nor        | exc        |
-+------------+------------+
-
 The exception clause provides two destinations for instructions that may have
 diverging control flows. *nor* and *exc* are the **normal destination** and the
 **exceptional destination**, respectively.
 
-The exception clause can be omitted. In the binary form, an omitted exception
-clause is expressed as *nor* and *exc* both having 0 as the ID of the basic
-block and having 0 arguments. Any instruction that may have exception clauses is
-not a *terminator* (see `Mu IR <uvm-ir.rest>`__) if the exception clause is
-omitted.  Otherwise it is a *terminator*.
+The exception clause can be omitted. Any instruction that may have exception
+clauses is not a *terminator* (see `Mu IR <uvm-ir.rest>`__) if the exception
+clause is omitted.  Otherwise it is a *terminator*.
 
 Any instruction that may have exception clause may **continue normally** or
 **continue exceptionally**. An instruction shall continue normally unless
@@ -303,12 +280,6 @@ lv :sub:`rep`
     *list of local SSA variable*: A sequence of local SSA variables. Those
     SSA variables are forced to be alive.
 
-+------+-----+-----+-----+
-| lent | idt | idt | ... |
-+======+=====+=====+=====+
-| nka  | v1  | v2  | ... |
-+------+-----+-----+-----+
-
 The keep-alive clause keeps some local SSA variables alive. During stack
 introspection, exactly the local variables in the keep-alive clause of the
 current instruction in any stack frames can be introspected. This clause is
@@ -319,8 +290,7 @@ the SSA requirement that the definition of a local variable dominates all its
 uses.
 
 The absence of a keep-alive clause is equivalent to a keep-alive clause with
-zero local variables. In the binary form, *nka* is the number of local variables
-(can be zero) and that many IDs follows it.
+zero local variables.
 
     Example: The ``TRAP`` instruction optionally has a keep-alive clause. The
     values of those variables in the clause are available for the client to
@@ -339,15 +309,8 @@ Flag and Flag List
 
 *flagList* ::= ``[`` *flag* :sub:`rep` ``]``
 
-+--------+-------+-------+-----+
-| lent   | opct  | opct  | ... |
-+========+=======+=======+=====+
-| nflags | flag1 | flag2 | ... |
-+--------+-------+-------+-----+
-
 In the text form, a **flag** starts with a hash character ``#`` which is
-followed by many capital letters ``[A-Z]`` or underscores ``_``. In the binary
-form, flags are represented the same as opcodes (opct).
+followed by many capital letters ``[A-Z]`` or underscores ``_``.
 
     Examples:
 
@@ -390,16 +353,10 @@ excClause
 result:
     Type *T*: return the result of the computation.
 
-+--------+-----+-----+-----+-----------+
-| opct   | idt | idt | idt | excClause |
-+========+=====+=====+=====+===========+
-| opcode | T   | op1 | op2 | excClause |
-+--------+-----+-----+-----+-----------+
-
-*binOp* and *opcode* are one in the following table:
+*binOp* is one in the following table:
 
 ========= ======== ===== ========================
- Keyword   opcode   T     operation
+ binOp     opcode   T     operation
 ========= ======== ===== ========================
  ADD       0x01     int   add                    
  SUB       0x02     int   subtract               
@@ -420,6 +377,8 @@ result:
  FDIV      0xB3     FP    FP divide              
  FREM      0xB4     FP    FP remainder           
 ========= ======== ===== ========================
+
+    TODO: Move the opcode to the IR Builder API.
 
 In all binary operations, the type of both *op1* and *op2* must have type *T*.
 
@@ -552,16 +511,10 @@ result:
       returns a vector of ``int<1>`` where each element is the result of the
       comparison of the corresponding elements.
 
-+--------+-----+-----+-----+
-| opct   | idt | idt | idt |
-+========+=====+=====+=====+
-| opcode | T   | op1 | op2 |
-+--------+-----+-----+-----+
-
-*cmpOp* and *opcode* are one in the following table:
+*cmpOp* is one in the following table:
 
 ========= ======== =================== ==================================
- Keyword   opcode   T                   Condition
+ cmpOp     opcode   T                   Condition
 ========= ======== =================== ==================================
  EQ        0x20     EQ-comparable       equal
  NE        0x21     EQ-comparable       not equal
@@ -590,6 +543,8 @@ result:
  FOLT      0xCE     FP                  ordered less than
  FOLE      0xCF     FP                  ordered less than or equal
 ========= ======== =================== ==================================
+
+    TODO: Move the opcode to the IR Builder API.
 
 In all comparison operations, both *op1* and *op2* must have type *T*.
 
@@ -792,10 +747,10 @@ result:
 | opcode | T1  | T2  | op  |
 +--------+-----+-----+-----+
 
-*convOp* and *opcode* are one in the following table.
+*convOp* is one in the following table.
 
 ========== ======== ============    ============
- Keyword    opcode   T1              T2
+ convOp     opcode   T1              T2
 ========== ======== ============    ============
  TRUNC      0x30     int             int    
  ZEXT       0x31     int             int    
@@ -810,6 +765,8 @@ result:
  REFCAST    0x3A    (see below)     (see below)
  PTRCAST    0x3B    (see below)     (see below)
 ========== ======== ============    ============
+
+    TODO: Move the opcode to the IR Builder API.
 
 In all conversions, the operand *opnd* must have type *T1*. All conversions
 convert *opnd* to type *T2*.
@@ -959,12 +916,6 @@ ifTrue, ifFalse
 result:
     Type *T*: A value according to *cond*.
 
-+------+-----+-------+--------+---------+
-| opct | idt | idt   | idt    | idt     |
-+======+=====+=======+========+=========+
-| 0x40 | T   | cond  | ifTrue | ifFalse |
-+------+-----+-------+--------+---------+
-
 *S* can be either ``int<1>`` or a vector type of ``int<1>``. When *S* is a
 vector type of ``int<1>``, *T* must also be a vector type of the same length as
 *S*.
@@ -1011,12 +962,6 @@ Intra-function Control Flow
 dest
     *destination clause*: The destination of jumping.
 
-+------+-------------+
-| opct | destClause  |
-+======+=============+
-| 0x90 | dest        |
-+------+-------------+
-
 This instruction branches to *dest*.
 
     For LLVM users: This is the same as the one-branch ``br`` instruction. Mu
@@ -1040,12 +985,6 @@ cond
 ifTrue, ifFalse
     *destination clause*: The destinations to jump to when *cond* is 1 or 0,
     respectively
-
-+------+------+--------+---------+
-| opct | idt  | idt    | idt     |
-+======+======+========+=========+
-| 0x91 | cond | ifTrue | ifFalse |
-+------+------+--------+---------+
 
 If *cond* is 1, jump to *ifTrue*, otherwise jump to *ifFalse*.
 
@@ -1085,12 +1024,6 @@ value:
 dest:
     *destination clause*: The destination for the corresponding case.
 
-+------+-----+------+--------------+--------+-------+--------------+-----+
-| opct | idt | idt  | destClause   | lent   | idt   | destClause   | ... |
-+======+=====+======+==============+========+=======+==============+=====+
-| 0x92 | T   | opnd | default      | ncases | value | dest         | ... |
-+------+-----+------+--------------+--------+-------+--------------+-----+
-
 There are zero or more *value*-*dest* pairs.
 
 *opnd* and all *value* must have type *T*. *default* and all *dest* must be
@@ -1099,9 +1032,6 @@ basic blocks.
 *T* must be an EQ-comparable type.
 
 All *value* must be constants and must have distinct values.
-
-In the binary form, *ncases* is the number of cases and there are this number of
-case-destination pairs following *ncases*.
 
 If the value of *opnd* equals one of the *value*, then jump to the corresponding
 *dest*. If no such *value* equals *opnd*, then jump to *default*.
@@ -1160,22 +1090,6 @@ results:
       callee.  The type of each return value matches the corresponding return
       type.
     - ``TAILCALL`` does not produce results.
-
-CALL:
-
-+------+-----+--------+---------+-----------+-----------------+
-| opct | idt | idt    | argList | excClause | keepAliveClause |
-+======+=====+========+=========+===========+=================+
-| 0x60 | sig | callee | argList | excClause | keepAliveClause |
-+------+-----+--------+---------+-----------+-----------------+
-
-TAILCALL:
-
-+------+-----+--------+---------+
-| opct | idt | idt    | argList |
-+======+=====+========+=========+
-| 0x62 | sig | callee | argList |
-+------+-----+--------+---------+
 
 The ``CALL`` instruction creates a new stack frame for the callee, passes the
 arguments in *argList* and starts executing from the entry block of the callee.
@@ -1323,14 +1237,6 @@ rv :sub:`rep`
     The return value of the current function. The number and the types must
     match the return types of the current function.
 
-RET:
-
-+------+----------------+
-| opct | idList         |
-+======+================+
-| 0x63 | rv :sub:`rep`  |
-+------+----------------+
-
 The ``RET`` instruction returns from the current function with a list of *rv* as
 the return values of the current function. The types of *rv* values must match
 the return types of the current function.
@@ -1379,12 +1285,6 @@ returned to the caller.
 
 exc
     *variable* of type ``ref`` to any type: The exception object.
-
-+------+-----+
-| opct | idt |
-+======+=====+
-| 0x65 | exc |
-+------+-----+
 
 The ``THROW`` instruction throws the exception ``exc`` from the current function
 to its caller frame. Exceptions in Mu are object references to any type.
@@ -1441,12 +1341,6 @@ result:
     Type is the index-th field of the struct type *T*: The value of the
     *index*-th field of *opnd*.
 
-+------+-----+-------+------+
-| opct | idt | lent  | idt  |
-+======+=====+=======+======+
-| 0x70 | T   | index | opnd |
-+------+-----+-------+------+
-
 The ``EXTRACTVALUE`` instruction extracts the index-th field from the value of
 an SSA variable *opnd* which has type ``struct``.
 
@@ -1475,12 +1369,6 @@ newVal
     field specified by *index*.
 result:
     Type is *T*: A new struct with the *index*-th field being *newVal*.
-
-+------+-----+-------+------+--------+
-| opct | idt | lent  | idt  | idt    |
-+======+=====+=======+======+========+
-| 0x71 | T   | index | opnd | newVal |
-+------+-----+-------+------+--------+
 
 The ``INSERTVALUE`` instruction constructs a struct value which has the same
 field values as *opnd* except the field specified by *index* which has the value
@@ -1545,12 +1433,6 @@ index
 result:
     Type is the element type of *T1*: The extracted element.
 
-+------+-----+-----+------+-------+
-| opct | idt | idt | idt  | idt   |
-+======+=====+=====+======+=======+
-| 0x72 | T1  | T2  | opnd | index |
-+------+-----+-----+------+-------+
-
 The ``EXTRACTELEMENT`` instruction extracts the element at *index* from an array
 or vector value *opnd* of vector type *T1*.
 
@@ -1583,12 +1465,6 @@ result:
     Type is *T1*: A new array or vector with the *index*-th element being
     *newVal*.
 
-+------+-----+-----+------+-------+--------+
-| opct | idt | idt | idt  | idt   | idt    |
-+======+=====+=====+======+=======+========+
-| 0x73 | T1  | T2  | opnd | index | newVal |
-+------+-----+-----+------+-------+--------+
-
 The ``INSERTELEMENT`` instruction creates a new array or vector value which has
 the same element values as *opnd* except the element at *index* which has the
 value of *newVal*.
@@ -1620,12 +1496,6 @@ mask
 result:
     Type is a vector type of the element type of *T1* and the size of *T2*: The
     new vector with elements selected from *T1* and *T2* according to *mask*.
-
-+------+-----+-----+------+------+------+
-| opct | idt | idt | idt  | idt  | idt  |
-+======+=====+=====+======+======+======+
-| 0x74 | T1  | T2  | vec1 | vec2 | mask |
-+------+-----+-----+------+------+------+
 
 The ``SHUFFLEVECTOR`` instruction constructs a permutation of elements from two
 vectors *vec1* and *vec2*. The result is a vector with the same element type as
@@ -1711,38 +1581,6 @@ result:
     - For ``ALLOCA`` and ``ALLOCAHYBRID``: Type is ``iref<T>``: An internal
       reference to the newly allocated stack cell.
 
-NEW:
-
-+------+-----+-----------+
-| opct | idt | excClause |
-+======+=====+===========+
-| 0x10 | T1  | excClause |
-+------+-----+-----------+
-
-NEWHYBRID:
-
-+------+-----+-----+--------+-----------+
-| opct | idt | idt | idt    | excClause |
-+======+=====+=====+========+===========+
-| 0x11 | T1  | T2  | length | excClause |
-+------+-----+-----+--------+-----------+
-
-ALLOCA:
-
-+------+-----+-----------+
-| opct | idt | excClause |
-+======+=====+===========+
-| 0x12 | T1  | excClause |
-+------+-----+-----------+
-
-ALLOCAHYBRID:
-
-+------+-----+-----+--------+-----------+
-| opct | idt | idt | idt    | excClause |
-+======+=====+=====+========+===========+
-| 0x13 | T1  | T2  | length | excClause |
-+------+-----+-----+--------+-----------+
-
 The ``NEW`` instruction allocates an object of a fixed-length type *T* on the
 heap. Return an object reference to it.
 
@@ -1812,12 +1650,6 @@ result:
     actual type represented in the object. In this case, this instruction only
     provides access to the prefix part.
 
-+------+-----+--------+
-| opct | idt | idt    |
-+======+=====+========+
-| 0x14 | T   | opnd   |
-+------+-----+--------+
-
 The ``GETIREF`` instruction converts the object reference *opnd* to an internal
 reference. The resulting internal reference refers to the memory location of the
 heap object *opnd*.
@@ -1874,38 +1706,6 @@ result
     - For ``SHIFTIREF``, *U* is the same as *T1*.
     - For ``GETVARPARTIREF``, *U* is the type of the elements of the variable
       part of *T1*.
-
-GETFIELDIREF:
-
-+------+------+-----+------------+--------+
-| opct | opct | idt | lent       | idt    |
-+======+======+=====+============+========+
-| 0x15 | PTR  | T   | index      | opnd   |
-+------+------+-----+------------+--------+
-
-GETELEMIREF:
-
-+------+------+-----+-----+--------+------------+
-| opct | opct | idt | idt | idt    | idt        |
-+======+======+=====+=====+========+============+
-| 0x16 | PTR  | T1  | T2  | opnd   | index      |
-+------+------+-----+-----+--------+------------+
-
-SHIFTIREF:
-
-+------+------+-----+-----+--------+--------+
-| opct | opct | idt | idt | idt    | idt    |
-+======+======+=====+=====+========+========+
-| 0x17 | PTR  | T1  | T2  | opnd   | offset |
-+------+------+-----+-----+--------+--------+
-
-GETVARPARTIREF:
-
-+------+------+-----+------+
-| opct | opct | idt | idt  |
-+======+======+=====+======+
-| 0x19 | PTR  | T   | opnd |
-+------+------+-----+------+
 
 The ``GETFIELDIREF`` instruction gets an internal reference/pointer to the
 *index*-th field of the struct or the fixed part of the hybrid referenced by
@@ -2012,6 +1812,8 @@ ACQ_REL     0x05    acquire+release
 SEQ_CST     0x06    sequentially consistent
 =========== ======  =======================
 
+    TODO: Move the binary codes to the IR Builder API.
+
 ``LOAD`` Instruction
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -2031,12 +1833,6 @@ excClause
     *exception clause*: Used to handle NULL reference errors.
 result
     Type is the strong variant of *T*: The result of the load operation.
-
-+------+------+------+-----+------+-----------+
-| opct | opct | opct | idt | idt  | excClause |
-+======+======+======+=====+======+===========+
-| 0x1A | PTR  | ord  | T   | loc  | excClause |
-+------+------+------+-----+------+-----------+
 
 The ``LOAD`` instruction performs a *load* operation with argument (*ord*, *T*,
 *loc*) as defined in `Mu and the Memory <uvm-memory.rest>`__.
@@ -2077,12 +1873,6 @@ excClause
     *exception clause*: Used to handle NULL reference errors.
 newVal
     Type is the strong variant of *T*: The new value to store.
-
-+------+------+------+-----+------+--------+-----------+
-| opct | opct | opct | idt | idt  | idt    | excClause |
-+======+======+======+=====+======+========+===========+
-| 0x1B | PTR  | ord  | T   | loc  | newVal | excClause |
-+------+------+------+-----+------+--------+-----------+
 
 The ``STORE`` instruction performs a *store* operation with argument (*ord*,
 *T*, *loc*, *newVal*) as defined in `Mu and the Memory <uvm-memory.rest>`__.
@@ -2135,12 +1925,6 @@ results:
 
     1. Type is ``U`` where *U* is the strong variant of *T*: The value ``v``.
     2. Type is ``int<1>``: The result ``s``. 1 for success and 0 for failure.
-
-+------+------+------+---------+---------+-----+------+----------+---------+-----------+
-| opct | opct | opct | opct    | opct    | idt | idt  | idt      | idt     | excClause |
-+======+======+======+=========+=========+=====+======+==========+=========+===========+
-| 0x1C | PTR  | WEAK | ordSucc | ordFail | T   | loc  | expected | desired | excClause |
-+------+------+------+---------+---------+-----+------+----------+---------+-----------+
 
 The ``CMPXCHG`` instruction performs a *compare exchange* operation with
 argument (*isWeak*, *ordSucc*, *ordFail*, *T*, *loc*, *expected*, *desired*),
@@ -2214,12 +1998,6 @@ result:
     Type is the strong variant of *T*: The result of the atomic-x operation
     where x is *op*.
 
-+------+------+------+------+-----+------+------+-----------+
-| opct | opct | opct | opct | idt | idt  | idt  | excClause |
-+======+======+======+======+=====+======+======+===========+
-| 0x1D | PTR  | ord  | op   | T   | loc  | opnd | excClause |
-+------+------+------+------+-----+------+------+-----------+
-
 An **AtomicRMW operator** is one of the following:
 
 =========== ====== === =============
@@ -2237,6 +2015,8 @@ MIN         0x08   int signed min
 UMAX        0x09   int unsigned max
 UMIN        0x0A   int unsigned min
 =========== ====== === =============
+
+    TODO: Move the binary code to the IR Builder API.
 
 The ``ATOMICRMW`` instruction performs an *atomic-x* operation with argument
 (*ord*, *T*, *loc*, *opnd*), where the *x* in *atomic-x* is *op*. The operation
@@ -2262,12 +2042,6 @@ Fence
 
 ord
     *memory order*: The memory order.
-
-+------+------+
-| opct | opct |
-+======+======+
-| 0x1E | ord  |
-+------+------+
 
 The ``FENCE`` is a fence of memory order *ord*. Its semantics is specified in
 `<memory-model.rest>`__.
@@ -2315,22 +2089,6 @@ results
     When the stack is rebound passing values, the results are those values
     passed. There are as many results as the types *Ts*, matching each
     type.
-
-``TRAP``:
-
-+------+--------------+-----------+-----------------+
-| opct | idList       | excClause | keepAliveClause |
-+======+==============+===========+=================+
-| 0xE8 | T :sub:`rep` | excClause | keepAliveClause |
-+------+--------------+-----------+-----------------+
-
-``WATCHPOINT``:
-
-+------+------+--------------+------------+------------+------------+-----------------+
-| opct | idt  | idList       | destClause | destClause | destClause | keepAliveClause |
-+======+======+==============+============+============+============+=================+
-| 0xE9 | wpid | T :sub:`rep` | dis        | ena        | exc        | keepAliveClause |
-+------+------+--------------+------------+------------+------------+-----------------+
 
 ``TRAP`` and ``WATCHPOINTS`` are designed to let the trap handler registered by
 the client handle occasions which the Mu micro VM cannot handle by itself.
@@ -2381,9 +2139,6 @@ it is enabled.
 
 It is recommended to name the instruction so that the trap handler can identify
 each individual traps (using the syntax ``%rv = [%trap_name] TRAP <@T> ...``).
-
-In the binary form, an absent *exc* destination in ``WATCHPOINT`` is expressed
-as the ID of *exc* being 0.
 
 ``TRAP`` and ``WATCHPOINT`` are OSR points.
 
@@ -2520,12 +2275,6 @@ dis, ena
 
 ``WPBRANCH``:
 
-+------+------+------------+------------+
-| opct | idt  | destClause | destClause |
-+======+======+============+============+
-| 0xEA | wpid | dis        | ena        |
-+------+------+------------+------------+
-
 The ``WPBRANCH`` instruction is a binary branching instruction. The destination
 is determined by whether the watchpoint ID *wpid* is enabled or disabled. It can
 be enabled or disabled in the same way as ``WATCHPOINT``.
@@ -2570,12 +2319,6 @@ results
     The return values of the callee. There are as many results as the return
     types in *sig*, matching each return type.
 
-+------+----------+-----+-----+--------+---------+-----------+-----------------+
-| opct | opct     | idt | idt | idt    | argList | excClause | keepAliveClause |
-+======+==========+=====+=====+========+=========+===========+=================+
-| 0xEC | callConv | T   | sig | callee | argList | excClause | keepAliveClause |
-+------+----------+-----+-----+--------+---------+-----------+-----------------+
-
 *calling convention* is one in the following table or others defined by the
 platform-specific part of the Mu native interface:
 
@@ -2584,6 +2327,8 @@ Flag        Binary
 =========== ======
 #DEFAULT    0x00
 =========== ======
+
+    TODO: Move the binary flag into the IR Builder API.
 
 The ``CCALL`` instruction calls a native function.
 
@@ -2722,22 +2467,6 @@ exc
     *variable* of type ``ref``: The exception object to raise to the target
     stack.
 
-*newStackClause* with ``PASS_VALUES``:
-
-+------+--------+--------+
-| opct | idList | idList |
-+======+========+========+
-| 0x01 | Ts     | vals   |
-+------+--------+--------+
-
-*newStackClause* with ``THROW_EXC``:
-
-+------+-----+
-| opct | idt |
-+======+=====+
-| 0x02 | exc |
-+------+-----+
-
 The **new stack clause** determines how to bind a thread to the target stack. It
 is used by both ``NEWTHREAD`` and ``SWAPSTACK``, since both binds a thread (new
 or existing) to a given stack.
@@ -2766,12 +2495,6 @@ excClause
     *exception clause*: To handle thread creation errors.
 result:
     Type is ``threadref``: The newly created thread.
-
-+------+--------+----------------+-----------+
-| opct | idt    | newStackClause | excClause |
-+======+========+================+===========+
-| 0xE0 | stack  | newStackClause | excClause |
-+------+--------+----------------+-----------+
 
 The ``NEWTHREAD`` instruction creates a new thread which immediately binds to
 *stack*, passing values or raising exceptions to it according to the
@@ -2815,30 +2538,6 @@ exception parameter receives NULL.
 - *curStackClause* ::= ``KILL_OLD``
 
 + *newStackClause*: See above.
-
-``SWAPSTACK``:
-
-+------+---------+----------------+----------------+-----------+-----------------+
-| opct | idt     | curStackClause | newStackClause | excClause | keepAliveClause |
-+======+=========+================+================+===========+=================+
-| 0xE1 | swappee | curStackClause | newStackClause | excClause | keepAliveClause |
-+------+---------+----------------+----------------+-----------+-----------------+
-
-*curStackClause* with ``RET_WITH``:
-
-+------+--------+
-| opct | idList |
-+======+========+
-| 0x01 | Ts     |
-+------+--------+
-
-*curStackClause* with ``KILL_OLD``:
-
-+------+
-| opct |
-+======+
-| 0x02 |
-+------+
 
 swappee
     *variable* of type ``stackref``: The stack to swap to.
@@ -2974,26 +2673,16 @@ keepAliveClause
 results:
     Determined by the respective common instructions.
 
-``COMMINST``:
-
-+------+------+----------+---------+-----------+-----------------+
-| opct | idt  | typeList | argList | excClause | keepAliveClause |
-+======+======+==========+=========+===========+=================+
-| 0xE4 | inst | typeList | argList | excClause | keepAliveClause |
-+------+------+----------+---------+-----------+-----------------+
-
 The ``COMMINST`` instruction calls a common instruction identified by *inst* in
-the text form or *ID* in the binary form. A list of flags *flagList*, a list of
-type arguments *typeList*, a list of function signature arguments *funcSigList*,
-a list of value arguments *argList*, an optional exception clause *excClause*
-and a possibly empty keep-alive clause *keepAliveClause* are provided for the
-common instruction. The return value of this instruction is decided by the
-specific common instruction. The semantics is defined by the specific common
-instruction.
+the text form. A list of flags *flagList*, a list of type arguments *typeList*,
+a list of function signature arguments *funcSigList*, a list of value arguments
+*argList*, an optional exception clause *excClause* and a possibly empty
+keep-alive clause *keepAliveClause* are provided for the common instruction. The
+return value of this instruction is decided by the specific common instruction.
+The semantics is defined by the specific common instruction.
 
 The *flagList*, *typeList*, *funcSigList* and *argList* are considered empty
-when omitted in the text form. In the binary form, they start with a length (may
-be zero) followed by that number of items.
+when omitted in the text form.
 
 A ``COMMINST`` instruction must supply as many type arguments and value
 arguments as the specific common instruction requires. A ``COMMINST``

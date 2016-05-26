@@ -5,23 +5,24 @@ Mu Specification
 This document aims to provide a detailed description of Mu, a micro virtual
 machine, including its architecture, instruction set and type system.
 
-This branch uses the goto-with-values form. The previous branch using SSA form
-with PHI nodes is in the `phi
-<https://github.com/microvm/microvm-spec/tree/phi>`__ branch.
+    NOTE: This branch uses the goto-with-values form. The previous branch using
+    SSA form with PHI nodes is in the `phi
+    <https://github.com/microvm/microvm-spec/tree/phi>`__ branch.
 
 Main specification:
 
 - `Overview <overview.rest>`__
 - `Intermediate Representation <uvm-ir.rest>`__
-- `Intermediate Representation (Binary Form) <uvm-ir-binary.rest>`__
+- `Intermediate Representation Binary Form (deprecated) <uvm-ir-binary.rest>`__
 - `Type System <type-system.rest>`__
 - `Instruction Set <instruction-set.rest>`__
 - `Common Instructions <common-insts.rest>`__
-- `Client Interface <uvm-client-interface.rest>`__
+- `Client Interface (a.k.a. The API) <uvm-client-interface.rest>`__
+- `Call-based IR Building API (work in progress) <irbuilder.rest>`__
 - `Threads and Stacks <threads-stacks.rest>`__
 - `Memory and Garbage Collection <uvm-memory.rest>`__
 - `Memory Model <memory-model.rest>`__
-- `Native Interface <native-interface.rest>`__
+- `(Unsafe) Native Interface <native-interface.rest>`__
 - `Heap Allocation and Initialisation Language (HAIL) <hail.rest>`__
 - `Portability and Implementation Advices <portability.rest>`__
 
@@ -29,6 +30,5 @@ Platform-specific parts: These extends the main specification. The main
 specification considers these parts as implementation-specific.
 
 - `AMD64 Unix Native Interface <native-interface-x64-unix.rest>`__
-- `Call-based Mu IR Building API <call-irbuilder.rest>`__
 
 .. vim: tw=80

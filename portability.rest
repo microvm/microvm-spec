@@ -79,11 +79,7 @@ integers, but their lengths are implementation-defined.
 Constants
 =========
 
-An integer constant of type ``T = int<n>`` is required if T is implemented and n
-is at most 64.
-
-    NOTE: The binary representation currently only defines 64-bit literals. This
-    is subject to extension.
+Integer constants of type ``int<n>`` is required for all implemented n.
 
 Float and double constants are required.
 

@@ -14,9 +14,6 @@ constructors.
 By convention, types are written in lower cases. Parameters to types are written
 in angular brackets ``< >``.
 
-The binary form of the type constructors is shown in the table after each type
-constructor.
-
 Type and Data Value
 ===================
 
@@ -70,7 +67,7 @@ The following type constructors are available in Mu:
 
 Parameters of a type are in the angular brackets. They can be integer literals,
 types and function signatures. In the text form, the latter two are global
-names (See `<uvm-ir.rest>`__). In the binary form, they are IDs.
+names (See `<uvm-ir.rest>`__).
 
 There are several kinds of types.
 
@@ -126,16 +123,10 @@ following:
 Integer Type
 ------------
 
-``int < length >``
+``int`` ``<`` *length* ``>``
 
-    ``length``
-        *integer literal*: The length of the integer in bits.
-
-+------+--------+
-| opct | i8     |
-+======+========+
-| 0x01 | length |
-+------+--------+
+length
+    *integer literal*: The length of the integer in bits.
 
 ``int`` is an integer type of *length* bits.
 
@@ -178,19 +169,7 @@ Floating Point Types
 
 ``float``
 
-+------+
-| opct |
-+======+
-| 0x02 |
-+------+
-
 ``double``
-
-+------+
-| opct |
-+======+
-| 0x03 |
-+------+
 
 ``float`` and ``double`` are the IEEE754 single-precision and double-precision
 floating point number type, respectively.
@@ -207,38 +186,14 @@ floating point number type, respectively.
 Reference Types
 ---------------
 
-``ref < T >``
+``ref`` ``<`` *T* ``>``
 
-    ``T``
-        *type*: The type of referent.
+``iref`` ``<`` *T* ``>``
 
-+------+-----+
-| opct | idt |
-+======+=====+
-| 0x04 | T   |
-+------+-----+
+``weakref`` ``<`` *T* ``>``
 
-``iref < T >``
-
-    ``T``
-        *type*: The type of referent.
-
-+------+-----+
-| opct | idt |
-+======+=====+
-| 0x05 | T   |
-+------+-----+
-
-``weakref < T >``
-
-    ``T``
-        *type*: The type of referent.
-
-+------+-----+
-| opct | idt |
-+======+=====+
-| 0x06 | T   |
-+------+-----+
+T
+    *type*: The type of referent.
 
 ``ref`` is an object reference type. A ``ref`` value is a strong reference to a
 heap objects.
@@ -328,16 +283,10 @@ when a ``ref`` is stored to a ``weakref`` location, the location holds a
 Struct
 ------
 
-``struct < T1 T2 ... >``
+``struct`` ``<`` *T1* *T2* *...* ``>``
 
-    ``T1``, ``T2``, ``...``
-        *type*: The type of fields.
-
-+------+---------+-----+-----+-----+
-| opct | lent    | idt | idt | ... |
-+======+=========+=====+=====+=====+
-| 0x07 | nfields | T1  | T2  | ... |
-+------+---------+-----+-----+-----+
+T1, T2, ...
+    *type*: The type of fields.
 
 A ``struct`` is a Cartesian product type of several types. *T1*, *T2*, *...* are
 its **field types**. A ``struct`` must have at least one member. ``struct``
@@ -363,11 +312,12 @@ A ``struct`` cannot have itself as a component.
 ``struct`` cannot be the type of an SSA variable if any of its field types
 cannot be the type of an SSA variable.
 
+..
+
     NOTE: For example, a ``struct`` with a ``weakref`` field cannot be the type
     of an SSA variable. However, there can be references to such structs.
 
-In the binary form, an integer literal ``nfields`` determines the number of
-fields. Exactly that number of type IDs follows the ``nfields`` literal.
+..
 
     For LLVM users: This is the same as LLVM's structure type, except structures
     with a "flexible array member" (a 0-length array as the last element)
@@ -389,18 +339,12 @@ fields. Exactly that number of type IDs follows the ``nfields`` literal.
 Array
 -----
 
-``array < T length >``
+``array`` ``<`` *T* *length* ``>``
 
-    ``T``
-        *type*: The type of elements.
-    ``length``
-        *integer literal*: The number of elements.
-
-+------+-----+--------+
-| opct | idt | aryszt |
-+======+=====+========+
-| 0x08 | T   | length |
-+------+-----+--------+
+T
+    *type*: The type of elements.
+length
+    *integer literal*: The number of elements.
 
 An ``array`` is a sequence of values of the same type. *T* is its **element
 type**, i.e. the type of its elements, and *length* is the length of the array.
@@ -444,18 +388,12 @@ It is not recommended to have SSA variables of ``array`` type.
 Hybrid
 ------
 
-``hybrid < F1 F2 ... V >``
+``hybrid`` ``<`` *F1* *F2* *...* *V* ``>``
 
-    ``F1 F2 ...``
-        *list of types*: The types in the fixed part
-    ``V``
-        *type*: The type of the elements of the variable part
-
-+------+---------+-----+-----+-----+-----+
-| opct | lent    | idt | idt | ... | idt |
-+======+=========+=====+=====+=====+=====+
-| 0x09 | nfields | F1  | F2  | ... | V   |
-+------+---------+-----+-----+-----+-----+
+F1, F2, ...
+    *list of types*: The types in the fixed part
+V
+    *type*: The type of the elements of the variable part
 
 A hybrid is a combination of a fixed-length prefix, i.e. its ``fixed part``, and
 a variable-length array suffix, i.e. its ``variable part``, whose length is
@@ -509,12 +447,6 @@ Void Type
 
 ``void``
 
-+------+
-| opct |
-+======+
-| 0x0A |
-+------+
-
 The ``void`` type has no value.
 
 It can only be used as the type of allocation units that do not store any
@@ -524,19 +456,13 @@ heap object which is not the same as any others. This is similar to the ``new
 Object()`` expression in Java.  ``ref<void>``, ``iref<void>``, ``weakref<void>``
 and ``uptr<void>`` are also allowed, which can refer/point to "anything".
 
-Opaque Reference Type
----------------------
+Function Reference Type
+-----------------------
 
-``funcref < sig >``
+``funcref`` ``<`` *sig* ``>``
 
-    ``sig``
-        *function signature*: The signature of the referred function.
-
-+------+-----+
-| opct | idt |
-+======+=====+
-| 0x0B | sig |
-+------+-----+
+sig
+    *function signature*: The signature of the referred function.
 
 ``funcref`` is a function reference type. It is an opaque reference to a Mu
 function and is not interchangeable with reference types. *sig* is the signature
@@ -567,29 +493,14 @@ A ``NULL`` value of a ``funcref`` type does not refer to any function.
         .typedef @func1 = funcref<@sig1>
         .typedef @func2 = funcref<@sig2>
 
-``threadref``
+Other Opaque Reference Types
+----------------------------
 
-+------+
-| opct |
-+======+
-| 0x0C |
-+------+
+``threadref``
 
 ``stackref``
 
-+------+
-| opct |
-+======+
-| 0x0D |
-+------+
-
 ``framecursorref``
-
-+------+
-| opct |
-+======+
-| 0x12 |
-+------+
 
 ``threadref``, ``stackref`` and ``framecursorref`` are opaque reference types to
 Mu threads, Mu stacks and frame cursors, respectively. They are not
@@ -607,12 +518,6 @@ Tagged Reference
 ----------------
 
 ``tagref64``
-
-+------+
-| opct |
-+======+
-| 0x0E |
-+------+
 
 ``tagref64`` is a union type of ``double``, ``int<52>`` and ``struct<ref<void>
 int<6>``. It occupies 64 bits. A ``tagref64`` value holds both a state which
@@ -645,12 +550,6 @@ Vector Type
         *type*: The type of elements.
     ``length``
         *integer literal*: The number of elements.
-
-+------+-----+--------+
-| opct | idt | lent   |
-+======+=====+========+
-| 0x0F | T   | length |
-+------+-----+--------+
 
 ``vector`` is the vector type for single-instruction multiple-data (SIMD)
 operations. A ``vector`` value is a packed value of multiple values of the same

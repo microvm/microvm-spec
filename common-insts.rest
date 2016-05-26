@@ -356,8 +356,7 @@ ID/name conversion
   must be a global name.
 
 - ``name_of`` converts the ID ``%id`` to its corresponding name. If the name
-  does not exist (if defined in binary only, or it is an instruction without
-  name), it returns ``NULL``. The returned object must not be modified.
+  does not exist, it returns ``NULL``. The returned object must not be modified.
 
 They have undefined behaviours if the name or the ID in the argument do not
 exist, or ``%name`` is ``NULL``.
@@ -371,8 +370,10 @@ Bundle/HAIL loading
     [0x253]@uvm.meta.load_hail   (%buf: @uvm.meta.bytes.r)
 
 ``load_bundle`` and ``load_hail`` loads Mu IR bundles and HAIL scripts,
-respectively. ``%buf`` is the content. The first 4 characters in ``%buf``
-determines whether it is binary or text.
+respectively. ``%buf`` is the content.
+
+    TODO: These comminsts should be made optional, and the IR Builder API should
+    be provided as comminsts, too.
 
 Stack introspection
 -------------------
