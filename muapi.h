@@ -23,21 +23,53 @@ typedef void *MuSeqValue;           // array or vector
 typedef void *MuGenRefValue;        // ref, iref, funcref, threadref, stackref, framecursorref
 
 // concrete value types
-typedef void *MuIntValue;           // int<n>
-typedef void *MuFloatValue;         // float
-typedef void *MuDoubleValue;        // double
-typedef void *MuRefValue;           // ref<T>
-typedef void *MuIRefValue;          // iref<T>
-typedef void *MuStructValue;        // struct<...>
-typedef void *MuArrayValue;         // array<T l>
-typedef void *MuVectorValue;        // vector<T l>
-typedef void *MuFuncRefValue;       // funcref<sig>
-typedef void *MuThreadRefValue;     // threadref
-typedef void *MuStackRefValue;      // stackref
-typedef void *MuFCRefValue;         // framecursorref
-typedef void *MuTagRef64Value;      // tagref64
-typedef void *MuUPtrValue;          // uptr
-typedef void *MuUFPValue;           // ufuncptr
+typedef MuValue MuIntValue;           // int<n>
+typedef MuValue MuFloatValue;         // float
+typedef MuValue MuDoubleValue;        // double
+typedef MuValue MuUPtrValue;          // uptr
+typedef MuValue MuUFPValue;           // ufuncptr
+
+typedef MuSeqValue MuStructValue;     // struct<...>
+typedef MuSeqValue MuArrayValue;      // array<T l>
+typedef MuSeqValue MuVectorValue;     // vector<T l>
+
+typedef MuGenRefValue MuRefValue;           // ref<T>
+typedef MuGenRefValue MuIRefValue;          // iref<T>
+typedef MuGenRefValue MuFuncRefValue;       // funcref<sig>
+typedef MuGenRefValue MuThreadRefValue;     // threadref
+typedef MuGenRefValue MuStackRefValue;      // stackref
+typedef MuGenRefValue MuFCRefValue;         // framecursorref
+typedef MuGenRefValue MuTagRef64Value;      // tagref64
+typedef MuGenRefValue MuIRBuilderRefValue;  // irbuilderref
+typedef MuGenRefValue MuIRNodeRefValue;     // irnoderef
+
+// Subtypes of MuIRNodeRefValue. These are used in the IR Builder API.
+
+// Shorter aliases
+typedef MuIRBuilderRefValue MuIRBuilder;
+typedef MuIRNodeRefValue MuIRNode;
+
+// Abstract node types
+typedef MuIRNode MuVarNode;             // Variable
+typedef MuIRNode MuGlovalVarNode;       // Global variable
+typedef MuIRNode MuLocalVarNode;        // Local variable
+
+// Concrete node types
+typedef MuIRNode MuBundleNode;          // Bundle
+typedef MuIRNode MuTypeNode;            // Type
+typedef MuIRNode MuFuncSigNode;         // Function signature
+typedef MuGlobalVarNode MuConstNode;        // Constant
+typedef MuGlobalVarNode MuGlobalNode;       // Global cell
+typedef MuGlobalVarNode MuFuncNode;         // Function
+typedef MuGlobalVarNode MuExpFuncNode;      // Exposed function
+typedef MuIRNode MuFuncVerNode;         // Function version
+typedef MuIRNode MuBBNode;              // Basic block
+typedef MuLocalVarNode MuNorParamNode;      // Normal parameter
+typedef MuLocalVarNode MuExcParamNode;      // Exception parameter
+typedef MuLocalVarNode MuInstResNode;       // Instruction result
+typedef MuIRNode MuExcClauseNode;       // Exception clause
+typedef MuIRNode MuKeepAliveClauseNode; // Keep-alive clause
+typedef MuIRNode MuDestClauseNode;      // Destination clause
 
 // Identifiers and names of Mu
 typedef uint32_t MuID;
@@ -141,7 +173,7 @@ struct MuVM {
 
 // A local context. It can only be used by one thread at a time. It holds many
 // states which are typically held by a Mu thread, such as object references,
-// local heap allocation pool, and an object-pinning set. It also holds many Mu
+// local heap allocation pool, and an object-pinning set. It also holds many Munew_
 // values and expose them to the client as opaque handles (MuValue and its
 // subtypes).
 struct MuCtx {
@@ -287,6 +319,104 @@ struct MuCtx {
     // Expose Mu functions as native callable things, usually function pointers
     MuValue     (*expose  )(MuCtx *ctx, MuFuncRefValue func, MuCallConv call_conv, MuIntValue cookie);
     void        (*unexpose)(MuCtx *ctx, MuCallConv call_conv, MuValue value);
+
+    // Create an IR builder -- the function style bundle building API
+    MuIRBuilder (*new_ir_builder)(MuCtx *ctx);
+
+    // Close the current context, releasing all resources
+    void        (*close_ir_builder)(MuCtx *ctx, MuIRBuilder *b);
+
+    // Load a bundle built from an IR Builder into the micro VM
+    void        (*load_bundle_load)(MuCtx *ctx, MuIRBuilder *b, MuIRNode bundle);
+
+    // Get a MuIRNode that refers to an existing node that has the "id".
+    MuIRNode    (*get_node  )(MuCtx *ctx, MuIRBuilder *b, MuID id);
+
+    // Get the ID of the IR node.
+    MuID        (*get_id    )(MuCtx *ctx, MuIRBuilder *b, MuIRNode node);
+
+    // Set the name of the IR node. MuName is '\0' terminated char*.
+    void        (*set_name  )(MuCtx *ctx, MuIRBuilder *b, MuIRNode node, MuName name);
+
+    /// Create nodes
+
+    // Create bundle
+    MuIRNode    (*new_bundle)(MuIRBuilder *b);
+
+    /// Create top-level definitions
+    
+    // Create type and add it to the bundle "u"
+    MuTypeNode  (*new_type_int      )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u, int len);
+    MuTypeNode  (*new_type_float    )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u);
+    MuTypeNode  (*new_type_double   )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u);
+    MuTypeNode  (*new_type_uptr     )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u);
+    void        (*populate_uptr     )(MuCtx *ctx, MuIRBuilder b, MuTypeNode uptr, MuTypeNode ty);
+    MuTypeNode  (*new_type_ufuncptr )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u);
+    void        (*populate_ufuncptr )(MuCtx *ctx, MuIRBuilder b, MuTypeNode ufuncptr, MuFuncSigNode sig);
+
+    MuTypeNode  (*new_struct        )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u, MuTypeNode *fieldtys, int nfieldtys);
+    MuTypeNode  (*new_hybrid        )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u, MuTypeNode *fixedtys, int nfixedtys, MuTypeNode varty);
+    MuTypeNode  (*new_array         )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u, MuTypeNode elemty, uint64_t nelemtys);
+    MuTypeNode  (*new_vector        )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u, MuTypeNode elemty, uint64_t nelemtys);
+    MuTypeNode  (*new_void          )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u);
+
+    MuTypeNode  (*new_type_ref      )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u);
+    MuTypeNode  (*populate_ref      )(MuCtx *ctx, MuIRBuilder b, MuTypeNode ref, MuTypeNode ty);
+    MuTypeNode  (*new_type_iref     )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u);
+    void        (*populate_iref     )(MuCtx *ctx, MuIRBuilder b, MuTypeNode iref, MuTypeNode ty);
+    MuTypeNode  (*new_type_weakref  )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u);
+    void        (*populate_weakref  )(MuCtx *ctx, MuIRBuilder b, MuTypeNode weakref, MuTypeNode ty);
+    MuTypeNode  (*new_type_funcref  )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u);
+    void        (*populate_funcref  )(MuCtx *ctx, MuIRBuilder b, MuTypeNode funcref, MuFuncSigNode sig);
+    MuTypeNode  (*new_threadref     )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u);
+    MuTypeNode  (*new_stackref      )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u);
+    MuTypeNode  (*new_framecursorref)(MuCtx *ctx, MuIRBuilder b, MuBundleNode u);
+    MuTypeNode  (*new_irbuilderref  )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u);
+    MuTypeNode  (*new_irnoderef     )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u);
+
+    // Create function signature and add it to the bundle "u"
+    MuFuncSigNode   (*new_funcsig       )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u);
+    void            (*populate_funcsig  )(MuCtx *ctx, MuIRBuilder b, MuTypeNode *paramtys, int nparamtys, MuTypeNode *rettys, int nrettys);
+
+    // Create constant and add it to the bundle "u"
+    // new_int_const works for int<n> (n = 1 to 64), uptr and ufuncptr.
+    MuConstNode (*new_int_const     )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u, MuTypeNode ty, uint64_t value, uint64_t *extra);
+    MuConstNode (*new_float_const   )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u, float value);
+    MuConstNode (*new_double_const  )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u, double value);
+    // new_null_const works for all general reference types, but not uptr or ufuncptr.
+    MuConstNode (*new_null_const    )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u);
+    // new_list_const works for structs, arrays and vectors. Constants are non-recursive, so there is no populate_list_const.
+    MuConstNode (*new_list_const    )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u, MuConstNode *children, int nchildren);
+    
+    // Create global cell and add it to the bundle "u"
+    MuGlobalNode (*new_global_cell  )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u, MuTypeNode ty);
+
+    // Create function node and add it to the bundle "u"
+    MuFuncNode  (*new_func          )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u, MuFuncSigNode sig);
+
+    // Create function version node and add it to bundle "u".
+    // In order to declare and define a new function, the client must create
+    // both a funciton node and a function version node.
+    MuFuncVerNode   (*new_funcver   )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u, MuFuncNode func);
+
+    // Create exposed function node and add it to bundle "u".
+    MuExpFuncNode   (*new_expfunc   )(MuCtx *ctx, MuIRBuilder b, MuBundleNode u, MuFuncNode func, MuCallConv callconv, MuConstNode cookie);
+
+    /// Create CFG
+    
+    // Create basic block and add it to function version "fv". excparam can be NULL.
+    MuBBNode        (*new_bb        )(MuCtx *ctx, MuIRBuilder b, MuFuncVerNode fv);
+
+    // Create a normal parameter node and add it to the basic block "bb".
+    MuNorParamNode  (*new_norparam  )(MuCtx *ctx, MuIRBuilder b, MuBBNode bb, MuTypeNode ty);
+
+    // Create an exception parameter node and add it to the basic block "bb".
+    MuExcParamNode  (*new_excparam  )(MuCtx *ctx, MuIRBuilder b, MuBBNode bb, MuTypeNode ty);
+    
+    /// Create instructions. Instructions are added to the basic block "bb".
+
+    // Create a binary operation instruction
+
 };
 
 #ifdef __cplusplus
