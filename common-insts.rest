@@ -152,7 +152,7 @@ Return the created ``tagref64`` value.
     [0x217]@uvm.tr64.to_fp  (%tr: tagref64) -> double
     [0x218]@uvm.tr64.to_int (%tr: tagref64) -> int<52>
     [0x219]@uvm.tr64.to_ref (%tr: tagref64) -> ref<void>
-    [0x21a]@uvm.tr64.to_ref (%tr: tagref64) -> int<6>
+    [0x21a]@uvm.tr64.to_tag (%tr: tagref64) -> int<6>
 
 - ``to_fp``  returns the FP number held by ``%tr``.
 - ``to_int`` returns the integer held by ``%tr``.
