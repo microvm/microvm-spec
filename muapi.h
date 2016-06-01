@@ -45,27 +45,25 @@ typedef MuGenRefValue MuIRNodeRefValue;     // irnoderef
 // Subtypes of MuIRNodeRefValue. These are used in the IR Builder API.
 
 // Shorter aliases
-typedef MuIRNodeRefValue MuIRNode;
+typedef MuIRNodeRefValue MuIRNode;      // All IR Nodes
 
-// Abstract node types
-typedef MuIRNode MuVarNode;             // Variable
-typedef MuIRNode MuGlobalVarNode;       // Global variable
-typedef MuIRNode MuLocalVarNode;        // Local variable
-
-// Concrete node types
 typedef MuIRNode MuBundleNode;          // Bundle
-typedef MuIRNode MuTypeNode;            // Type
-typedef MuIRNode MuFuncSigNode;         // Function signature
-typedef MuGlobalVarNode MuConstNode;        // Constant
-typedef MuGlobalVarNode MuGlobalNode;       // Global cell
-typedef MuGlobalVarNode MuFuncNode;         // Function
-typedef MuGlobalVarNode MuExpFuncNode;      // Exposed function
-typedef MuIRNode MuFuncVerNode;         // Function version
-typedef MuIRNode MuBBNode;              // Basic block
-typedef MuLocalVarNode MuNorParamNode;      // Normal parameter
-typedef MuLocalVarNode MuExcParamNode;      // Exception parameter
-typedef MuLocalVarNode MuInstResNode;       // Instruction result
-typedef MuIRNode MuInstNode;            // Instruction (itself, not result)
+typedef MuIRNode MuChildNode;           // All children of bundle
+typedef MuChildNode MuTypeNode;             // Type
+typedef MuChildNode MuFuncSigNode;          // Function signature
+typedef MuChildNode MuVarNode;              // Variable
+typedef MuVarNode MuGlobalVarNode;          // Global variable
+typedef MuGlobalVarNode MuConstNode;            // Constant
+typedef MuGlobalVarNode MuGlobalNode;           // Global cell
+typedef MuGlobalVarNode MuFuncNode;             // Function
+typedef MuGlobalVarNode MuExpFuncNode;          // Exposed function
+typedef MuVarNode MuLocalVarNode;           // Local variable
+typedef MuLocalVarNode MuNorParamNode;          // Normal parameter
+typedef MuLocalVarNode MuExcParamNode;          // Exception parameter
+typedef MuLocalVarNode MuInstResNode;           // Instruction result
+typedef MuChildNode MuFuncVerNode;          // Function version
+typedef MuChildNode MuBBNode;               // Basic block
+typedef MuChildNode MuInstNode;             // Instruction (itself, not result)
 
 // Identifiers and names of Mu
 typedef uint32_t MuID;
@@ -405,16 +403,16 @@ struct MuCtx {
     // Call this function before the node is loaded to release all of its resources.
     void        (*abort_bundle_node     )(MuCtx *ctx, MuBundleNode b);
 
-    // Get a MuIRNode that refers to an existing node that has the "id".
+    // Get a MuChildNode that refers to an existing node that has the "id".
     // The returned handle is only usable within the bundle "b".
     // Can only get top-level definitions.
-    MuIRNode    (*get_node  )(MuCtx *ctx, MuBundleNode b, MuID id);
+    MuChildNode (*get_node  )(MuCtx *ctx, MuBundleNode b, MuID id);
 
-    // Get the ID of the IR node "node". "node" must be in the bundle "b".
-    MuID        (*get_id    )(MuCtx *ctx, MuIRNode node);
+    // Get the ID of the IR node "node".
+    MuID        (*get_id    )(MuCtx *ctx, MuChildNode node);
 
     // Set the name of the IR node. MuName is '\0' terminated char*.
-    void        (*set_name  )(MuCtx *ctx, MuIRNode node, MuName name);
+    void        (*set_name  )(MuCtx *ctx, MuChildNode node, MuName name);
 
     /// Create top-level definitions. When created, they are added to the bundle "b".
     
@@ -429,8 +427,8 @@ struct MuCtx {
 
     MuTypeNode  (*new_type_struct   )(MuCtx *ctx, MuBundleNode b, MuTypeNode *fieldtys, int nfieldtys);
     MuTypeNode  (*new_type_hybrid   )(MuCtx *ctx, MuBundleNode b, MuTypeNode *fixedtys, int nfixedtys, MuTypeNode varty);
-    MuTypeNode  (*new_type_array    )(MuCtx *ctx, MuBundleNode b, MuTypeNode elemty, uint64_t nelemtys);
-    MuTypeNode  (*new_type_vector   )(MuCtx *ctx, MuBundleNode b, MuTypeNode elemty, uint64_t nelemtys);
+    MuTypeNode  (*new_type_array    )(MuCtx *ctx, MuBundleNode b, MuTypeNode elemty, uint64_t len);
+    MuTypeNode  (*new_type_vector   )(MuCtx *ctx, MuBundleNode b, MuTypeNode elemty, uint64_t len);
     MuTypeNode  (*new_type_void     )(MuCtx *ctx, MuBundleNode b);
 
     MuTypeNode  (*new_type_ref      )(MuCtx *ctx, MuBundleNode b);
@@ -446,21 +444,24 @@ struct MuCtx {
     MuTypeNode  (*new_type_threadref     )(MuCtx *ctx, MuBundleNode b);
     MuTypeNode  (*new_type_stackref      )(MuCtx *ctx, MuBundleNode b);
     MuTypeNode  (*new_type_framecursorref)(MuCtx *ctx, MuBundleNode b);
-    MuTypeNode  (*new_type_irbuilderref  )(MuCtx *ctx, MuBundleNode b);
     MuTypeNode  (*new_type_irnoderef     )(MuCtx *ctx, MuBundleNode b);
 
     // Create function signatures
     MuFuncSigNode   (*new_funcsig   )(MuCtx *ctx, MuBundleNode b, MuTypeNode *paramtys, int nparamtys, MuTypeNode *rettys, int nrettys);
 
     // Create constants
-    // new_int_const works for int<n>, uptr and ufuncptr. If n > 64, "extra" points to extra words.
-    MuConstNode (*new_int_const     )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, uint64_t value, uint64_t *extra);
-    MuConstNode (*new_float_const   )(MuCtx *ctx, MuBundleNode b, float value);
-    MuConstNode (*new_double_const  )(MuCtx *ctx, MuBundleNode b, double value);
-    // new_null_const works for all general reference types, but not uptr or ufuncptr.
-    MuConstNode (*new_null_const    )(MuCtx *ctx, MuBundleNode b);
-    // new_list_const works for structs, arrays and vectors. Constants are non-recursive, so there is no populate_list_const.
-    MuConstNode (*new_list_const    )(MuCtx *ctx, MuBundleNode b, MuConstNode *children, int nchildren);
+    // new_const_int works for int<n>, uptr and ufuncptr.
+    MuConstNode (*new_const_int     )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, uint64_t value);
+    // new_const_int_ex works for int<n> with n > 64. The number is segmented into 64-bit words, lower word first.
+    MuConstNode (*new_const_int_ex  )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, uint64_t *values, int nvalues);
+    // TODO: There is only one 'float' type and one 'double' type. Theoretically the 'ty' param is unnecessary
+    // It is just added to mirror the text form. Eliminate them when we are ready to change the text form.
+    MuConstNode (*new_const_float   )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, float value);
+    MuConstNode (*new_const_double  )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, double value);
+    // new_const_null works for all general reference types, but not uptr or ufuncptr.
+    MuConstNode (*new_const_null    )(MuCtx *ctx, MuBundleNode b);
+    // new_const_seq works for structs, arrays and vectors. Constants are non-recursive, so there is no populate_list_const.
+    MuConstNode (*new_const_seq     )(MuCtx *ctx, MuBundleNode b, MuConstNode *elems, int nelems);
     
     // Create global cell
     MuGlobalNode (*new_global_cell  )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty);
@@ -488,7 +489,7 @@ struct MuCtx {
     MuNorParamNode  (*new_nor_param )(MuCtx *ctx, MuBBNode bb, MuTypeNode ty);
 
     // Create an exception parameter node and add it to the basic block "bb".
-    MuExcParamNode  (*new_exc_param )(MuCtx *ctx, MuBBNode bb, MuTypeNode ty);
+    MuExcParamNode  (*new_exc_param )(MuCtx *ctx, MuBBNode bb);
 
     // Create an intruction result. It becomes the next result of "inst".
     MuInstResNode   (*new_inst_res  )(MuCtx *ctx, MuInstNode inst);
