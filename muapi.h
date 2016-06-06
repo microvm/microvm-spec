@@ -409,10 +409,10 @@ struct MuCtx {
     MuChildNode (*get_node  )(MuCtx *ctx, MuBundleNode b, MuID id);
 
     // Get the ID of the IR node "node".
-    MuID        (*get_id    )(MuCtx *ctx, MuChildNode node);
+    MuID        (*get_id    )(MuCtx *ctx, MuBundleNode b, MuChildNode node);
 
     // Set the name of the IR node. MuName is '\0' terminated char*.
-    void        (*set_name  )(MuCtx *ctx, MuChildNode node, MuName name);
+    void        (*set_name  )(MuCtx *ctx, MuBundleNode b, MuChildNode node, MuName name);
 
     /// Create top-level definitions. When created, they are added to the bundle "b".
     
@@ -459,9 +459,9 @@ struct MuCtx {
     MuConstNode (*new_const_float   )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, float value);
     MuConstNode (*new_const_double  )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, double value);
     // new_const_null works for all general reference types, but not uptr or ufuncptr.
-    MuConstNode (*new_const_null    )(MuCtx *ctx, MuBundleNode b);
+    MuConstNode (*new_const_null    )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty);
     // new_const_seq works for structs, arrays and vectors. Constants are non-recursive, so there is no populate_list_const.
-    MuConstNode (*new_const_seq     )(MuCtx *ctx, MuBundleNode b, MuConstNode *elems, int nelems);
+    MuConstNode (*new_const_seq     )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, MuConstNode *elems, int nelems);
     
     // Create global cell
     MuGlobalNode (*new_global_cell  )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty);
@@ -552,7 +552,7 @@ struct MuCtx {
     MuInstNode  (*new_swapstack_ret )(MuCtx *ctx, MuBBNode bb, MuVarNode swappee, MuTypeNode *ret_tys, int nret_tys);
     MuInstNode  (*new_swapstack_kill)(MuCtx *ctx, MuBBNode bb, MuVarNode swappee);
 
-    void        (*set_newstack_pass_values)(MuCtx *ctx, MuInstNode inst, MuTypeNode tys, MuVarNode *vars, int nvars);
+    void        (*set_newstack_pass_values)(MuCtx *ctx, MuInstNode inst, MuTypeNode *tys, MuVarNode *vars, int nvars);
     void        (*set_newstack_throw_exc  )(MuCtx *ctx, MuInstNode inst, MuVarNode exc);
 
     MuInstNode  (*new_comminst      )(MuCtx *ctx, MuBBNode bb, MuCommInst opcode,
