@@ -54,17 +54,31 @@ instructions or changing the grammar.
 
 This document uses the following notation::
 
-    [id]@name [F1 F2 ...] < T1 T2 ... > ( p1:t1, p2:t2, ... ) excClause KEEPALIVE -> RTs
+    [id]@name [F1 F2 ...] < T1 T2 ... > <[ sig1 sig2 ... ]> ( p1:t1, p2:t2, ... ) excClause KEEPALIVE -> RTs
     
-``id`` is the ID and ``@name`` is the name. ``F1 F2 ...`` is a list of flags.
-``T1 T2 ...`` is a list of types.  It is the type parameter list. ``p1:t1,
-p2:t2, ...`` is a list of symbolic name and type pair. It is the value parameter
-list with the type of each parameter.  If ``excClause`` or ``KEEPALIVE`` are
-present, they mean that the common instruction accepts exception clause or
-keepalive clause, respectively.  ``RTs`` are the return types. If the type
-parameter list or the value parameter list are omitted, it means the common
-instruction takes no type parameters or value parameters, respectively. If the
-return type is omitted, it returns no results (equivalent to ``-> ()``).
+- ``id`` is the ID and ``@name`` is the name.
+
+- ``[F1 F2 ...]`` is a list of flag parameters.
+
+- ``[T1 T2 ...]`` is a list of type parameters. The users pass types into the
+  common instruction via this list.
+
+- ``<[ sig1 sig2 ... ]>`` is a list of function signature parameters.
+
+- ``(p1:t1, p2:t2, ...)`` is a list of pairs of symbolic name and type.  It is
+  the value parameter list with the type of each parameter. The user only passes
+  values via this list, and the types are only parts of the documentation.
+
+If any of the above list is omitted in this document, it means the respective
+common instruction does not take that kind of parameters.
+
+If ``excClause`` or ``KEEPALIVE`` are present, they mean that the common
+instruction accepts exception clause or keepalive clause, respectively.
+Otherwise the common instruction does not branch to exception destinations nor
+support any keep-alive variables.
+
+``RTs`` are the return types. If the return type is omitted, it means it
+produces no results (equivalent to ``-> ()``).
 
 The names of many common instructions are grouped by prefixes, such as
 ``@uvm.tr64.``. In this document, their common prefixes may be omitted in their

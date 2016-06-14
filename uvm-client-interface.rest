@@ -16,18 +16,29 @@ It is defined in the C programming language. A C header is available here:
 `<muapi.h>`__. Clients can also be written in other languages via language
 bindings, which is beyond this specification.
 
+    **Tools available**: A Python script `muapiparser.py
+    <scripts/muapiparser.py>`__ is available. It parses the `<muapi.h>`__ header
+    and generates a JSON-like tree. Language binding developers can use this
+    script to automatically generate interfaces to higher-level languages.
+
+Most API functions are also available in the form of `instructions
+<instruction-set.rest>`__ (such as ``refcast`` and ``REFCAST``) or `common
+instructions <common-insts.rest>`__ (such as ``new_stack`` and
+``@uvm.new_stack``). See their respective chapters.
+
 Starting Up and Shutting Down
 =============================
 
-How to start a Mu instance or a client is implementation-specific.
+How to start a Mu micro VM instance or a client is implementation-specific.
 
-When the client first gets in touch with a Mu instance, whether there are
-existing types, signatures, constants, global cells or functions already
-defined, declared or exposed, or Mu stacks or Mu threads already created is
+The Mu specification defines some types for using with common instructions, such
+as ``@uvm.meta.byteref``. These types are always available. Whether other types,
+signatures, constants, global cells or functions are already defined, declared
+or exposed, or whether any Mu objects, stacks or Mu threads already created is
 implementation-specific.
 
-How to stop a Mu and/or a client is implementation-specific. Stopping a Mu
-implies stopping all Mu threads in it.
+How to stop a Mu micro VM and/or a client is implementation-specific. Stopping
+the micro VM implies stopping all Mu threads in it.
 
 The Mu Micro VM and Client Contexts
 ===================================
@@ -42,11 +53,12 @@ A Mu instance is represented as a pointer to the struct ``MuVM``::
     typedef struct MuVM MuVM;
 
     struct MuVM {
-        void *header;   // Refer to internal stuff
-        MuCtx*  (*new_context)(MuVM *mvm);
-        MuID    (*id_of  )(MuVM *mvm, MuName name);
-        MuName  (*name_of)(MuVM *mvm, MuID id);
-        void    (*set_trap_handler      )(MuVM *mvm, MuTrapHandler trap_handler, MuCPtr userdata);
+        void   *header;   // Refer to internal stuff
+
+        MuCtx* (*new_context     )(MuVM *mvm);
+        MuID   (*id_of           )(MuVM *mvm, MuName name);
+        MuName (*name_of         )(MuVM *mvm, MuID id);
+        void   (*set_trap_handler)(MuVM *mvm, MuTrapHandler trap_handler, MuCPtr userdata);
     };
 
 The client interacts with Mu for almost all tasks through **client contexts**,
@@ -59,12 +71,13 @@ A client context is represented as a pointer to the struct ``MuCtx``::
     typedef struct MuCtx MuCtx;
 
     struct MuCtx {
-        void *header;   // Refer to internal stuff
-        MuID        (*id_of  )(MuCtx *ctx, MuName name);
-        MuName      (*name_of)(MuCtx *ctx, MuID id);
-        void        (*close_context)(MuCtx *ctx);
-        void        (*load_bundle)(MuCtx *ctx, char *buf, int sz);
-        void        (*load_hail  )(MuCtx *ctx, char *buf, int sz);
+        void   *header;   // Refer to internal stuff
+
+        MuID   (*id_of        )(MuCtx *ctx, MuName name);
+        MuName (*name_of      )(MuCtx *ctx, MuID id);
+        void   (*close_context)(MuCtx *ctx);
+        void   (*load_bundle  )(MuCtx *ctx, char *buf, MuArraySize sz);
+        void   (*load_hail    )(MuCtx *ctx, char *buf, MuArraySize sz);
         ...
     };
     
@@ -101,29 +114,41 @@ can only be used by one client thread at a time.
 It holds Mu values for the client. The values are referred by the client via
 opaque **handles**. Those handles are defined as::
 
-    typedef void *MuValue;              // Any Mu value
-    typedef void *MuIntValue;           // int<n>
-    typedef void *MuFloatValue;         // float
-    typedef void *MuDoubleValue;        // double
-    typedef void *MuRefValue;           // ref<T>
-    typedef void *MuIRefValue;          // iref<T>
-    typedef void *MuStructValue;        // struct<...>
-    typedef void *MuArrayValue;         // array<T l>
-    typedef void *MuVectorValue;        // vector<T l>
-    typedef void *MuFuncRefValue;       // funcref<sig>
-    typedef void *MuThreadRefValue;     // threadref
-    typedef void *MuStackRefValue;      // stackref
-    typedef void *MuFCRefValue;         // framecursorref
-    typedef void *MuTagRef64Value;      // tagref64
-    typedef void *MuUPtrValue;          // uptr
-    typedef void *MuUFPValue;           // ufuncptr
+    // Top value type.
+    typedef void *MuValue;                // Any Mu value
+
+    // Abstract value type.
+    typedef MuValue MuSeqValue;           // array or vector
+    typedef MuValue MuGenRefValue;        // ref, iref, funcref, threadref, stackref, framecursorref, irnoderef
+
+    // concrete value types
+    typedef MuValue MuIntValue;           // int<n>
+    typedef MuValue MuFloatValue;         // float
+    typedef MuValue MuDoubleValue;        // double
+    typedef MuValue MuUPtrValue;          // uptr
+    typedef MuValue MuUFPValue;           // ufuncptr
+
+    typedef MuSeqValue MuStructValue;     // struct<...>
+    typedef MuSeqValue MuArrayValue;      // array<T l>
+    typedef MuSeqValue MuVectorValue;     // vector<T l>
+
+    typedef MuGenRefValue MuRefValue;           // ref<T>
+    typedef MuGenRefValue MuIRefValue;          // iref<T>
+    typedef MuGenRefValue MuTagRef64Value;      // tagref64
+    typedef MuGenRefValue MuFuncRefValue;       // funcref<sig>
+    typedef MuGenRefValue MuThreadRefValue;     // threadref
+    typedef MuGenRefValue MuStackRefValue;      // stackref
+    typedef MuGenRefValue MuFCRefValue;         // framecursorref
+    typedef MuGenRefValue MuIRNodeRefValue;     // irnoderef
 
 Each handle can only hold a Mu value of the type shown in the comments above.
+Since the C programming language does not support user-defined type hierarchies,
+they are not checked by the C compiler, but the users must only pass appropriate
+handles to the appropriate API functions.
+
 Handles have reference semantics: a handle refers to a value the client context
 holds.  Handles can be copied as if they are pointers in C, and the resulting
-handles refer to the same value held by a context. Handles can be cast from
-MuValue to the more concrete type shown above, or the other way, and still refer
-to the same value held by the context.
+handles refer to the same value held by a context.
 
 A handle is only valid within a client context. They must only be accessed with
 API functions that operates on the same context the handle is in. Handles are
@@ -177,6 +202,18 @@ location or other entities.  This means a handle can keep Mu heap objects alive.
     have global references. For that need, consider using global cells
     (``.global`` in the IR) to store shared values and use the appropriate
     atomic access and memory order.
+
+Convention
+==========
+
+In this document, parameters of type ``MuVM*``, ``MuCtx*`` and all subtypes of
+``MuValue`` must no be the C ``NULL`` pointer, or a handle to a Mu ``NULL``
+general reference value, unless explicitly stated otherwise. API functions will
+not return C ``NULL`` pointers unless explicitly stated otherwise.
+
+    NOTE: This is the billion dollar mistake. Language bindings of high-level
+    languages are encouraged to use the ``Option[T]`` type or equivalent, if
+    available.
 
 MuVM Functions
 ==============
@@ -251,8 +288,10 @@ Bundle and HAIL loading
 
 ::
 
-    void        (*load_bundle)(MuCtx *ctx, char *buf, int sz);
-    void        (*load_hail  )(MuCtx *ctx, char *buf, int sz);
+    typedef uintptr_t MuArraySize;
+
+    void        (*load_bundle)(MuCtx *ctx, char *buf, MuArraySize sz);
+    void        (*load_hail  )(MuCtx *ctx, char *buf, MuArraySize sz);
 
 The ``load_bundle`` function loads a Mu IR bundle, and the ``load_hail``
 function loads a HAIL script. The content is held in the memory pointed to by
@@ -283,50 +322,42 @@ Converting values to/from handles
 
 ::
 
-    MuIntValue      (*handle_from_sint8 )(MuCtx *ctx, int8_t   num, int len);
-    MuIntValue      (*handle_from_uint8 )(MuCtx *ctx, uint8_t  num, int len);
-    MuIntValue      (*handle_from_sint16)(MuCtx *ctx, int16_t  num, int len);
-    MuIntValue      (*handle_from_uint16)(MuCtx *ctx, uint16_t num, int len);
-    MuIntValue      (*handle_from_sint32)(MuCtx *ctx, int32_t  num, int len);
-    MuIntValue      (*handle_from_uint32)(MuCtx *ctx, uint32_t num, int len);
-    MuIntValue      (*handle_from_sint64)(MuCtx *ctx, int64_t  num, int len);
-    MuIntValue      (*handle_from_uint64)(MuCtx *ctx, uint64_t num, int len);
-    MuFloatValue    (*handle_from_float )(MuCtx *ctx, float    num);
-    MuDoubleValue   (*handle_from_double)(MuCtx *ctx, double   num);
-    MuUPtrValue     (*handle_from_ptr   )(MuCtx *ctx, MuID mu_type, MuCPtr ptr);
-    MuUFPValue      (*handle_from_fp    )(MuCtx *ctx, MuID mu_type, MuCFP fp);
+    // Convert from C values to Mu values
+    MuIntValue      (*handle_from_sint8  )(MuCtx *ctx, int8_t     num, int len);
+    MuIntValue      (*handle_from_uint8  )(MuCtx *ctx, uint8_t    num, int len);
+    MuIntValue      (*handle_from_sint16 )(MuCtx *ctx, int16_t    num, int len);
+    MuIntValue      (*handle_from_uint16 )(MuCtx *ctx, uint16_t   num, int len);
+    MuIntValue      (*handle_from_sint32 )(MuCtx *ctx, int32_t    num, int len);
+    MuIntValue      (*handle_from_uint32 )(MuCtx *ctx, uint32_t   num, int len);
+    MuIntValue      (*handle_from_sint64 )(MuCtx *ctx, int64_t    num, int len);
+    MuIntValue      (*handle_from_uint64 )(MuCtx *ctx, uint64_t   num, int len);
+    MuIntValue      (*handle_from_uint64s)(MuCtx *ctx, uint64_t *nums, MuArraySize nnums, int len);
+    MuFloatValue    (*handle_from_float  )(MuCtx *ctx, float      num);
+    MuDoubleValue   (*handle_from_double )(MuCtx *ctx, double     num);
+    MuUPtrValue     (*handle_from_ptr    )(MuCtx *ctx, MuID mu_type, MuCPtr ptr);
+    MuUFPValue      (*handle_from_fp     )(MuCtx *ctx, MuID mu_type, MuCFP fp);
 
 where ``MuCPtr`` and ``MuCFP`` are convenient definitions for C types::
 
     typedef void *MuCPtr;
-    typedef void (*MuCFP)();
+    typedef void _MuCFP_Func();
+    typedef _MuCFP_Func* MuCFP;     // it is void(*)()
 
-The ``handle_from_XXX`` functions convert C values to Mu values held in the
-context and return handles to them. Specifically:
+The ``handle_from_XintYY`` functions convert C integers to Mu int values.  ``X``
+can be ``s`` or ``u``, means the C value is signed or unsigned, respectively.
+``YY`` is the number of bits in the C value.
 
-* ``handle_from_sint8``:     Convert a C ``int8_t`` value to a Mu integer of
-  type ``int<len>``, truncated or sign-extended.
+The ``handle_from_uint64s`` function converts an array of ``uint64_t`` values
+into a single Mu int value. ``nums`` points to the array and ``nnums`` is the
+length of the array. Lower 64-bit words are stored in lower indices (little
+endian).
 
-* ``handle_from_uint8``:    Convert a C ``uint8_t`` value to a Mu integer of
-  type ``int<len>``, truncated or zero-extended.
+The ``len`` parameter is the length of the Mu int value, i.e. the ``n`` in
+``int<n>``. If the length of the C value is different from the Mu type, it will
+be truncated or extended. It is sign-extended for signed C types or
+zero-extended for unsigned C types.
 
-* ``handle_from_sint16``:    Convert a C ``int16_t`` value to a Mu integer of
-  type ``int<len>``, truncated or sign-extended.
-
-* ``handle_from_uint16``:   Convert a C ``uint64_t`` value to a Mu integer of
-  type ``int<len>``, truncated or zero-extended.
-
-* ``handle_from_sint32``:    Convert a C ``int32_t`` value to a Mu integer of
-  type ``int<len>``, truncated or sign-extended.
-
-* ``handle_from_uint32``:   Convert a C ``uint64_t`` value to a Mu integer of
-  type ``int<len>``, truncated or zero-extended.
-
-* ``handle_from_sint64``:    Convert a C ``int64_t`` value to a Mu integer of
-  type ``int<len>``, truncated or sign-extended.
-
-* ``handle_from_uint64``:   Convert a C ``uint64_t`` value to a Mu integer of
-  type ``int<len>``, truncated or zero-extended.
+Other functions are:
 
 * ``handle_from_float``:    Convert a C ``float`` value to a Mu ``float`` value.
 
@@ -367,29 +398,13 @@ context and return handles to them. Specifically:
 
 The ``handle_to_XXX`` functions convert Mu values to C values. Specifically:
 
-* ``handle_to_sint8``: Convert a Mu ``int`` value to a C ``int8_t`` value,
-  truncated or sign-extended.
+The ``handle_to_XintYY`` functions convert Mu int values to C integers. ``X``
+can be ``s`` or ``u``, means the C value is signed or unsigned, respectively.
+``YY`` is the number of bits in the C value. If the length of the Mu value is
+different from the C type, it will be truncated or extended. It is sign-extended
+for signed C types or zero-extended for unsigned C types.
 
-* ``handle_to_uint8``: Convert a Mu ``int`` value to a C ``uint8_t`` value,
-  truncated or zero-extended.
-
-* ``handle_to_sint16``: Convert a Mu ``int`` value to a C ``int16_t`` value,
-  truncated or sign-extended.
-
-* ``handle_to_uint16``: Convert a Mu ``int`` value to a C ``uint16_t`` value,
-  truncated or zero-extended.
-
-* ``handle_to_sint32``: Convert a Mu ``int`` value to a C ``int32_t`` value,
-  truncated or sign-extended.
-
-* ``handle_to_uint32``: Convert a Mu ``int`` value to a C ``uint32_t`` value,
-  truncated or zero-extended.
-
-* ``handle_to_sint64``: Convert a Mu ``int`` value to a C ``int64_t`` value,
-  truncated or sign-extended.
-
-* ``handle_to_uint64``: Convert a Mu ``int`` value to a C ``uint64_t`` value,
-  truncated or zero-extended.
+Other functions are:
 
 * ``handle_to_float``: Convert a Mu ``float`` value to a C ``float`` value.
 
@@ -461,8 +476,10 @@ Reference type comparison
 
 ::
 
-    int         (*ref_eq )(MuCtx *ctx, MuValue lhs,     MuValue rhs);
-    int         (*ref_ult)(MuCtx *ctx, MuIRefValue lhs, MuIRefValue rhs);
+    typedef int MuBool;
+
+    MuBool      (*ref_eq )(MuCtx *ctx, MuGenRefValue lhs, MuGenRefValue rhs);
+    MuBool      (*ref_ult)(MuCtx *ctx, MuIRefValue lhs,   MuIRefValue rhs);
 
 The ``ref_eq`` function compares two values of general reference type for
 equality according to the semantics of the ``EQ`` instruction. Both ``lhs`` and
@@ -488,8 +505,8 @@ Aggregate type operations
 
     MuValue     (*extract_value)(MuCtx *ctx, MuStructValue str, int index);
     MuValue     (*insert_value )(MuCtx *ctx, MuStructValue str, int index, MuValue newval);
-    MuValue     (*extract_element)(MuCtx *ctx, MuValue seq, MuIntValue index);
-    MuValue     (*insert_element )(MuCtx *ctx, MuValue seq, MuIntValue index, MuValue newval);
+    MuValue     (*extract_element)(MuCtx *ctx, MuSeqValue str, MuIntValue index);
+    MuSeqValue  (*insert_element )(MuCtx *ctx, MuSeqValue str, MuIntValue index, MuValue newval);
 
 These functions manipulates values of composite types. Specifically,
 
@@ -603,39 +620,39 @@ Memory accessing
     MuValue     (*load     )(MuCtx *ctx, MuMemOrd ord, MuIRefValue loc);
     void        (*store    )(MuCtx *ctx, MuMemOrd ord, MuIRefValue loc, MuValue newval);
     MuValue     (*cmpxchg  )(MuCtx *ctx, MuMemOrd ord_succ, MuMemOrd ord_fail,
-                        int weak, MuIRefValue loc, MuValue expected, MuValue desired,
-                        int *is_succ);
-    MuValue     (*atomicrmw)(MuCtx *ctx, MuMemOrd ord, MuAtomicRMWOp op,
+                        MuBool weak, MuIRefValue loc, MuValue expected, MuValue desired,
+                        MuBool *is_succ);
+    MuValue     (*atomicrmw)(MuCtx *ctx, MuMemOrd ord, MuAtomicRMWOptr op,
                         MuIRefValue loc, MuValue opnd);
     void        (*fence    )(MuCtx *ctx, MuMemOrd ord);
 
 where::
 
-    // Memory orders
-    typedef int MuMemOrd;
+    typedef uint32_t MuFlag;
 
-    #define MU_NOT_ATOMIC  0x00
-    #define MU_RELAXED     0x01
-    #define MU_CONSUME     0x02
-    #define MU_ACQUIRE     0x03
-    #define MU_RELEASE     0x04
-    #define MU_ACQ_REL     0x05
-    #define MU_SEQ_CST     0x06
+    // Memory orders
+    typedef MuFlag MuMemOrd;
+    #define MU_ORD_NOT_ATOMIC   ((MuMemOrd)0x00)
+    #define MU_ORD_RELAXED      ((MuMemOrd)0x01)
+    #define MU_ORD_CONSUME      ((MuMemOrd)0x02)
+    #define MU_ORD_ACQUIRE      ((MuMemOrd)0x03)
+    #define MU_ORD_RELEASE      ((MuMemOrd)0x04)
+    #define MU_ORD_ACQ_REL      ((MuMemOrd)0x05)
+    #define MU_ORD_SEQ_CST      ((MuMemOrd)0x06)
 
     // Operations for the atomicrmw API function
-    typedef int MuAtomicRMWOp;
-
-    #define MU_XCHG        0x00
-    #define MU_ADD         0x01
-    #define MU_SUB         0x02
-    #define MU_AND         0x03
-    #define MU_NAND        0x04
-    #define MU_OR          0x05
-    #define MU_XOR         0x06
-    #define MU_MAX         0x07
-    #define MU_MIN         0x08
-    #define MU_UMAX        0x09
-    #define MU_UMIN        0x0A
+    typedef MuFlag MuAtomicRMWOptr;
+    #define MU_ARMW_XCHG    ((MuAtomicRMWOptr)0x00)
+    #define MU_ARMW_ADD     ((MuAtomicRMWOptr)0x01)
+    #define MU_ARMW_SUB     ((MuAtomicRMWOptr)0x02)
+    #define MU_ARMW_AND     ((MuAtomicRMWOptr)0x03)
+    #define MU_ARMW_NAND    ((MuAtomicRMWOptr)0x04)
+    #define MU_ARMW_OR      ((MuAtomicRMWOptr)0x05)
+    #define MU_ARMW_XOR     ((MuAtomicRMWOptr)0x06)
+    #define MU_ARMW_MAX     ((MuAtomicRMWOptr)0x07)
+    #define MU_ARMW_MIN     ((MuAtomicRMWOptr)0x08)
+    #define MU_ARMW_UMAX    ((MuAtomicRMWOptr)0x09)
+    #define MU_ARMW_UMIN    ((MuAtomicRMWOptr)0x0A)
 
 * ``load`` performs a *load* operation with arguments (``ord``, *T*, ``loc``).
 
@@ -657,12 +674,16 @@ reference ``loc``. The type of ``newval``, ``expected``, ``desired``, ``opnd``
 and the return values of ``store``, ``cmpxchg`` and ``atomicrmw`` is the strong
 variant of *T* (``weakref<T>`` becomes ``ref<T>``).
 
-These instructions are guaranteed to be compatible with the Mu memory model.
+In the case where *T* is a general reference type, ``newval``, ``expected``,
+``desired``, ``opnd`` and the return values may be handles to the Mu ``NULL``
+value.
+
+The semantics of these instructions are defined by the Mu memory model.
 
 ..
 
     For C users: Functions in ``stdatomic.h`` may be implemented in a way
-    incompatible with Mu.
+    incompatible with Mu. This is implementation-defined.
 
     For JNI users: ``load`` and ``store`` are similar to ``Get<type>Field`` and
     ``Set<type>Field``.
@@ -672,39 +693,35 @@ Stack and thread operations
 
 ::
 
+    // Thread and stack creation and stack destruction
     MuStackRefValue     (*new_stack )(MuCtx *ctx, MuFuncRefValue func);
-    MuThreadRefValue    (*new_thread)(MuCtx *ctx, MuStackRefValue stack,
+    MuThreadRefValue    (*new_thread_nor)(MuCtx *ctx, MuStackRefValue stack,
                             MuRefValue threadlocal,
-                            MuHowToResume htr, MuValue *vals, int nvals,
+                            MuValue *vals, MuBool nvals);
+    MuThreadRefValue    (*new_thread_exc)(MuCtx *ctx, MuStackRefValue stack,
+                            MuRefValue threadlocal,
                             MuRefValue exc);
     void                (*kill_stack)(MuCtx *ctx, MuStackRefValue stack);
 
+    // Thread-local object reference
     void        (*set_threadlocal)(MuCtx *ctx, MuThreadRefValue thread,
                     MuRefValue threadlocal);
     MuRefValue  (*get_threadlocal)(MuCtx *ctx, MuThreadRefValue thread);
-
-    typedef int MuHowToResume;
-    #define MU_REBIND_PASS_VALUES   0x01
-    #define MU_REBIND_THROW_EXC     0x02
 
 ``new_stack`` creates a new Mu stack with ``func`` as the bottom function.
 Returns a stackref to the new stack. The stack-bottom frame will resume from the
 very beginning of ``func`` when resumed, and its state is **READY<Ts>**, where
 *Ts* is the parameter types of ``func``.
 
-``new_thread`` creates a new Mu thread and binds it to ``stack``. Returns a
-threadref to the new thread. ``stack`` must be in the **READY<Ts>** state for
-some types *Ts*. ``*htr`` determines how to bind to the stack. Possible values
-are
+``new_thread_nor`` and ``new_thread_exc`` create a new Mu thread and binds it to
+``stack``. Returns a threadref to the new thread. ``stack`` must be in the
+**READY<Ts>** state for some types *Ts*.
 
-- ``MU_REBIND_PASS_VALUES``: Pass the first ``nvals`` values in the ``vals``
-  array to the stack. ``exc`` is ignored. The types of the values must match the
-  *Ts* types of the stack state.
+- ``new_thread_nor`` passes values to the stack. ``vals`` points to the array of
+  values, and ``nvals`` is the length of the array.  The types of the values
+  must match the *Ts* types of the stack state.
 
-- ``MU_REBIND_THROW_EXC``: Throw the exception ``exc`` to the stack. ``vals``
-  and ``nvals`` are ignored.
-  
-In either case, the ignored MuValue arguments can be the C ``NULL`` pointer.
+- ``new_thread_exc`` throws the exception ``exc`` to the stack.
 
 The ``threadlocal`` parameter is the initial thread-local reference of the new
 thread. If it is a C ``NULL`` pointer, it is equivalent to a Mu ``NULL`` object
@@ -713,8 +730,6 @@ reference.
 ``kill_stack`` kills the ``stack``. The stack must be in the **READY<Ts>** state
 for some *Ts*.  The stack enters the **DEAD** state.  If the stack contains
 native frames, the behaviour is implementation-defined.
-
-``func`` and ``stack`` must not be ``NULL``.
 
     For Lua users: ``new_stack`` is similar to ``coroutine.create``.
     ``new_thread`` is similar to ``coroutine.resume``, but actually creates a
@@ -746,8 +761,6 @@ Stack introspection
     MuFCRefValue    (*copy_cursor )(MuCtx *ctx, MuFCRefValue cursor);
     void            (*close_cursor)(MuCtx *ctx, MuFCRefValue cursor);
 
-In all cases, ``cursor`` and ``stack`` cannot be ``NULL``.
-
 * ``new_cursor`` allocates a frame cursor, referring to the top frame of
   ``stack``. Returns the frame cursor reference.
 
@@ -766,9 +779,7 @@ In all cases, ``cursor`` and ``stack`` cannot be ``NULL``.
     MuID        (*cur_inst       )(MuCtx *ctx, MuFCRefValue cursor);
     void        (*dump_keepalives)(MuCtx *ctx, MuFCRefValue cursor, MuValue *results);
 
-These functions operate on the frame referred by ``cursor``. In all cases,
-``cursor`` cannot be the Mu value ``NULL``, and ``results`` cannot be the C
-pointer ``NULL``.
+These functions operate on the frame referred by ``cursor``. 
 
 * ``cur_func`` returns the ID of the frame. Returns 0 if the frame is native.
 
@@ -783,6 +794,8 @@ pointer ``NULL``.
   current instruction of the frame. If the function is undefined, the arguments
   are the keep-alive variables. Cannot be used on native frames.  As many
   handles as the keep-alive variables are written in the ``results`` array.
+  Values returned in this array may be handles to ``NULL`` values if the
+  respective local variable is ``NULL``.
 
 ..
 
@@ -809,8 +822,6 @@ On-stack replacement
 
     void        (*pop_frames_to)(MuCtx *ctx, MuFCRefValue cursor);
     void        (*push_frame   )(MuCtx *ctx, MuStackRefValue stack, MuFuncRefValue func);
-
-``cursor``, ``stack`` and ``func`` cannot be ``NULL``.
 
 * ``pop_frames_to`` pops all frames above ``cursor``.
 
@@ -848,7 +859,8 @@ Return 1 or 0 for true or false.
 
 - ``tr64_to_fp``  returns the FP number held by ``value``.
 - ``tr64_to_int`` returns the integer held by ``value``.
-- ``tr64_to_ref`` returns the reference held by ``value``.
+- ``tr64_to_ref`` returns the reference held by ``value``, may be a handle to
+  the ``NULL`` value.
 - ``tr64_to_tag`` returns the integer tag held by ``value`` that accompanies the
   reference.
 
@@ -864,7 +876,7 @@ expected type.
 - ``tr64_from_fp``  creates a ``tagref64`` value from an FP number ``value``.
 - ``tr64_from_int`` creates a ``tagref64`` value from an integer ``value``.
 - ``tr64_from_ref`` creates a ``tagref64`` value from a reference ``ref`` and
-  the integer tag ``tag``.
+  the integer tag ``tag``. ``ref`` may be a handle to the ``NULL`` value.
 
 Return the created ``tagref64`` value.
 
@@ -873,8 +885,10 @@ Watchpoint operations
 
 ::
 
-    void        (*enable_watchpoint )(MuCtx *ctx, int wpid);
-    void        (*disable_watchpoint)(MuCtx *ctx, int wpid);
+    typedef uint32_t MuWPID;
+
+    void        (*enable_watchpoint )(MuCtx *ctx, MuWPID wpid);
+    void        (*disable_watchpoint)(MuCtx *ctx, MuWPID wpid);
 
 * ``enable_watchpoint`` enables all watchpoints of ID ``wpid``.
 * ``disable_watchpoint`` disables all watchpoints of ID ``wpid``.
@@ -921,9 +935,8 @@ Exposing Mu functions for native callback
 
 where::
 
-    typedef int MuCallConv;
-
-    #define MU_DEFAULT     0x00
+    typedef MuFlag MuCallConv;
+    #define MU_CC_DEFAULT   ((MuCallConv)0x00)
 
 * ``expose`` exposes a Mu function ``func`` according to the calling convention
   ``call_conv``. ``cookie`` is the attached cookie. The return value is specific
@@ -938,7 +951,7 @@ and unexpose. See the platform-specific native interface for the return value
 type.
 
 Implementations may define other calling conventions in addition to
-``MU_DEFAULT``.
+``MU_CC_DEFAULT``.
 
 Trap Handling
 =============
@@ -959,26 +972,39 @@ The Mu thread that triggers the trap is temporarily unbound from the stack.
 
 The signature of trap handlers is::
 
-    typedef void (*MuTrapHandler)(MuCtx *ctx, MuThreadRefValue thread,
-            MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
-            MuStackRefValue *new_stack, MuValue **values, int *nvalues,
-            MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
+    // Signature of the trap handler
+    typedef void _MuTrapHandler_Func(
+            // input parameters
+            MuCtx *ctx,
+            MuThreadRefValue thread,
+            MuStackRefValue stack,
+            MuWPID wpid,
+            // output parameters
+            MuTrapHandlerResult *result,
+            MuStackRefValue *new_stack,
+            MuValue **values,
+            MuArraySize *nvalues,
+            MuValuesFreer *freer,
+            MuCPtr *freerdata,
+            MuRefValue *exception,
+            // input parameter (userdata)
             MuCPtr userdata);
 
 where::
 
-    typedef int MuTrapHandlerResult;
+    typedef MuFlag MuTrapHandlerResult;
 
-    #define MU_THREAD_EXIT          0x00
-    #define MU_REBIND_PASS_VALUES   0x01
-    #define MU_REBIND_THROW_EXC     0x02
+    #define MU_THREAD_EXIT          ((MuTrapHandlerResult)0x00)
+    #define MU_REBIND_PASS_VALUES   ((MuTrapHandlerResult)0x01)
+    #define MU_REBIND_THROW_EXC     ((MuTrapHandlerResult)0x02)
 
-    typedef void (*MuValueFreer)(MuValue *values, MuCPtr freerdata);
+    typedef void _MuValuesFreer_Func(MuValue *values, MuCPtr freerdata);
+    typedef _MuValuesFreer_Func* MuValuesFreer;
 
 ``ctx`` is a new client context created for this particular trap event.
 ``thread`` is a threadref to the thread that causes the trap. ``stack`` is
 stackref to the stack the thread was bound to when trap happened. Both
-``thread`` and ``stack`` are held by ``ctx``. ``wpid`` is the watchpoint ID if
+``thread`` and ``stack`` are held by ``ctx``. ``wpid`` is the watch point ID if
 it is caused by a ``WATCHPOINT`` instruction, or 0 if by ``TRAP``. ``userdata``
 is the pointer provided when registering the handler.
 
@@ -1008,6 +1034,11 @@ Before returning, the trap handler should set ``*result``:
 
 In all cases, if ``*new_stack``, any value in ``*values``, and/or ``*exception``
 are used, they must be set and must be held by ``ctx``.
+
+Building Mu IR Bundles
+======================
+
+See `IR Builder <irbuilder.rest>`__ for this part of the API.
 
 Signal Handling
 ===============
