@@ -1,213 +1,613 @@
-=============================
-Call-based Mu IR Building API
-=============================
+======================================
+Function Call-based Mu IR Building API
+======================================
 
-**This API needs to be reviewed to make sure it satisfies both the micro VM
-implementers and the users.**
+This chapter describes the function call-based Mu IR building API. It is part of
+the `Mu Client Interface <uvm-client-interface.rest>`__.
 
-Purpose
-=======
+The C functions and types are also defined in `<muapi.h>`__.
 
-This is to support more traditional LLVM-style IR building API. Nodes of the IR
-are constructed by API function calls, and the micro VM receives a **node** of
-the bundle rather than text- or binary-encoded IR.
+Purpose and the Principles of Design
+====================================
+
+There must be a way for the client to load Mu IR bundles into the micro VM.
 
 Both text- or binary-encoded IR require parsers, which is difficult to verify.
-This API will make it easy to implement in a way such that as soon as the micro
-VM receives a bundle, it is in the micro VM's native format and is readily
-usable.
+This API, instead, consists of a set of functions rather than well-known data
+format.
 
-This document defines a "*canonical*" API in the C language. Implementations
-*may* implement the API in different languages. Implementations may choose to
-(but not forced to) implement their API by calling the canonical C API
-underneath, or by any implementation-specific interfaces not defined by this
-specification, or other ways possible, as long as their API can accomplish the
-task of delivering the bundle to the micro VM.
+In this API, the client builds the Mu IR bundle by calling API functions. Each
+function creates an AST node inside the micro VM and gives the client an opaque
+handle to it, or modify existing AST nodes by adding more children to them. When
+finished building, the client calls another API function
+(``load_bundle_from_node``) to tell the micro VM to load the bundle.
 
-Principle of Design
-===================
+    For LLVM users: Like the LLVM API, the client creates nodes by invoking
+    functions. But in Mu, AST nodes are held within the micro VM, and is opaque
+    to the client.
 
-* **Minimalism**: This API is minimal, just like any other parts of the micro
-  VM. Higher-level convenient functions or objects (such as the ``IRBuilder<>``
-  class in LLVM) should be **designed** at a higher level. There is not a single
-  high-level API that satisfies all clients.
+All API functions are also available as `common instructions
+<common-insts.rest>`__.
 
-* **Performance does not matter**: The priority goes to the verifiability of the
-  micro VM itself. Eliminating the parser within Mu is the main gain. It does
-  not matter as long as the cost of function calls are reasonable. (When the C
-  API is called from a foreign language, the cost may be higher than serialising
-  the IR node tree to an intermediate form. Even so, we would like to trade
-  performance of that particular case with verifiability.)
+This API is minimal, just like other parts of the Mu Client API. For example,
+the AST is only mutable in certain ways (such as appending instructions in the
+end of a basic block, but not deleting instructions), so it is not suitable to
+be used by the client for arbitrary transformations. However, clients or
+middle-wares may provide higher-level abstractions over this API, such as
+supporting non-SSA forms, or supporting other serialisable forms such as the
+text form. Currently the API still accepts text-form IR, but in the future we
+plan to move it outside the micro VM.
 
 Overview
 ========
 
-A ``MuIRBuilder`` object is created and owned by a ``MuCtx``::
+There are many function pointers in the ``MuCtx`` struct::
 
-    typedef void* MuIRNode;
+    struct MuCtx {
 
-    typedef struct MuIRBuilder MuIRBuilder;
-    typedef struct MuIRBuilder {
-        void *header;
+        // more members here
 
-        // Close the builder
-        void (*close_builder)(MuIRBuilder *b);
+        /// IR Builder API from here on.
+        MuBundleNode    (*new_bundle)(MuCtx *ctx);
 
-        // Load a bundle into the micro VM
-        void (*load_bundle)(MuIRBuilder *b, MuIRNode bundle);
+        void        (*load_bundle_from_node )(MuCtx *ctx, MuBundleNode b);
+        void        (*abort_bundle_node     )(MuCtx *ctx, MuBundleNode b);
 
-        // Create node.
-        MuIRNode (*new_node)(MuIRBuilder *b, MuNodeType node_type);
+        MuChildNode (*get_node  )(MuCtx *ctx, MuBundleNode b, MuID id);
 
-        // Refer to existing nodes
-        MuIRNode (*get_node)(MuIRBuilder *b, MuID id);
+        MuID        (*get_id    )(MuCtx *ctx, MuBundleNode b, MuChildNode node);
 
-        // Get the ID of the node.
-        MuID (*get_id)(MuIRBuilder *b, MuIRNode node);
+        void        (*set_name  )(MuCtx *ctx, MuBundleNode b, MuChildNode node, MuName name);
 
-        // Set the name of the node. MuName is '\0' terminated char*.
-        void (*set_name)(MuIRBuilder *b, MuIRNode node, MuName name);
+        MuTypeNode  (*new_type_int      )(MuCtx *ctx, MuBundleNode b, int len);
+        MuTypeNode  (*new_type_float    )(MuCtx *ctx, MuBundleNode b);
+        MuTypeNode  (*new_type_double   )(MuCtx *ctx, MuBundleNode b);
+        MuTypeNode  (*new_type_uptr     )(MuCtx *ctx, MuBundleNode b);
 
-        // Functions to populate IR nodes.
-        void (*populate_type_int) (MuIRBuilder *b, MuTypeInt  ty, int length);
-        void (*populate_type_ref) (MuIRBuilder *b, MuTypeRef  ty, MuIRNode referent_ty);
-        void (*populate_type_iref)(MuIRBuilder *b, MuTypeIRef ty, MuIRNode referent_ty);
-        ... // more populaters here...
-
-        void (*populate_func_sig)    (MuIRBuilder *b, MuFuncSig sig,
-                int nparams, int nrets, MuIRNode *param_tys, MuIRNode *ret_tys);
-        void (*populate_global_cell) (MuIRBuilder *b, MuGlobalCell g, MuIRNode type);
-        void (*populate_function)    (MuIRBuilder *b, MuFunction f, MuFuncSig sig);
-        ... // more populaters here...
-
-        void (*populate_inst_binop)  (MuIRBuilder *b, MuInstBinOp i, MuBinOptr optr, MuIRNode op1, MuIRNode op2, MuExcClause exc)
-        void (*populate_inst_cmp)    (MuIRBuilder *b, MuInstcmp   i, MuCmpOptr optr, MuIRNode op1, MuIRNode op2)
-        ... // more populaters here...
+        // more functions here ...
     };
 
-The type ``MuIRNode`` is an abstract handle to a Mu IR node. It is owned by the
-``MuIRBuilder`` that creates it and should only be used by that ``MuIRBuilder``. 
+The ``irnoderef`` Type
+----------------------
 
-The IR builder uses a two-step node construction method:
+IR nodes are referenced by Mu values of primitive type ``irnoderef``.
 
-1. All nodes are created by the ``new_node`` function. The ``node_type``
-   specifies the concrete node type.
+In the C API, it is represented by the handle type ``MuIRNodeRefValue``.
+``MuIRNode`` is its alias.
 
-2. All nodes are (if necessary), populated by the ``populate_*`` functions,
-   which fills in their fields.
+There are typedefs for different kinds of IR nodes. They are all aliases to
+``MuIRNodeRefValue``. They are created to assist humans, but the C programming
+language cannot check the types for the client.
 
-This allows nodes to be cyclic. If node ``A`` refers to node ``B`` and node
-``B`` also refers to node ``A``, then both ``A`` and ``B`` must be created by
-``new_node`` before they are populated, at which time they are linked with each
-other.
+``MuBundleNode``, ``MuChildNode``, ``MuTypeNode``, etc. are its subtypes. They
+are only supposed to refer to nodes of their specified type in the comments::
 
-The ID of each node is generated automatically. The builder guarantees the ID do
-not conflict with any existing IDs. The ID can be obtained by the ``get_id``
-function. The names are assigned by the client by the ``set_name`` function.
+    typedef MuGenRefValue MuIRNodeRefValue;     // irnoderef
 
-The client usually need to refer to predefined node in the micro VM, nodes
-created by the client before, or loaded from the text or binary IR. The
-``get_node`` function gets a handle to that node.
+    // Subtypes of MuIRNodeRefValue. These are used in the IR Builder API.
 
-After a bundle is built, the client can call the ``load_bundle`` function to
-load the ``MuBundle`` node.
+    // Shorter aliases
+    typedef MuIRNodeRefValue MuIRNode;      // All IR Nodes
 
-IR Nodes
-========
+    // IR node reference hierarchy
+    typedef MuIRNode MuBundleNode;          // Bundle
 
-The following is a list of IR nodes::
+    // NOTE: All MuChildNode can have ID (ctx->get_id) and name (ctx->set_name)
+    typedef MuIRNode MuChildNode;           // All children of bundle
+    typedef MuChildNode MuTypeNode;             // Type
+    typedef MuChildNode MuFuncSigNode;          // Function signature
+    typedef MuChildNode MuVarNode;              // Variable
+    typedef MuVarNode MuGlobalVarNode;          // Global variable
+    typedef MuGlobalVarNode MuConstNode;            // Constant
+    typedef MuGlobalVarNode MuGlobalNode;           // Global cell
+    typedef MuGlobalVarNode MuFuncNode;             // Function
+    typedef MuGlobalVarNode MuExpFuncNode;          // Exposed function
+    typedef MuVarNode MuLocalVarNode;           // Local variable
+    typedef MuLocalVarNode MuNorParamNode;          // Normal parameter
+    typedef MuLocalVarNode MuExcParamNode;          // Exception parameter
+    typedef MuLocalVarNode MuInstResNode;           // Instruction result
+    typedef MuChildNode MuFuncVerNode;          // Function version
+    typedef MuChildNode MuBBNode;               // Basic block
+    typedef MuChildNode MuInstNode;             // Instruction (itself, not result)
+ 
+All ``MuChildNode`` subtypes are "identified entities" (see `Mu IR
+<uvm-ir.rest>`__). They have IDs and optionally names. The ID of each
+``MuChildNode`` is generated automatically.  The ID can be obtained by the
+``get_id`` function. The names are assigned by the client by the ``set_name``
+function.
 
-    #define MU_FOR_ALL_NODE(F) \
-        F(MuBundle) \
-        F(MuTypeInt) \
-        F(MuTypeFloat) \
-        F(MuTypeDouble) \
-        F(MuTypeUPtr) \
-        F(MuTypeUFP) \
-        F(MuTypeRef) \
-        F(MuTypeIRef) \
-        F(MuTypeWeakRef) \
-        F(MuTypeStruct) \
-        F(MuTypeArray) \
-        F(MuTypeVector) \
-        F(MuTypeHybrid) \
-        F(MuTypeVoid) \
-        F(MuTypeFuncRef) \
-        F(MuTypeThreadRef) \
-        F(MuTypeStackRef) \
-        F(MuTypeFrameCursorRef) \
-        F(MuTypeTagRef64) \
-        F(MuFuncSig) \
-        F(MuConstInt) \
-        F(MuConstFloat) \
-        F(MuConstDouble) \
-        F(MuConstNull) \
-        F(MuConstList) \
-        F(MuGlobalCell) \
-        F(MuFunction) \
-        F(MuFuncVer) \
-        F(MuExpFunc) \
-        F(MuBasicBlock) \
-        F(MuNorParam) \
-        F(MuExcParam) \
-        F(MuResult) \
-        F(MuInstBinOp) \
-        F(MuInstCmp) \
-        F(MuInstConv) \
-        F(MuInstSelect) \
-        F(MuInstBranch) \
-        F(MuInstBranch2) \
-        F(MuInstSwitch) \
-        F(MuInstCall) \
-        F(MuInstTailCall
-        F(MuInstRet) \
-        F(MuInstThrow) \
-        F(MuInstExtractValue) \
-        F(MuInstInsertValue) \
-        F(MuInstExtractElement) \
-        F(MuInstInsertElement) \
-        F(MuInstShuffleVector) \
-        F(MuInstNew) \
-        F(MuInstNewHybrid) \
-        F(MuInstAlloca) \
-        F(MuInstAllocaHybrid) \
-        F(MuInstGetIRef) \
-        F(MuInstGetFieldIRef) \
-        F(MuInstGetElemIRef) \
-        F(MuInstShiftIRef) \
-        F(MuInstGetVarPartIRef) \
-        F(MuInstLoad) \
-        F(MuInstStore) \
-        F(MuInstCmpXchg) \
-        F(MuInstAtmoicRMW) \
-        F(MuInstFence) \
-        F(MuInstTrap) \
-        F(MuInstWatchPoint) \
-        F(MuInstWPBranch) \
-        F(MuInstCCall) \
-        F(MuInstNewThread) \
-        F(MuInstSwapStack) \
-        F(MuInstCommInst)
+How to Use
+----------
 
-There is a typedef for each node to make them an alias of MuIRNode::
+The **bundle** node is created by the ``new_bundle`` function::
 
-    #define MU_F(t) typedef MuIRNode t;
-    MU_FOR_ALL_NODE(MU_F)
-    #undef MU_F
+    MuBundleNode b = ctx->new_bundle(ctx);
 
-``MuNodeType`` is an enum type::
+Top-level nodes are created by their respective functions. They take the bundle
+as argument, which means they are added to the bundle on creation::
 
-    typedef enum MuNodeType MuNodeType;
-    typedef enum MuNodeType {
-        Mu_NodeTypeStart = 0,
-        #define MU_F(t) t Mu_##t,
-        Mu_NodeTypeEnd
-    };
-    #undef MU_F
+    MuTypeNode i1   = ctx->new_type_int(ctx, b, 1);
+    MuTypeNode i8   = ctx->new_type_int(ctx, b, 8);
+    MuTypeNode i32  = ctx->new_type_int(ctx, b, 32);
+    MuTypeNode i64  = ctx->new_type_int(ctx, b, 64);
 
-Node Populaters
-===============
+**IDs** are automatically generated. IDs of the node can be obtained by the
+``get_id`` function::
 
-TODO
+    MuID i32_id  = ctx->get_id(ctx, b, i32);
+
+And the **name** can be set by the ``set_name`` function::
+
+    ctx->set_name(ctx, b, i32, "@i32");
+
+All nodes can just work without names, but names may provide extra debug
+information if the implementation supports.
+
+When finished creating a bundle, use the ``load_bundle_from_node`` function to
+**load** it::
+
+    ctx->load_bundle_from_node(ctx, b);
+
+Or if the client want to **cancel** the bundle building process, use the
+``abort_bundle_node`` function::
+
+    ctx->abort_bundle_node(ctx, b);
+
+Both ``load_bundle_from_node`` and ``abort_bundle_node`` will **invalidate all
+references to all nodes in the bundle**! This also prevents getting the IDs or
+setting names of invalidated node references. If the client wants the ID, it
+should do it before loading::
+
+    MuBundleNode b = ctx->new_bundle(ctx);
+    MuTypeNode i32 = ctx->new_type_int(ctx, b, 32);
+    MuID i32_id    = ctx->get_id(ctx, b, i32);      // Get the ID
+    ctx->load_bundle_from_node(ctx, b);             // before loading.
+    
+When creating subsequent bundles, it may refer to nodes in already-loaded
+bundles. Use the ``get_node`` function to get a reference::
+
+    // Building the second bundle
+    MuBundleNode b2 = ctx->new_bundle(ctx);
+    MuTypeNode i32  = (MuTypeNode)ctx->get_node(ctx, b2, i32_id);
+
+IR node references obtained in this way can *only* be used in the bundle
+specified by the parameter of the ``get_node`` function.
+
+Some nodes are created in more than one steps. For example, the ``ref<T>`` type
+is created in **two steps**::
+
+    MuTypeNode refi32 = ctx->new_type_ref(ctx, b2);
+    ctx->set_type_ref(ctx, refi32, i32);
+
+The first step creates the type and the second type sets the referent type. In
+this way, the client can create recursive types, such as linked list.
+
+To *define* a **function**, two nodes need to be created: A function and a
+function version::
+
+    MuFuncSigNode sig = .....
+
+    MuFuncNode    func    = ctx->new_func(ctx, b2, sig);
+    MuFuncVerNode funcver = ctx->new_func_ver(ctx, b2, func);
+
+If only the ``MuFuncNode`` is defined, it will *declare* a function without
+defining it.
+
+**Basic blocks** can be added to the function version. Basic blocks have
+**parameters**. They need to be added to the basic block, too::
+
+    MuBasicBlock entry = ctx->new_bb(ctx, funcver);
+    MuNorParam p0 = ctx->new_nor_param(ctx, entry, i32);
+    MuNorParam p1 = ctx->new_nor_param(ctx, entry, i32);
+
+**Instructions** can be added to basic blocks. NOTE that the **results of
+instructions are separate IR nodes**! They have to be added separately::
+
+    // The ADD instruction produces one result.
+    MuInstNode    add   = ctx->new_binop(ctx, entry, MU_BINOP_ADD, i32, p0, p1);
+    MuInstResNode add_r = ctx->new_inst_res(ctx, add);
+
+    // Mu functions may return multiple return values.
+    MuVarNode     args[]  = { xxx, xxx, xxx };
+    MuInstNode    call    = ctx->new_call(ctx, entry, some_sig, some_func, args, 3);
+    MuInstResNode call_r0 = ctx->new_inst_res(ctx, call);
+    MuInstResNode call_r1 = ctx->new_inst_res(ctx, call);
+    MuInstResNode call_r2 = ctx->new_inst_res(ctx, call);
+    MuInstResNode call_r3 = ctx->new_inst_res(ctx, call);
+
+Unlike the text form, the **exception clauses** are just destinations. For
+instructions that may have exception clauses, if you set the normal destination,
+you must also set the exceptional destination::
+
+    MuVarNode nordestargs[] = { xxx, xxx };
+    ctx->add_dest(ctx, call, MU_DEST_NORMAL, some_bb, nordestargs, 2);
+    
+    MuVarNode excdestargs[] = { xxx };
+    ctx->add_dest(ctx, call, MU_DEST_EXCEPT, other_bb, excdestargs, 1);
+
+Other instructions have destinations, too, such as the ``BRANCH2`` instruction::
+
+    MuInstNode br2 = new_branch2(ctx, funcver, some_condition);
+
+    MuVarNode truedestargs[] = { xxx, xxx, xxx, xxx };
+    ctx->add_dest(ctx, br2, MU_DEST_TRUE, if_true_bb, truedestargs, 4);
+
+    MuVarNode falsedestargs[] = { xxx, xxx, xxx, xxx, xxx };
+    ctx->add_dest(ctx, br2, MU_DEST_FALSE, if_false_bb, truedestargs, 5);
+
+The contents of the arrays are **copied** into the micro VM, so the client may
+free those arrays after calling the API functions. The micro VM and the client
+do not share data other than handles.
+
+API Functions
+=============
+
+Common Conventions
+------------------
+
+Like the rest of the Mu Client API, all functions take a ``MuCtx*`` as the first
+parameter, and other parameters of handle types (subtypes of ``MuValue``,
+including all ``MuIRNode`` subtypes), must be created by that ``MuCtx``.
+
+All array parameters also have their length passed via another parameter. For
+example, ``MuTypeNode* fieldtys`` in ``new_type_struct`` is followed by
+``MuArraySize nfieldtys`` which is the length of the ``fieldtys`` array.
+
+::
+
+    typedef uintptr_t MuArraySize;
+    
+If the array pointer argument (such as ``fieldtys``) is a C ``NULL`` pointer, it
+means the array is empty. In this case, the micro VM will disregard the length
+argument (such as ``nfieldtys``).
+
+There is one exception: ``MuName`` is ``char*``, but it is ``'\0'``-terminated
+ASCII string.
+
+Flag Types
+----------
+
+Many functions (such as ``new_inst_binop``) have enumeration-like arguments
+(such as ``MuBinOptr`` and its values ``MU_BINOP_ADD``, ``MU_BINOP_SUB``, etc.).
+In `<muapi.h>`__, these types are defined to be integers and these constants are
+defined as macros::
+
+    typedef uint32_t MuFlag;
+
+..
+
+    NOTE: In C, the ``enum`` definition will create constants of ``int`` types,
+    but implementations may extend the lengths and introduce potential ABI
+    compatibility problems. For this reason, we chose to explicitly use a
+    predictable int type ``uint32_t``.
+
+Basic Functions
+---------------
+
+::
+
+    MuBundleNode    (*new_bundle)(MuCtx *ctx);
+    
+``new_bundle`` creates a new Mu IR bundle.
+
+::
+
+    void        (*load_bundle_from_node )(MuCtx *ctx, MuBundleNode b);
+    void        (*abort_bundle_node     )(MuCtx *ctx, MuBundleNode b);
+
+``load_bundle_from_node`` loads the bundle ``b`` into the micro VM.
+``abort_bundle_node`` discards the bundle ``b``. Both functions invalidate all
+``irnoderef`` references in the bundle.
+
+::
+    
+    MuChildNode (*get_node  )(MuCtx *ctx, MuBundleNode b, MuID id);
+
+``get_node`` creates a reference to an IR node **already loaded** into the micro
+VM. ``id`` is the ID of that node. IR node reference created by this function
+can only be used in the bundle ``b``.
+
+::
+
+    MuID        (*get_id    )(MuCtx *ctx, MuBundleNode b, MuChildNode node);
+
+``get_id`` gets the ID of the node ``node`` in bundle ``b``. ``b`` must not have
+been loaded.
+
+::
+
+    void        (*set_name  )(MuCtx *ctx, MuBundleNode b, MuChildNode node, MuName name);
+    
+``set_name`` sets the name of the node ``node`` to ``name``. ``node`` must be in
+bundle ``b``, which must not be loaded.
+
+Creating Type Nodes
+-------------------
+
+::
+
+    MuTypeNode  (*new_type_int      )(MuCtx *ctx, MuBundleNode b, int len);
+    MuTypeNode  (*new_type_float    )(MuCtx *ctx, MuBundleNode b);
+    MuTypeNode  (*new_type_double   )(MuCtx *ctx, MuBundleNode b);
+    MuTypeNode  (*new_type_uptr     )(MuCtx *ctx, MuBundleNode b);
+    void        (*set_type_uptr     )(MuCtx *ctx, MuTypeNode uptr, MuTypeNode ty);
+    MuTypeNode  (*new_type_ufuncptr )(MuCtx *ctx, MuBundleNode b);
+    void        (*set_type_ufuncptr )(MuCtx *ctx, MuTypeNode ufuncptr, MuFuncSigNode sig);
+
+    MuTypeNode  (*new_type_struct   )(MuCtx *ctx, MuBundleNode b, MuTypeNode *fieldtys, MuArraySize nfieldtys);
+    MuTypeNode  (*new_type_hybrid   )(MuCtx *ctx, MuBundleNode b, MuTypeNode *fixedtys, MuArraySize nfixedtys, MuTypeNode varty);
+    MuTypeNode  (*new_type_array    )(MuCtx *ctx, MuBundleNode b, MuTypeNode elemty, uint64_t len);
+    MuTypeNode  (*new_type_vector   )(MuCtx *ctx, MuBundleNode b, MuTypeNode elemty, uint64_t len);
+    MuTypeNode  (*new_type_void     )(MuCtx *ctx, MuBundleNode b);
+
+    MuTypeNode  (*new_type_ref      )(MuCtx *ctx, MuBundleNode b);
+    void        (*set_type_ref      )(MuCtx *ctx, MuTypeNode ref, MuTypeNode ty);
+    MuTypeNode  (*new_type_iref     )(MuCtx *ctx, MuBundleNode b);
+    void        (*set_type_iref     )(MuCtx *ctx, MuTypeNode iref, MuTypeNode ty);
+    MuTypeNode  (*new_type_weakref  )(MuCtx *ctx, MuBundleNode b);
+    void        (*set_type_weakref  )(MuCtx *ctx, MuTypeNode weakref, MuTypeNode ty);
+    MuTypeNode  (*new_type_funcref  )(MuCtx *ctx, MuBundleNode b);
+    void        (*set_type_funcref  )(MuCtx *ctx, MuTypeNode funcref, MuFuncSigNode sig);
+    MuTypeNode  (*new_type_tagref64 )(MuCtx *ctx, MuBundleNode b);
+
+    MuTypeNode  (*new_type_threadref     )(MuCtx *ctx, MuBundleNode b);
+    MuTypeNode  (*new_type_stackref      )(MuCtx *ctx, MuBundleNode b);
+    MuTypeNode  (*new_type_framecursorref)(MuCtx *ctx, MuBundleNode b);
+    MuTypeNode  (*new_type_irnoderef     )(MuCtx *ctx, MuBundleNode b);
+
+The ``new_type_T`` functions create a node for the Mu type ``T``, and add it to
+the bundle ``b``. Some functions take extra parameters:
+
+- ``new_type_int``: ``len`` is the length of the integer.
+- ``new_type_struct``: ``fieldtys`` points to an array of field types.
+  ``nfieldtypes`` is the length of the array.
+- ``new_type_hybrid``: ``fixedtys`` points to an array of types in the fixed
+  part. ``nfixedtypes`` is the length of the array. ``varty`` is the type of the
+  variable part.
+- ``new_type_array`` and ``new_type_vector``: ``elemty`` is the type of the
+  element, and ``len`` is the length of the array or vector.
+
+The ``set_type_T`` functions fill in more details of types. These types are
+references or pointers. The second parameter of these functions is the type to
+modify. The last parameter is the data type, or the signature of the function
+they refer to.
+
+Creating Function Signature Nodes
+---------------------------------
+
+::
+
+    MuFuncSigNode   (*new_funcsig   )(MuCtx *ctx, MuBundleNode b, MuTypeNode *paramtys, MuArraySize nparamtys, MuTypeNode *rettys, MuArraySize nrettys);
+
+``new_funcsig`` creates a function signature node and add it to the bundle
+``b``. ``paramtys`` and ``rettys`` point to its parameter types and return
+types, and their lengths are ``nparamtys`` and ``nrettys``, respectively.
+
+Creating Constant Nodes
+-----------------------
+
+::
+
+    MuConstNode (*new_const_int     )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, uint64_t value);
+    MuConstNode (*new_const_int_ex  )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, uint64_t *values, MuArraySize nvalues);
+    MuConstNode (*new_const_float   )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, float value);
+    MuConstNode (*new_const_double  )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, double value);
+    MuConstNode (*new_const_null    )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty);
+    MuConstNode (*new_const_seq     )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, MuConstNode *elems, MuArraySize nelems);
+
+These functions create constant nodes and add them to the bundle ``b``.
+
+- ``new_const_int`` and ``new_const_int_ex`` create an integer constant. These
+  functions are applicable for ``int``, ``uptr`` and ``ufuncptr`` types. ``ty``
+  is the type of the constant.
+  
+  - ``new_const_int`` is used if the size of the constant is less than or equal
+    to 64 bits. ``value`` is the value. If the Mu type has less than 64 bits, it
+    will be truncated.
+
+  - ``new_const_int_ex`` is used if the size of the constant is greater than 64
+    bits. The value is segmented into 64-bit words from the least significant
+    bits. Lower words are stored first in the ``values`` array, whose length is
+    ``nvalues``. The value is truncated if the size of the Mu type is not a
+    multiple of 64 bits.
+
+- ``new_const_float`` and ``new_const_double`` create constants of the
+``float`` type and the ``double`` type, respectively. ``ty`` must be
+``float`` or ``double``. ``value`` is the value.
+
+- ``new_const_null`` creates a ``NULL`` constant of general reference types.
+``ty`` is the type and must be a general reference type.
+
+- ``new_const_seq`` can create constants of ``struct``, ``array`` or
+``vector`` types. ``ty`` is the type. ``elems`` points to an array of other
+constants which are the fields or elements. ``nelems`` is the length of the
+array, and must match the actual number of fields or elements of the type.
+
+All constants are created in one step, because constants cannot be recursive.
+
+Creating Other Top-level Nodes
+------------------------------
+
+::
+
+    MuGlobalNode  (*new_global_cell)(MuCtx *ctx, MuBundleNode b, MuTypeNode ty);
+    MuFuncNode    (*new_func       )(MuCtx *ctx, MuBundleNode b, MuFuncSigNode sig);
+    MuExpFuncNode (*new_exp_func   )(MuCtx *ctx, MuBundleNode b, MuFuncNode func, MuCallConv callconv, MuConstNode cookie);
+
+- ``new_global_cell`` creates a global cell node and adds it to the bundle
+  ``b``.  ``ty`` is its type.
+
+- ``new_func`` creates a function node and adds it to the bundle ``b``. ``sig``
+  is its signature. If a function node is created but the function version node
+  is not, it declares a function without definition.
+
+- ``new_exp_func`` creates an exposed function node and adds it to the bundle
+  ``b``. ``func`` is the function to expose; ``callconv`` is the calling
+  convention; ``cookie`` is the cookie.
+
+The calling conventions are defined as::
+
+    typedef MuFlag MuCallConv;
+    #define MU_CC_DEFAULT   ((MuCallConv)0x00)
+
+Creating the Control Flow Graph of a Function Version
+-----------------------------------------------------
+
+::
+
+    MuFuncVerNode   (*new_func_ver  )(MuCtx *ctx, MuBundleNode b, MuFuncNode func);
+
+The ``new_func_ver`` function creates a function version for function ``func``
+and adds it to the bundle ``b``.
+
+``func`` may be created in the current bundle, and may also be created in a
+previous bundle already loaded. In order to define a previously declared
+function, or redefine an existing function, the client should use the
+``get_node`` function to get a handle to the function.
+
+..
+
+    Example::
+
+        MuFuncNode old_func   = ctx->get_node(ctx, b, the_id_of_the_old_func);
+        MuFuncVerNode new_ver = ctx->new_func_ver(ctx, b, old_func);
+
+:: 
+    
+    MuBBNode        (*new_bb        )(MuCtx *ctx, MuFuncVerNode fv);
+    MuNorParamNode  (*new_nor_param )(MuCtx *ctx, MuBBNode bb, MuTypeNode ty);
+    MuExcParamNode  (*new_exc_param )(MuCtx *ctx, MuBBNode bb);
+    
+- ``new_bb`` creates a basic block node and adds it to the function version
+  ``fv``. The first block added to a function version is the entry block.
+
+- ``new_nor_param`` adds a new normal parameter to a basic block. ``ty`` is the
+  type of the parameter.
+
+- ``new_exc_param`` adds an exceptional parameter to the basic block. A basic
+  block has at most one exceptional parameter.
+
+::
+    
+    MuInstResNode   (*new_inst_res  )(MuCtx *ctx, MuInstNode inst);
+
+``new_inst_res`` creates an instruction result node and adds it to the
+instruction ``inst``. Each instruction must have **exactly** as many result
+nodes as the number of results it produces.
+
+::
+
+    void    (*add_dest      )(MuCtx *ctx, MuInstNode inst, MuDestKind kind, MuBBNode dest, MuVarNode *vars, MuArraySize nvars);
+
+    typedef MuFlag MuDestKind;
+    #define MU_DEST_NORMAL      ((MuDeskKind)0x01)
+    #define MU_DEST_EXCEPT      ((MuDeskKind)0x02)
+    #define MU_DEST_TRUE        ((MuDeskKind)0x03)
+    #define MU_DEST_FALSE       ((MuDeskKind)0x04)
+    #define MU_DEST_DEFAULT     ((MuDeskKind)0x05)
+    #define MU_DEST_DISABLED    ((MuDeskKind)0x06)
+    #define MU_DEST_ENABLED     ((MuDeskKind)0x07)
+
+``add_dest`` adds a destination clause to an instruction. ``dest`` is the basic
+block to branch to. ``vars`` points to an array of the arguments to that basic
+block, and ``nvars`` is its length.
+
+``kind`` can be one of the following:
+
+- ``MU_DEST_NORMAL``: For the ``BRANCH`` instruction, it is the only
+  destination; for all other instructions that may have exception clauses, it is
+  the normal destination.
+
+- ``MU_DEST_EXCEPT``: For instructions with exception clauses and the
+  ``WATCHPOINT`` instruction, it is the exceptional destination.
+
+- ``MU_DEST_TRUE``: Only used for ``BRAHCH2``. It is the destination if the
+  condition is true.
+
+- ``MU_DEST_FALSE``: Only used for ``BRAHCH2``. It is the destination if the
+  condition is false.
+
+- ``MU_DEST_DEFAULT``: Only used for ``SWITCH``. It is the destination for all
+  other values not covered by any of its cases.
+
+- ``MU_DEST_DISABLED``: For ``WATCHPOINT`` and ``WPBRANCH``, it is the
+  destination when the watch point is disabled.
+
+- ``MU_DEST_ENABLED``: For ``WATCHPOINT``, it is the normal destination when the
+  watch point is enabled; for ``WPBRANCH``, it is the destination when the watch
+  point is enabled.
+
+::
+
+    void    (*add_keepalives)(MuCtx *ctx, MuInstNode inst, MuLocalVarNode *vars, MuArraySize nvars);
+
+``add_keepalives`` adds keep-alive variables to the instruction ``inst``.
+``inst`` must be an OSR point. ``vars`` points to the array of keep-alive
+variables, and ``nvars`` is its length. This function can only be called once
+per instruction.
+
+Creating Instructions
+---------------------
+
+TODO: Document all instruction-creating API functions.
+
+::
+
+    MuInstNode  (*new_binop         )(MuCtx *ctx, MuBBNode bb, MuBinOptr  optr,    MuTypeNode ty,      MuVarNode  opnd1, MuVarNode opnd2);
+    MuInstNode  (*new_cmp           )(MuCtx *ctx, MuBBNode bb, MuCmpOptr  optr,    MuTypeNode ty,      MuVarNode  opnd1, MuVarNode opnd2);
+    MuInstNode  (*new_conv          )(MuCtx *ctx, MuBBNode bb, MuConvOptr optr,    MuTypeNode from_ty, MuTypeNode to_ty, MuVarNode opnd);
+    MuInstNode  (*new_select        )(MuCtx *ctx, MuBBNode bb, MuTypeNode cond_ty, MuTypeNode opnd_ty, MuVarNode  cond,  MuVarNode if_true, MuVarNode if_false);
+
+    MuInstNode  (*new_branch        )(MuCtx *ctx, MuBBNode bb);
+    MuInstNode  (*new_branch2       )(MuCtx *ctx, MuBBNode bb, MuVarNode cond);
+    MuInstNode  (*new_switch        )(MuCtx *ctx, MuBBNode bb, MuTypeNode opnd_ty, MuVarNode opnd);
+    void        (*add_switch_dest   )(MuCtx *ctx, MuInstNode sw, MuConstNode key, MuBBNode dest, MuVarNode *vars, MuArraySize nvars);
+
+    MuInstNode  (*new_call          )(MuCtx *ctx, MuBBNode bb, MuFuncSigNode sig, MuVarNode callee, MuVarNode *args, MuArraySize nargs);
+    MuInstNode  (*new_tailcall      )(MuCtx *ctx, MuBBNode bb, MuFuncSigNode sig, MuVarNode callee, MuVarNode *args, MuArraySize nargs);
+    MuInstNode  (*new_ret           )(MuCtx *ctx, MuBBNode bb, MuVarNode *rvs, MuArraySize nrvs);
+    MuInstNode  (*new_throw         )(MuCtx *ctx, MuBBNode bb, MuVarNode exc);
+
+    MuInstNode  (*new_extractvalue  )(MuCtx *ctx, MuBBNode bb, MuTypeNode strty, int index,         MuVarNode opnd);
+    MuInstNode  (*new_insertvalue   )(MuCtx *ctx, MuBBNode bb, MuTypeNode strty, int index,         MuVarNode opnd, MuVarNode newval);
+    MuInstNode  (*new_extractelement)(MuCtx *ctx, MuBBNode bb, MuTypeNode seqty, MuTypeNode indty,  MuVarNode opnd, MuVarNode index);
+    MuInstNode  (*new_insertelement )(MuCtx *ctx, MuBBNode bb, MuTypeNode seqty, MuTypeNode indty,  MuVarNode opnd, MuVarNode index, MuVarNode newval);
+    MuInstNode  (*new_shufflevector )(MuCtx *ctx, MuBBNode bb, MuTypeNode vecty, MuTypeNode maskty, MuVarNode vec1, MuVarNode vec2,  MuVarNode mask);
+
+    MuInstNode  (*new_new           )(MuCtx *ctx, MuBBNode bb, MuTypeNode allocty);
+    MuInstNode  (*new_newhybrid     )(MuCtx *ctx, MuBBNode bb, MuTypeNode allocty, MuTypeNode lenty, MuVarNode length);
+    MuInstNode  (*new_alloca        )(MuCtx *ctx, MuBBNode bb, MuTypeNode allocty);
+    MuInstNode  (*new_allocahybrid  )(MuCtx *ctx, MuBBNode bb, MuTypeNode allocty, MuTypeNode lenty, MuVarNode length);
+
+    MuInstNode  (*new_getiref       )(MuCtx *ctx, MuBBNode bb, MuTypeNode refty, MuVarNode opnd);
+    MuInstNode  (*new_getfieldiref  )(MuCtx *ctx, MuBBNode bb, MuBool is_ptr, MuTypeNode refty, int index, MuVarNode opnd);
+    MuInstNode  (*new_getelemiref   )(MuCtx *ctx, MuBBNode bb, MuBool is_ptr, MuTypeNode refty, MuTypeNode indty, MuVarNode opnd, MuVarNode index);
+    MuInstNode  (*new_shiftiref     )(MuCtx *ctx, MuBBNode bb, MuBool is_ptr, MuTypeNode refty, MuTypeNode offty, MuVarNode opnd, MuVarNode offset);
+    MuInstNode  (*new_getvarpartiref)(MuCtx *ctx, MuBBNode bb, MuBool is_ptr, MuTypeNode refty, MuVarNode opnd);
+
+    MuInstNode  (*new_load          )(MuCtx *ctx, MuBBNode bb, MuBool is_ptr, MuMemOrd ord, MuTypeNode refty,   MuVarNode loc);
+    MuInstNode  (*new_store         )(MuCtx *ctx, MuBBNode bb, MuBool is_ptr, MuMemOrd ord, MuTypeNode refty,   MuVarNode loc,     MuVarNode newval);
+    MuInstNode  (*new_cmpxchg       )(MuCtx *ctx, MuBBNode bb, MuBool is_ptr, MuBool is_weak,  MuMemOrd ord_succ,  MuMemOrd ord_fail, MuTypeNode refty, MuVarNode loc, MuVarNode expected, MuVarNode desired);
+    MuInstNode  (*new_atomicrmw     )(MuCtx *ctx, MuBBNode bb, MuBool is_ptr, MuMemOrd ord, MuAtomicRMWOptr optr, MuTypeNode refTy,  MuVarNode loc,    MuVarNode opnd);
+    MuInstNode  (*new_fence         )(MuCtx *ctx, MuBBNode bb, MuMemOrd ord);
+    
+    MuInstNode  (*new_trap          )(MuCtx *ctx, MuBBNode bb, MuTypeNode *rettys, MuArraySize nrettys);
+    MuInstNode  (*new_watchpoint    )(MuCtx *ctx, MuBBNode bb, MuWPID wpid, MuTypeNode *rettys, MuArraySize nrettys);
+    MuInstNode  (*new_wpbranch      )(MuCtx *ctx, MuBBNode bb, MuWPID wpid);
+
+    MuInstNode  (*new_ccall         )(MuCtx *ctx, MuBBNode bb, MuCallConv callconv, MuTypeNode callee_ty, MuFuncSigNode sig, MuVarNode callee, MuVarNode *args, MuArraySize nargs);
+
+    MuInstNode  (*new_newthread     )(MuCtx *ctx, MuBBNode bb, MuVarNode stack, MuVarNode threadlocal);
+    MuInstNode  (*new_swapstack_ret )(MuCtx *ctx, MuBBNode bb, MuVarNode swappee, MuTypeNode *ret_tys, MuArraySize nret_tys);
+    MuInstNode  (*new_swapstack_kill)(MuCtx *ctx, MuBBNode bb, MuVarNode swappee);
+
+    void        (*set_newstack_pass_values)(MuCtx *ctx, MuInstNode inst, MuTypeNode *tys, MuVarNode *vars, MuArraySize nvars);
+    void        (*set_newstack_throw_exc  )(MuCtx *ctx, MuInstNode inst, MuVarNode exc);
+
+    MuInstNode  (*new_comminst      )(MuCtx *ctx, MuBBNode bb, MuCommInst opcode,
+                                        MuFlag        *flags, MuArraySize nflags,
+                                        MuTypeNode    *tys,   MuArraySize ntys,
+                                        MuFuncSigNode *sigs,  MuArraySize nsigs,
+                                        MuVarNode     *args,  MuArraySize nargs);
 
 .. vim: tw=80
