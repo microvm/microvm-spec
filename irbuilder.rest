@@ -303,9 +303,9 @@ Basic Functions
     
     MuChildNode (*get_node  )(MuCtx *ctx, MuBundleNode b, MuID id);
 
-``get_node`` creates a reference to an IR node **already loaded** into the micro
-VM. ``id`` is the ID of that node. IR node reference created by this function
-can only be used in the bundle ``b``.
+``get_node`` creates a reference to a top-level definition node **already
+loaded** into the micro VM. ``id`` is the ID of that node. IR node reference
+created by this function can only be used in the bundle ``b``.
 
 ::
 
